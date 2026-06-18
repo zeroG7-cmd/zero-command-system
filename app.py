@@ -1,6 +1,6 @@
 from flask import Flask, render_template
 
-from modules.logger import (
+from modules.rnd_operations import (
     get_total_tests,
     get_passed_tests,
     get_failed_tests,
