@@ -11,6 +11,3 @@ SHADOW_DB = os.path.abspath(
         "shadow.db"
     )
 )
-
-print("SHADOW_DB PATH:", SHADOW_DB)
-print("DATABASE EXISTS:", os.path.exists(SHADOW_DB))
