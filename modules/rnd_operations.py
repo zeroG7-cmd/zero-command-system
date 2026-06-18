@@ -20,7 +20,7 @@ def get_passed_tests():
     cursor.execute("""
         SELECT COUNT(*)
         FROM test_logs
-        WHERE result = 'PASS'
+        WHERE LOWER(result) = 'pass'
     """)
 
     total = cursor.fetchone()[0]
@@ -36,7 +36,7 @@ def get_failed_tests():
     cursor.execute("""
         SELECT COUNT(*)
         FROM test_logs
-        WHERE result = 'FAIL'
+        WHERE LOWER(result) = 'fail'
     """)
 
     total = cursor.fetchone()[0]

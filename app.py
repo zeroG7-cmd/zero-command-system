@@ -1,16 +1,23 @@
-import os
+from flask import Flask, render_template
 
-BASE_DIR = os.path.dirname(__file__)
-
-SHADOW_DB = os.path.abspath(
-    os.path.join(
-        BASE_DIR,
-        "..",
-        "shadow-drone-rnd",
-        "database",
-        "shadow.db"
-    )
+from modules.logger import (
+    get_total_tests,
+    get_passed_tests,
+    get_failed_tests,
+    get_recent_tests
 )
 
-print("SHADOW_DB PATH:", SHADOW_DB)
-print("DATABASE EXISTS:", os.path.exists(SHADOW_DB))
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return render_template(
+        "home.html",
+        tests_completed=get_total_tests(),
+        passed=get_passed_tests(),
+        failed=get_failed_tests(),
+        recent_tests=get_recent_tests()
+    )
+
+if __name__ == "__main__":
+    app.run(debug=True)
