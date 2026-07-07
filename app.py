@@ -1,10 +1,14 @@
 from flask import Flask, render_template
 
-from modules.rnd_operations import (
+from modules.research_development import (
     get_total_tests,
     get_passed_tests,
     get_failed_tests,
     get_recent_tests
+)
+
+from modules.zerogravity import (
+    get_survey_summary
 )
 
 app = Flask(__name__)
@@ -18,6 +22,18 @@ def home():
         failed=get_failed_tests(),
         recent_tests=get_recent_tests()
     )
+
+@app.route("/zerogravity")
+def zerogravity_dashboard():
+
+    survey = get_survey_summary()
+
+    return render_template(
+        "workspaces/zerogravity/dashboard.html",
+        survey=survey
+    )
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
