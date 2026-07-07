@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ZeroGravity Business Dashboard</title>
+</head>
+<body>
+
+    <h1>ZeroGravity Business Dashboard</h1>
+    <p>Business analytics for survey responses, customer interest, and market demand.</p>
+
+    <hr>
+
+    <h2>Survey Overview</h2>
+
+    <div>
+        <h3>Total Survey Responses</h3>
+        <p>{{ survey.total_responses }}</p>
+    </div>
+
+    <hr>
+
+    <h2>Service Interest</h2>
+
+    <ul>
+        {% for service, count in survey.service_interest.items() %}
+            <li>{{ service }}: {{ count }}</li>
+        {% endfor %}
+    </ul>
+
+    <hr>
+
+    <h2>Budget Range</h2>
+
+    <ul>
+        {% for budget, count in survey.budget_range.items() %}
+            <li>{{ budget }}: {{ count }}</li>
+        {% endfor %}
+    </ul>
+
+    <hr>
+
+    <p>
+        <a href="/">Back to Home</a>
+    </p>
+
+</body>
+</html>
