@@ -11,3 +11,13 @@ SHADOW_DB = os.path.abspath(
         "shadow.db"
     )
 )
+
+ZEROGRAVITY_DB = os.path.abspath(
+    os.path.join(
+        BASE_DIR,
+        "..",
+        "zeroGravity",
+        "database",
+        "zeroGravity.db"
+    )
+)
