@@ -3,7 +3,7 @@ import sqlite3
 from collections import Counter
 
 def connect_zerogravity_db():
-    return sqlite3.connect(ZEROGRAVITY_DB_PATH)
+    return sqlite3.connect(ZEROGRAVITY_DB)
 
 
 def count_multi_select_answers(values):
