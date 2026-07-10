@@ -2,47 +2,63 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ZeroGravity Business Dashboard</title>
+    <title>ZeroGravity Dashboard</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
 
-    <h1>ZeroGravity Business Dashboard</h1>
-    <p>Business analytics for survey responses, customer interest, and market demand.</p>
+{% include "components/navbar.html" %}
 
-    <hr>
+<h1>ZeroGravity Dashboard</h1>
 
-    <h2>Survey Overview</h2>
+<div class="workspace-grid">
 
-    <div>
-        <h3>Total Survey Responses</h3>
-        <p>{{ survey.total_responses }}</p>
-    </div>
+    <section class="widget">
 
-    <hr>
+        <h2>Survey Overview</h2>
 
-    <h2>Service Interest</h2>
+        <h1>{{ survey.total_responses }}</h1>
 
-    <ul>
+        <p>Total Survey Responses</p>
+
+    </section>
+
+    <section class="widget">
+
+        <h2>Service Interest</h2>
+
+        <ul>
+
         {% for service, count in survey.service_interest.items() %}
-            <li>{{ service }}: {{ count }}</li>
+
+            <li>{{ service }} : {{ count }}</li>
+
         {% endfor %}
-    </ul>
 
-    <hr>
+        </ul>
 
-    <h2>Budget Range</h2>
+    </section>
 
-    <ul>
+    <section class="widget">
+
+        <h2>Budget Range</h2>
+
+        <ul>
+
         {% for budget, count in survey.budget_range.items() %}
-            <li>{{ budget }}: {{ count }}</li>
+
+            <li>{{ budget }} : {{ count }}</li>
+
         {% endfor %}
-    </ul>
 
-    <hr>
+        </ul>
 
-    <p>
-        <a href="/">Back to Home</a>
-    </p>
+    </section>
+
+</div>
 
 </body>
 </html>

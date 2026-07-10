@@ -11,7 +11,12 @@ from modules.zerogravity import (
     get_survey_summary
 )
 
+from modules.operator import operator_bp
+
 app = Flask(__name__)
+
+# Register the Operator workspace routes.
+app.register_blueprint(operator_bp)
 
 @app.route("/")
 def home():

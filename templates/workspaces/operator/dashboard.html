@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Operator Development | Zero Command{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="operator-shell">
+    <header class="operator-hero">
+        <div>
+            <p class="operator-eyebrow">ZERO COMMAND SYSTEM</p>
+            <h1>OPERATOR DEVELOPMENT</h1>
+            <p class="operator-subtitle">Live progression data from the Operator Zero Learning Engine.</p>
+        </div>
+        {% if dashboard %}
+        <div class="operator-status"><span class="status-dot"></span>KNOWLEDGE GRAPH ONLINE</div>
+        {% endif %}
+    </header>
+
+    {% if operator_error %}
+    <section class="operator-error">
+        <h2>Operator data unavailable</h2>
+        <p>{{ operator_error }}</p>
+        <p>Confirm that <code>zeroGravity-rnd</code> and <code>zero-command-system</code> sit beside each other, or configure <code>ZERO_GRAVITY_RND_ROOT</code>.</p>
+    </section>
+    {% else %}
+
+    <section class="operator-overview-grid">
+        <article class="operator-card operator-level-card">
+            <span class="card-label">OPERATOR LEVEL</span>
+            <strong class="level-value">{{ dashboard.operator_level }}</strong>
+            <div class="xp-row"><span>{{ dashboard.total_xp }} XP</span><span>Next: {{ dashboard.next_level_xp }} XP</span></div>
+            <div class="progress-track" aria-label="Operator level progress">
+                <div class="progress-fill" style="width: {{ dashboard.level_progress }}%;"></div>
+            </div>
+        </article>
+
+        <article class="operator-card metric-card">
+            <span class="card-label">TOTAL XP</span>
+            <strong>{{ dashboard.total_xp }}</strong>
+            <small>Unique competency experience</small>
+        </article>
+
+        <article class="operator-card metric-card">
+            <span class="card-label">COMPETENCIES</span>
+            <strong>{{ dashboard.competency_count }}</strong>
+            <small>Tracked knowledge nodes</small>
+        </article>
+
+        <article class="operator-card metric-card">
+            <span class="card-label">SHARED</span>
+            <strong>{{ dashboard.shared_competency_count }}</strong>
+            <small>Cross-domain competencies</small>
+        </article>
+    </section>
+
+    <section class="operator-section">
+        <div class="section-heading">
+            <div>
+                <p class="operator-eyebrow">CORE ATTRIBUTES</p>
+                <h2>Main Stats</h2>
+            </div>
+        </div>
+        <div class="main-stat-grid">
+            {% for stat in dashboard.main_stats %}
+            <article class="main-stat-card">
+                <div class="main-stat-name">{{ stat.name }}</div>
+                <div class="main-stat-level">{{ "%.2f"|format(stat.average_level) }}</div>
+                <div class="main-stat-meta">{{ stat.child_count }} branches</div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="operator-section">
+        <div class="section-heading">
+            <div>
+                <p class="operator-eyebrow">INTELLIGENCE MATRIX</p>
+                <h2>INT Domains</h2>
+            </div>
+        </div>
+        <div class="domain-grid">
+            {% for domain in dashboard.int_domains %}
+            <article class="domain-card">
+                <div class="domain-header">
+                    <h3>{{ domain.name }}</h3>
+                    <span>Lv {{ "%.2f"|format(domain.average_level) }}</span>
+                </div>
+                <div class="domain-progress">
+                    <div class="domain-progress-fill" style="width: {{ [domain.average_level * 10, 100]|min }}%;"></div>
+                </div>
+                <p>{{ domain.child_count }} {% if domain.child_count == 1 %}category{% else %}categories{% endif %}</p>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="operator-section">
+        <div class="section-heading">
+            <div>
+                <p class="operator-eyebrow">KNOWLEDGE GRAPH</p>
+                <h2>Skill Tree</h2>
+            </div>
+            <span class="schema-badge">Schema {{ dashboard.schema_version }}</span>
+        </div>
+        <div class="tree-panel">
+            {% for stat_name, stat_node in dashboard.tree.items() %}
+                {% set node = stat_node %}
+                {% set node_name = stat_name %}
+                {% set depth = 0 %}
+                {% include "components/operator_tree_node.html" %}
+            {% endfor %}
+        </div>
+    </section>
+
+    <footer class="operator-footer">
+        <span>Data source</span>
+        <code>{{ dashboard.data_source }}</code>
+    </footer>
+    {% endif %}
+</main>
+{% endblock %}

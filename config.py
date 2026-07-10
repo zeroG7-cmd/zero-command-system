@@ -1,23 +1,47 @@
-import os
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(__file__)
 
-SHADOW_DB = os.path.abspath(
-    os.path.join(
-        BASE_DIR,
-        "..",
-        "shadow-drone-rnd",
-        "database",
-        "shadow.db"
-    )
+# Zero Command repository root
+BASE_DIR = Path(__file__).resolve().parent
+
+
+# External repositories
+ZERO_GRAVITY_RND_ROOT = Path.home() / "zeroGravity-rnd"
+ZEROGRAVITY_ROOT = Path.home() / "zeroGravity"
+
+
+# Databases
+SHADOW_DB = (
+    ZERO_GRAVITY_RND_ROOT
+    / "database"
+    / "shadow.db"
 )
 
-ZEROGRAVITY_DB = os.path.abspath(
-    os.path.join(
-        BASE_DIR,
-        "..",
-        "zeroGravity",
-        "database",
-        "zeroGravity.db"
-    )
+ZEROGRAVITY_DB = (
+    ZEROGRAVITY_ROOT
+    / "database"
+    / "zeroGravity.db"
+)
+
+
+# Operator Development data
+OPERATOR_STATS = (
+    ZERO_GRAVITY_RND_ROOT
+    / "learning"
+    / "operator"
+    / "stats.json"
+)
+
+COMPETENCIES_FILE = (
+    ZERO_GRAVITY_RND_ROOT
+    / "learning"
+    / "config"
+    / "competencies.json"
+)
+
+SKILL_TREE_FILE = (
+    ZERO_GRAVITY_RND_ROOT
+    / "learning"
+    / "config"
+    / "skill_tree.json"
 )

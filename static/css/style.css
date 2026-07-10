@@ -60,3 +60,16 @@ nav a {
     align-items: center;
     justify-content: center;
 }
+
+.workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.widget {
+    background: #111;
+    border: 1px solid #333;
+    padding: 16px;
+    border-radius: 12px;
+}

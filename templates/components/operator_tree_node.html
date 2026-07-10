@@ -1,0 +1,25 @@
+<details class="tree-node tree-depth-{{ depth }}" {% if depth < 1 %}open{% endif %}>
+    <summary>
+        <span class="tree-node-name">
+            {{ node_name }}
+            {% if node.shared %}<span class="shared-badge">SHARED</span>{% endif %}
+        </span>
+        <span class="tree-node-score">
+            {% if node.node_type == "skill" %}
+                Lv {{ node.level }} · {{ node.xp }} XP
+            {% else %}
+                {{ "%.2f"|format(node.average_level or 0) }}
+            {% endif %}
+        </span>
+    </summary>
+
+    {% if node.children %}
+    <div class="tree-children">
+        {% for child_name, child_node in node.children.items() %}
+            {% with node=child_node, node_name=child_name, depth=depth + 1 %}
+                {% include "components/operator_tree_node.html" %}
+            {% endwith %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</details>

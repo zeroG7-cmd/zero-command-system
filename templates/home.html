@@ -1,82 +1,58 @@
-<!DOCTYPE html>
-<html>
- <head>
-    <title>Zero Command System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>   
-<body>
+{% extends "base.html" %}
 
-    <div class="dashboard">
+{% block title %}Zero Command System{% endblock %}
 
-        <header class="top-bar">
-            <h1>ZERO COMMAND SYSTEM</h1>
+{% block content %}
+<aside class="left-column">
+    <section class="panel greeting-panel">
+        <h2>Good Evening, Zero</h2>
+        <p>Current Focus: R&D Dashboard V1</p>
+    </section>
 
-           {% include "components/navbar.html" %}
-        </header>
+    <section class="panel task-panel">
+        <h2>Task Notifications</h2>
+        <p>No urgent tasks.</p>
+    </section>
 
-        <aside class="left-column">
-
-            <section class="panel greeting-panel">
-                <h2>Good Evening, Zero</h2>
-                <p>Current Focus: R&D Dashboard V1</p>
-            </section>
-
-            <section class="panel task-panel">
-                <h2>Task Notifications</h2>
-                <p>No urgent tasks.</p>
-            </section>
-
-            <section class="panel rnd-panel">
-                <h2>R&D Summary</h2>
-
-                <p>Tests Completed: {{ tests_completed }}</p>
-                <p>Passed: {{ passed }}</p>
-                <p>Failed: {{ failed }}</p>
-
-                <h3>Recent Tests</h3>
-
-                {% for test in recent_tests %}
-                    <div class="test-row">
-                        <span>{{ test[0] }}</span>
-                        <strong>{{ test[1] }}</strong>
-                    </div>
-                {% endfor %}
-            </section>
-
-        </aside>
-
-        <main class="command-centre">
-
-            <div class="status-row">
-
-                <section class="panel character-panel">
-                    <h2>Character</h2>
-                    <p>Level 2 Engineer</p>
-                    <p>INT: 15</p>
-                    <p>ENG: 25</p>
-                </section>
-
-                <section class="panel balance-panel">
-                    <h2>Balance</h2>
-                    <p>Personal: £380</p>
-                    <p>Business: £0</p>
-                </section>
-
-                <section class="panel personal-panel">
-                    <h2>Personal Status</h2>
-                    <p>Weight: 75kg</p>
-                    <p>Energy: Stable</p>
-                </section>
-
+    <section class="panel rnd-panel">
+        <h2>R&D Summary</h2>
+        <p>Tests Completed: {{ tests_completed }}</p>
+        <p>Passed: {{ passed }}</p>
+        <p>Failed: {{ failed }}</p>
+        <h3>Recent Tests</h3>
+        {% for test in recent_tests %}
+            <div class="test-row">
+                <span>{{ test[0] }}</span>
+                <strong>{{ test[1] }}</strong>
             </div>
+        {% endfor %}
+    </section>
+</aside>
 
-            <section class="avatar-panel">
-                <p>3D Zero Avatar Here</p>
-            </section>
+<main class="command-centre">
+    <div class="status-row">
+        <section class="panel character-panel">
+            <h2>Character</h2>
+            <p>Level 2 Engineer</p>
+            <p>INT: 15</p>
+            <p>ENG: 25</p>
+        </section>
 
-        </main>
+        <section class="panel balance-panel">
+            <h2>Balance</h2>
+            <p>Personal: £380</p>
+            <p>Business: £0</p>
+        </section>
 
+        <section class="panel personal-panel">
+            <h2>Personal Status</h2>
+            <p>Weight: 75kg</p>
+            <p>Energy: Stable</p>
+        </section>
     </div>
 
-</body>
-</html>
+    <section class="avatar-panel">
+        <p>3D Zero Avatar Here</p>
+    </section>
+</main>
+{% endblock %}
