@@ -17,6 +17,12 @@ SHADOW_DB = (
     / "shadow.db"
 )
 
+ZERO_GRAVITY_RND_DB = (
+    ZERO_GRAVITY_RND_ROOT
+    / "database"
+    / "zerogravity_rnd.db"
+)
+
 ZEROGRAVITY_DB = (
     ZEROGRAVITY_ROOT
     / "database"

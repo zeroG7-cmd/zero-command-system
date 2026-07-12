@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}Research & Development | Zero Command{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet"
+      href="{{ url_for('static', filename='css/research_development.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="rnd-workspace">
+    <header class="rnd-command-header">
+        <div>
+            <p class="eyebrow">ZERO COMMAND / RESEARCH LAB</p>
+            <h1>Research & Development</h1>
+            <p class="header-copy">
+                One laboratory interface. Separate research and vehicle memory.
+            </p>
+        </div>
+
+        <div class="database-state-grid">
+            <div class="database-state">
+                <span class="pulse-dot {% if not rnd.research.database_online %}offline{% endif %}"></span>
+                <div>
+                    <strong>R&D DATABASE</strong>
+                    <small>{{ "ONLINE" if rnd.research.database_online else "OFFLINE" }}</small>
+                </div>
+            </div>
+
+            <div class="database-state">
+                <span class="pulse-dot {% if not rnd.shadow.database_online %}offline{% endif %}"></span>
+                <div>
+                    <strong>SHADOW DATABASE</strong>
+                    <small>{{ "ONLINE" if rnd.shadow.database_online else "OFFLINE" }}</small>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="rnd-tabs" aria-label="R&D workspace sections">
+        <button class="rnd-tab active" data-tab="overview">Overview</button>
+        <button class="rnd-tab" data-tab="experiments">Experiments</button>
+        <button class="rnd-tab" data-tab="simulation">Simulation</button>
+        <button class="rnd-tab" data-tab="shadow">Shadow</button>
+        <button class="rnd-tab" data-tab="hardware">Hardware</button>
+        <button class="rnd-tab" data-tab="digital-twin">Digital Twin</button>
+        <button class="rnd-tab" data-tab="camera">Camera</button>
+        <button class="rnd-tab" data-tab="archive">Archive</button>
+    </nav>
+
+    <section class="rnd-tab-panel active" id="overview">
+        <section class="metric-grid">
+            <article class="metric-card">
+                <span>R&D Tests</span>
+                <strong>{{ rnd.research.tests.total }}</strong>
+                <small>Stored in zerogravity_rnd.db</small>
+            </article>
+
+            <article class="metric-card success">
+                <span>Passed</span>
+                <strong>{{ rnd.research.tests.passed }}</strong>
+                <small>{{ rnd.research.tests.success_rate }}% success rate</small>
+            </article>
+
+            <article class="metric-card">
+                <span>Simulation Runs</span>
+                <strong>{{ rnd.research.simulation.runs }}</strong>
+                <small>{{ rnd.research.simulation.telemetry_samples }} simulated samples</small>
+            </article>
+
+            <article class="metric-card cyan">
+                <span>Shadow Telemetry</span>
+                <strong>{{ rnd.shadow.telemetry.samples }}</strong>
+                <small>Stored only in shadow.db</small>
+            </article>
+        </section>
+
+        <section class="workspace-grid">
+            <article class="panel panel-large">
+                <div class="panel-heading">
+                    <div>
+                        <p class="panel-kicker">RESEARCH TIMELINE</p>
+                        <h2>Recent Test Activity</h2>
+                    </div>
+                    <span class="panel-badge">R&D DATA</span>
+                </div>
+
+                <div class="test-list">
+                    {% for test in rnd.research.tests.recent %}
+                    <div class="test-row">
+                        <span class="result-indicator {{ test.result_class }}"></span>
+                        <div class="test-main">
+                            <strong>{{ test.test_name }}</strong>
+                            <small>
+                                {{ test.component or "Unassigned" }}
+                                · {{ (test.source or "unknown")|upper }}
+                                {% if test.timestamp %} · {{ test.timestamp }}{% endif %}
+                            </small>
+                        </div>
+                        <span class="result-label {{ test.result_class }}">
+                            {{ (test.result or "pending")|upper }}
+                        </span>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        No research test runs recorded yet.
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <p class="panel-kicker">DATA BOUNDARIES</p>
+                        <h2>Database Separation</h2>
+                    </div>
+                </div>
+
+                <div class="boundary-list">
+                    <div class="boundary-card">
+                        <span>zerogravity_rnd.db</span>
+                        <strong>Research Memory</strong>
+                        <small>
+                            Experiments, simulation, research tests,
+                            datasets and model evaluation.
+                        </small>
+                    </div>
+
+                    <div class="boundary-card">
+                        <span>shadow.db</span>
+                        <strong>Vehicle Memory</strong>
+                        <small>
+                            Real telemetry, missions, faults,
+                            maintenance and hardware health.
+                        </small>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <p class="panel-kicker">SHADOW STATUS</p>
+                        <h2>{{ rnd.shadow.vehicle.name }}</h2>
+                    </div>
+                    <span class="panel-badge standby">
+                        {{ rnd.shadow.vehicle.status|upper }}
+                    </span>
+                </div>
+
+                <div class="asset-summary">
+                    <div><span>Model</span><strong>{{ rnd.shadow.vehicle.model }}</strong></div>
+                    <div><span>Missions</span><strong>{{ rnd.shadow.missions.total }}</strong></div>
+                    <div><span>Completed</span><strong>{{ rnd.shadow.missions.completed }}</strong></div>
+                    <div><span>Open faults</span><strong>{{ rnd.shadow.faults.open }}</strong></div>
+                </div>
+            </article>
+
+            <article class="panel panel-wide">
+                <div class="panel-heading">
+                    <div>
+                        <p class="panel-kicker">SHADOW DIGITAL TWIN</p>
+                        <h2>Vehicle Representation</h2>
+                    </div>
+                    <span class="panel-badge standby">STANDBY</span>
+                </div>
+
+                <div class="twin-preview">
+                    <div class="twin-radar">
+                        <div class="radar-ring ring-one"></div>
+                        <div class="radar-ring ring-two"></div>
+                        <div class="radar-ring ring-three"></div>
+                        <div class="drone-glyph">◇</div>
+                    </div>
+
+                    <div class="twin-copy">
+                        <h3>Shadow MK1</h3>
+                        <p>
+                            CAD and URDF assets remain part of the wider R&D repository,
+                            while live operational state is sourced from shadow.db.
+                        </p>
+                        <div class="twin-stats">
+                            <span>CAD <strong>{{ rnd.repository.cad_assets }}</strong></span>
+                            <span>URDF <strong>{{ rnd.repository.urdf_assets }}</strong></span>
+                            <span>STATUS <strong>{{ rnd.shadow.vehicle.status|upper }}</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </section>
+    </section>
+
+    <section class="rnd-tab-panel" id="experiments">
+        <section class="section-intro">
+            <div>
+                <p class="eyebrow">R&D DATABASE</p>
+                <h2>Experiment Registry</h2>
+            </div>
+            <p>Experiments are stored independently from Shadow’s operational history.</p>
+        </section>
+
+        <div class="experiment-grid">
+            {% for experiment in rnd.research.experiments %}
+            <article class="experiment-card">
+                <div class="experiment-topline">
+                    <span>{{ experiment.category or "GENERAL" }}</span>
+                    <span class="experiment-status">{{ experiment.status|upper }}</span>
+                </div>
+                <h3>{{ experiment.experiment_name }}</h3>
+                <p>{{ experiment.hypothesis or "No hypothesis recorded." }}</p>
+                <small>{{ experiment.updated_at or experiment.created_at }}</small>
+            </article>
+            {% else %}
+            <div class="empty-state panel">No experiments recorded yet.</div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="rnd-tab-panel" id="simulation">
+        <div class="placeholder-panel">
+            <p class="eyebrow">R&D DATABASE</p>
+            <h2>{{ rnd.research.simulation.runs }} Simulation Runs</h2>
+            <p>
+                Simulated telemetry belongs here, not in Shadow’s live operational database.
+            </p>
+            <div class="placeholder-metrics">
+                <span>RUNS <strong>{{ rnd.research.simulation.runs }}</strong></span>
+                <span>COMPLETED <strong>{{ rnd.research.simulation.completed_runs }}</strong></span>
+                <span>SAMPLES <strong>{{ rnd.research.simulation.telemetry_samples }}</strong></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="rnd-tab-panel" id="shadow">
+        <section class="shadow-grid">
+            <article class="panel shadow-hero">
+                <p class="eyebrow">SHADOW DATABASE</p>
+                <h2>{{ rnd.shadow.vehicle.name }}</h2>
+                <p>{{ rnd.shadow.vehicle.type }}</p>
+
+                <div class="shadow-status">
+                    {{ rnd.shadow.vehicle.status|upper }}
+                </div>
+            </article>
+
+            <article class="panel">
+                <p class="panel-kicker">LIVE OPERATIONS</p>
+                <h2>Vehicle Memory</h2>
+                <div class="asset-summary">
+                    <div><span>Telemetry samples</span><strong>{{ rnd.shadow.telemetry.samples }}</strong></div>
+                    <div><span>Missions</span><strong>{{ rnd.shadow.missions.total }}</strong></div>
+                    <div><span>Maintenance records</span><strong>{{ rnd.shadow.maintenance.records }}</strong></div>
+                    <div><span>Open faults</span><strong>{{ rnd.shadow.faults.open }}</strong></div>
+                </div>
+            </article>
+
+            <article class="panel panel-wide">
+                <p class="panel-kicker">LATEST TELEMETRY</p>
+                {% if rnd.shadow.telemetry.latest %}
+                <div class="telemetry-grid">
+                    <div><span>Battery</span><strong>{{ rnd.shadow.telemetry.latest.battery_percentage or "--" }}%</strong></div>
+                    <div><span>Voltage</span><strong>{{ rnd.shadow.telemetry.latest.battery_voltage or "--" }} V</strong></div>
+                    <div><span>Altitude</span><strong>{{ rnd.shadow.telemetry.latest.altitude or "--" }} m</strong></div>
+                    <div><span>Link</span><strong>{{ rnd.shadow.telemetry.latest.link_quality or "--" }}</strong></div>
+                    <div><span>Mode</span><strong>{{ rnd.shadow.telemetry.latest.flight_mode or "--" }}</strong></div>
+                </div>
+                {% else %}
+                <div class="empty-state">Awaiting real telemetry from Shadow.</div>
+                {% endif %}
+            </article>
+        </section>
+    </section>
+
+    <section class="rnd-tab-panel" id="hardware">
+        <div class="placeholder-panel">
+            <p class="eyebrow">REPOSITORY ASSETS</p>
+            <h2>{{ rnd.repository.hardware_files }} Hardware Data Files</h2>
+            <p>
+                Hardware experiments belong to R&D; continuous live vehicle condition belongs to Shadow.
+            </p>
+        </div>
+    </section>
+
+    <section class="rnd-tab-panel" id="digital-twin">
+        <div class="placeholder-panel twin-full">
+            <p class="eyebrow">DIGITAL TWIN BAY</p>
+            <h2>Shadow MK1 Representation Ready</h2>
+            <p>
+                {{ rnd.repository.cad_assets }} CAD assets and
+                {{ rnd.repository.urdf_assets }} URDF assets detected.
+            </p>
+            <div class="large-radar"><span>SHADOW MK1</span></div>
+        </div>
+    </section>
+
+    <section class="rnd-tab-panel" id="camera">
+        <div class="camera-layout">
+            <article class="camera-screen">
+                <div class="camera-overlay">
+                    <span>SHADOW / CAM-01</span>
+                    <span>NO SIGNAL</span>
+                </div>
+                <div class="crosshair"></div>
+                <p>Insert the live Raspberry Pi MJPEG stream here.</p>
+                <code>&lt;img src="http://PI_ADDRESS:5001/video"&gt;</code>
+            </article>
+
+            <article class="panel">
+                <p class="panel-kicker">CAMERA DATA ROUTING</p>
+                <h2>Storage Rule</h2>
+                <div class="boundary-list">
+                    <div class="boundary-card">
+                        <span>shadow.db / live files</span>
+                        <strong>Real vehicle capture</strong>
+                    </div>
+                    <div class="boundary-card">
+                        <span>zerogravity_rnd.db</span>
+                        <strong>Research evaluation</strong>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="rnd-tab-panel" id="archive">
+        <div class="placeholder-panel">
+            <p class="eyebrow">REPOSITORY ARCHIVE</p>
+            <h2>{{ rnd.repository.archived_experiments }} Archived Records</h2>
+            <p>
+                Completed and superseded research remains separate from the operational history of Shadow.
+            </p>
+        </div>
+    </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/research_development.js') }}"></script>
+{% endblock %}
