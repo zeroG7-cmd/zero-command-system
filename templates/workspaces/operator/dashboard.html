@@ -9,14 +9,34 @@
 {% block content %}
 <main class="operator-shell">
     <header class="operator-hero">
+
         <div>
             <p class="operator-eyebrow">ZERO COMMAND SYSTEM</p>
             <h1>OPERATOR DEVELOPMENT</h1>
-            <p class="operator-subtitle">Live progression data from the Operator Zero Learning Engine.</p>
+            <p class="operator-subtitle">
+                Live progression data from the Operator Zero Learning Engine.
+            </p>
         </div>
-        {% if dashboard %}
-        <div class="operator-status"><span class="status-dot"></span>KNOWLEDGE GRAPH ONLINE</div>
-        {% endif %}
+
+        <div class="learning-actions">
+
+            {% if dashboard %}
+            <div class="operator-status">
+                <span class="status-dot"></span>
+                KNOWLEDGE GRAPH ONLINE
+            </div>
+            {% endif %}
+
+            <a
+                class="learning-button"
+                href="{{ url_for('operator_learning.dashboard') }}"
+            >
+                Open Learning Hub
+            </a>
+
+        </div>
+
+
     </header>
 
     {% if operator_error %}

@@ -13,10 +13,12 @@ from modules.zerogravity import (
 
 from modules.operator import operator_bp
 from modules.research_development import rnd_bp
+from modules.operator_learning import operator_learning_bp
 app = Flask(__name__)
 
 # Register the Operator workspace routes.
 app.register_blueprint(operator_bp)
+app.register_blueprint(operator_learning_bp)
 app.register_blueprint(rnd_bp)
 
 @app.route("/")
