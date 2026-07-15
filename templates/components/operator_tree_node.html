@@ -1,7 +1,7 @@
 <details class="tree-node tree-depth-{{ depth }}" {% if depth < 1 %}open{% endif %}>
     <summary>
         <span class="tree-node-name">
-            {{ node_name }}
+            {% set capability_slug = dashboard.capability_slugs.get(node.competency_id) if dashboard and dashboard.capability_slugs else none %}{% if not capability_slug and dashboard and dashboard.capability_names %}{% set capability_slug = dashboard.capability_names.get(node_name) %}{% endif %}{% if capability_slug %}<a class="capability-link" href="{{ url_for('operator.capability', slug=capability_slug) }}">{{ node_name }}</a>{% else %}{{ node_name }}{% endif %}
             {% if node.shared %}<span class="shared-badge">SHARED</span>{% endif %}
         </span>
         <span class="tree-node-score">

@@ -120,6 +120,24 @@
     <section class="operator-section">
         <div class="section-heading">
             <div>
+                <p class="operator-eyebrow">CAPABILITY ECOSYSTEMS</p>
+                <h2>Explore Capabilities</h2>
+            </div>
+        </div>
+        <div class="capability-launch-grid">
+            {% for capability in dashboard.featured_capabilities %}
+            <a class="capability-launch-card" href="{{ url_for('operator.capability', slug=capability.slug) }}">
+                <div><span class="card-label">{{ capability.name }}</span><strong>Lv {{ capability.level }}</strong></div>
+                <p>{{ capability.description }}</p>
+                <div class="xp-row"><span>{{ capability.xp }} XP</span><span>{{ capability.coverage }}% coverage</span></div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="operator-section">
+        <div class="section-heading">
+            <div>
                 <p class="operator-eyebrow">KNOWLEDGE GRAPH</p>
                 <h2>Skill Tree</h2>
             </div>

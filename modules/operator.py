@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from flask import Blueprint, current_app, render_template
+from flask import Blueprint, abort, current_app, render_template
 
 operator_bp = Blueprint("operator", __name__, url_prefix="/operator")
 
@@ -79,6 +79,25 @@ def _int_domains(stats: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+
+def _featured_capabilities(competencies: dict[str, Any]) -> list[dict[str, Any]]:
+    graph = _capability_graph()
+    featured = []
+    for capability in graph.get("capabilities", {}).values():
+        if not isinstance(capability, dict) or not capability.get("slug"):
+            continue
+        record = competencies.get(capability.get("id"), {})
+        progress = graph.get("concept_progress", {})
+        concepts = capability.get("concepts", {})
+        started = sum(1 for cid in concepts if int(progress.get(cid, {}).get("xp", 0)) > 0)
+        featured.append({
+            "name": capability.get("name"), "slug": capability.get("slug"),
+            "description": capability.get("description", ""),
+            "xp": int(record.get("xp", 0)), "level": int(record.get("level", 0)),
+            "coverage": round((started / len(concepts)) * 100, 1) if concepts else 0.0,
+        })
+    return sorted(featured, key=lambda item: item["name"].lower())
+
 def get_operator_dashboard_data() -> dict[str, Any]:
     rnd_root = _rnd_root()
     stats_path = rnd_root / "learning" / "operator" / "stats.json"
@@ -97,10 +116,8 @@ def get_operator_dashboard_data() -> dict[str, Any]:
 
     total_xp = int(stats_data.get("total_xp", 0))
     level = int(stats_data.get("level", 0))
-    next_level_xp = max(100, level * 100)
-    level_start = 0 if level == 0 else (level - 1) * 100
-    level_span = max(1, next_level_xp - level_start)
-    progress = min(100.0, round(((total_xp - level_start) / level_span) * 100, 1))
+    next_level_xp = int(stats_data.get("next_level_xp", 100))
+    progress = float(stats_data.get("level_progress", 0.0))
 
     shared_count = sum(
         1 for item in competencies.values()
@@ -119,6 +136,13 @@ def get_operator_dashboard_data() -> dict[str, Any]:
         "tree": stats,
         "data_source": str(stats_path),
         "schema_version": stats_data.get("schema_version", "unknown"),
+        "capability_names": {item.get("name"): item.get("slug") for item in _capability_graph().get("capabilities", {}).values() if isinstance(item, dict) and item.get("name") and item.get("slug")},
+        "featured_capabilities": _featured_capabilities(competencies),
+        "capability_slugs": {
+            item.get("id"): item.get("slug")
+            for item in _capability_graph().get("capabilities", {}).values()
+            if isinstance(item, dict) and item.get("id") and item.get("slug")
+        },
     }
 
 
@@ -136,3 +160,90 @@ def dashboard():
             dashboard=None,
             operator_error=str(error),
         ), 500
+
+
+def _capability_graph() -> dict[str, Any]:
+    path = _rnd_root() / "learning" / "config" / "capability_graph.json"
+    return _load_json(path)
+
+
+def _track_cards_for_capability(capability_id: str) -> list[dict[str, Any]]:
+    tracks_root = _rnd_root() / "learning" / "tracks"
+    cards: list[dict[str, Any]] = []
+    if not tracks_root.exists():
+        return cards
+    for metadata_path in tracks_root.rglob("metadata.json"):
+        try:
+            metadata = _load_json(metadata_path)
+            progress = _load_json(metadata_path.parent / "progress.json")
+        except (FileNotFoundError, ValueError, OSError):
+            continue
+        awards = metadata.get("default_competency_awards", [])
+        ids = {str(item.get("competency_id", "")) for item in awards if isinstance(item, dict)}
+        if str(metadata.get("competency_id", "")) != capability_id and capability_id not in ids:
+            continue
+        units = metadata.get("units", [])
+        completed = int(progress.get("external_completed_units") or len(progress.get("completed_units", [])))
+        total = int(progress.get("external_total_units") or metadata.get("external_total_units") or len(units))
+        cards.append({
+            "id": metadata.get("id", metadata_path.parent.name),
+            "title": metadata.get("title", metadata_path.parent.name),
+            "provider": metadata.get("provider", "Unknown"),
+            "status": progress.get("status", "In Progress"),
+            "completed": completed,
+            "total": total,
+            "percentage": round((completed / total) * 100, 1) if total else 0.0,
+            "xp": int(progress.get("total_xp", 0)),
+            "source_url": metadata.get("source_url", ""),
+        })
+    return sorted(cards, key=lambda item: item["title"].lower())
+
+
+def get_capability_data(slug: str) -> dict[str, Any]:
+    graph = _capability_graph()
+    capability = next(
+        (item for item in graph.get("capabilities", {}).values() if item.get("slug") == slug),
+        None,
+    )
+    if not capability:
+        raise KeyError(slug)
+    capability_id = capability["id"]
+    competencies = _load_json(_rnd_root() / "learning" / "config" / "competencies.json").get("competencies", {})
+    record = competencies.get(capability_id, {})
+    concept_progress = graph.get("concept_progress", {})
+    concepts = []
+    for concept_id, concept in capability.get("concepts", {}).items():
+        progress = concept_progress.get(concept_id, {})
+        concepts.append({
+            "id": concept_id,
+            "name": concept.get("name", concept_id),
+            "description": concept.get("description", ""),
+            "prerequisites": concept.get("prerequisites", []),
+            "xp": int(progress.get("xp", 0)),
+            "level": int(progress.get("level", 0)),
+            "status": progress.get("status", "Not Started"),
+            "mapping_confidence": progress.get("last_mapping_confidence", "unmapped"),
+        })
+    started = sum(1 for concept in concepts if concept["xp"] > 0 or concept["status"] != "Not Started")
+    return {
+        "id": capability_id,
+        "name": capability.get("name", slug.title()),
+        "slug": slug,
+        "description": capability.get("description", ""),
+        "xp": int(record.get("xp", 0)),
+        "level": int(record.get("level", 0)),
+        "coverage": round((started / len(concepts)) * 100, 1) if concepts else 0.0,
+        "concepts": concepts,
+        "relationships": capability.get("relationships", []),
+        "tracks": _track_cards_for_capability(capability_id),
+    }
+
+
+@operator_bp.route("/capabilities/<slug>")
+def capability(slug: str):
+    try:
+        return render_template("workspaces/operator/capability.html", capability=get_capability_data(slug), operator_error=None)
+    except KeyError:
+        abort(404)
+    except (FileNotFoundError, ValueError, OSError) as error:
+        return render_template("workspaces/operator/capability.html", capability=None, operator_error=str(error)), 500
