@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Task Hub | Operator Development{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">{% endblock %}
+{% block content %}
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell">
+<header class="operator-hero"><div><p class="operator-eyebrow">OPERATOR DEVELOPMENT</p><h1>TASK HUB</h1><p class="operator-subtitle">Tasks are planned execution and a primary evidence source for Discipline.</p></div></header>
+<section class="operator-section">
+<form class="operator-task-form" method="post">
+<input name="title" required placeholder="What needs to be done?">
+<select name="stat"><option>DISC</option><option>INT</option><option>CON</option><option>STR</option><option>DEX</option><option>WILL</option><option>SPIRIT</option></select>
+<button class="learning-button" type="submit">Add Task</button>
+</form>
+<div class="operator-task-list">
+{% for task in tasks %}<article class="operator-task {% if task.status == 'done' %}done{% endif %}"><div><strong>{{ task.title }}</strong><span>{{ task.stat }} · {{ task.status }}</span></div><form method="post" action="{{ url_for('operator_tasks.toggle', task_id=task.id) }}"><button type="submit">{% if task.status == 'done' %}Reopen{% else %}Complete{% endif %}</button></form></article>{% else %}<p>No tasks yet. Add the first action above.</p>{% endfor %}
+</div></section></main>
+{% endblock %}

@@ -4,3 +4,10 @@ __pycache__/
 database/*.db 
  
 .env 
+
+# Local secrets and generated archives
+.env
+*.env
+*.zip
+__pycache__/
+*.py[cod]

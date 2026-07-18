@@ -19,7 +19,7 @@ def event():
  finally: Path(name).unlink(missing_ok=True)
 @learning_events_bp.get('/receipts/latest')
 def latest():
- folder=root()/'learning/operator/receipts'; files=sorted(folder.glob('*.json'),reverse=True) if folder.exists() else []
+ folder=root()/'operator_core/events/receipts'; files=sorted(folder.glob('*.json'),reverse=True) if folder.exists() else []
  return jsonify(json.loads(files[0].read_text(encoding='utf-8')) if files else {})
 
 @learning_events_bp.get('/health')

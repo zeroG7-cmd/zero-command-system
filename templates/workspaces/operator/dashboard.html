@@ -7,6 +7,7 @@
 {% endblock %}
 
 {% block content %}
+{% include "components/operator_subnav.html" %}
 <main class="operator-shell">
     <header class="operator-hero">
 
@@ -27,12 +28,8 @@
             </div>
             {% endif %}
 
-            <a
-                class="learning-button"
-                href="{{ url_for('operator_learning.dashboard') }}"
-            >
-                Open Learning Hub
-            </a>
+            <a class="learning-button" href="{{ url_for('operator_learning.dashboard') }}">Open Learning Hub</a>
+            <a class="learning-button secondary" href="{{ url_for('operator_execution.dashboard') }}">Open Execution Hub</a>
 
         </div>
 
@@ -46,6 +43,16 @@
         <p>Confirm that <code>zeroGravity-rnd</code> and <code>zero-command-system</code> sit beside each other, or configure <code>ZERO_GRAVITY_RND_ROOT</code>.</p>
     </section>
     {% else %}
+
+    <section class="operator-section operator-hub-section">
+        <div class="section-heading"><div><p class="operator-eyebrow">DEVELOPMENT SYSTEMS</p><h2>Operator Hubs</h2></div></div>
+        <div class="operator-hub-grid">
+            <a class="operator-hub-card" href="{{ url_for('operator_learning.dashboard') }}"><strong>Learning Hub</strong><span>Acquire concepts and map knowledge across every main stat.</span></a>
+            <a class="operator-hub-card" href="{{ url_for('operator_execution.dashboard') }}"><strong>Execution Hub</strong><span>Record projects, experiments, practice, training and business work.</span></a>
+            <a class="operator-hub-card" href="{{ url_for('operator_tasks.dashboard') }}"><strong>Task Hub</strong><span>Plan actions and generate Discipline and execution evidence.</span></a>
+            <article class="operator-hub-card disabled"><strong>Reflection Hub</strong><span>Journal meaning, identity, lessons and Spirit development. Foundation next.</span></article>
+        </div>
+    </section>
 
     <section class="operator-overview-grid">
         <article class="operator-card operator-level-card">

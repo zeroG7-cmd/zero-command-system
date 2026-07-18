@@ -207,7 +207,7 @@ def _unit_xp(metadata: dict[str, Any], unit: dict[str, Any]) -> int:
 def _reward_preview(metadata: dict[str, Any], unit: dict[str, Any]) -> dict[str, Any]:
     total_xp = _unit_xp(metadata, unit)
     awards = _resolve_awards(metadata, unit)
-    registry = _load_json(_rnd_root() / "learning" / "config" / "competencies.json").get(
+    registry = _load_json(_rnd_root() / "operator_core" / "capabilities" / "competencies.json").get(
         "competencies", {}
     )
     exact = [total_xp * award["weight"] for award in awards]
@@ -245,12 +245,13 @@ def _card(track: Path) -> dict[str, Any]:
         int(progress.get("external_completed_units", 0) or 0),
     )
 
-    provider_total = int(metadata.get("unit_count", 0) or 0)
+    provider_total = (
+        int(progress.get("external_total_units", 0) or 0)
+        or int(metadata.get("external_total_units", 0) or 0)
+        or int(metadata.get("unit_count", 0) or 0)
+    )
 
-    if provider_total > 0:
-        total = provider_total
-    else:
-        total = len(units)
+    total = provider_total if provider_total > 0 else len(units)
 
     completed = min(completed, total) if total > 0 else completed
 
@@ -291,7 +292,7 @@ def get_learning_hub_data() -> dict[str, Any]:
 
     total = sum(card["unit_count"] for card in cards)
     done = sum(card["completed_count"] for card in cards)
-    stats_path = _rnd_root() / "learning" / "operator" / "stats.json"
+    stats_path = _rnd_root() / "operator_core" / "hubs" / "learning" / "stats" / "learning_stats.json"
     operator_stats = _load_json(stats_path) if stats_path.exists() else {}
     return {
         "tracks": cards,

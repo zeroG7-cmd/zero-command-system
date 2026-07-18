@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ capability.name if capability else 'Capability' }} | Operator Zero{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/capability.css') }}">{% endblock %}
-{% block content %}<main class="operator-shell capability-shell">
+{% block content %}
+{% include "components/operator_subnav.html" %}<main class="operator-shell capability-shell">
 {% if operator_error %}<section class="operator-error"><h2>Capability unavailable</h2><p>{{ operator_error }}</p></section>{% else %}
 <header class="operator-hero capability-hero"><div><p class="operator-eyebrow">OPERATOR CAPABILITY ECOSYSTEM</p><h1>{{ capability.name|upper }}</h1><p>{{ capability.description }}</p></div><div class="capability-score"><span>LEVEL</span><strong>{{ capability.level }}</strong><small>{{ capability.xp }} XP</small></div></header>
 <nav class="capability-nav"><a href="{{ url_for('operator.dashboard') }}">Knowledge Tree</a><a href="{{ url_for('operator_learning.dashboard') }}">Learning Hub</a></nav>

@@ -1,0 +1,10 @@
+<nav class="operator-subnav" aria-label="Operator Development sections">
+    <a class="{% if request.path == '/operator/' %}active{% endif %}" href="{{ url_for('operator.dashboard') }}">Overview</a>
+    <a class="{% if '/operator/learning' in request.path %}active{% endif %}" href="{{ url_for('operator_learning.dashboard') }}">Learning</a>
+    <a class="{% if '/operator/execution' in request.path %}active{% endif %}" href="{{ url_for('operator_execution.dashboard') }}">Execution</a>
+    <a class="{% if '/operator/tasks' in request.path %}active{% endif %}" href="{{ url_for('operator_tasks.dashboard') }}">Tasks</a>
+    <span class="operator-subnav-future">Reflection</span>
+    <span class="operator-subnav-future">Challenges</span>
+    <span class="operator-subnav-future">Achievements</span>
+    <span class="operator-subnav-future">Analytics</span>
+</nav>

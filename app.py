@@ -15,6 +15,9 @@ from modules.operator import operator_bp
 from modules.research_development import rnd_bp
 from modules.operator_learning import operator_learning_bp
 from modules.learning_events import learning_events_bp
+from modules.operator_execution import bp as operator_execution_bp
+from modules.tasks import bp as operator_tasks_bp
+from flask import redirect, url_for
 app = Flask(__name__)
 
 # Register the Operator workspace routes.
@@ -22,6 +25,8 @@ app.register_blueprint(operator_bp)
 app.register_blueprint(operator_learning_bp)
 app.register_blueprint(learning_events_bp)
 app.register_blueprint(rnd_bp)
+app.register_blueprint(operator_execution_bp)
+app.register_blueprint(operator_tasks_bp)
 
 @app.route("/")
 def home():
@@ -32,6 +37,11 @@ def home():
         failed=get_failed_tests(),
         recent_tests=get_recent_tests()
     )
+
+
+@app.route("/tasks")
+def legacy_tasks_redirect():
+    return redirect(url_for("operator_tasks.dashboard"), code=302)
 
 @app.route("/zerogravity")
 def zerogravity_dashboard():

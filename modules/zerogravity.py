@@ -1,73 +1,80 @@
-from config import ZEROGRAVITY_DB
+from __future__ import annotations
+
 import sqlite3
 from collections import Counter
+from pathlib import Path
+from typing import Any
 
-def connect_zerogravity_db():
-    return sqlite3.connect(ZEROGRAVITY_DB)
+from config import ZEROGRAVITY_DB
 
 
-def count_multi_select_answers(values):
-    counts = Counter()
+def connect_zerogravity_db() -> sqlite3.Connection:
+    db_path = Path(ZEROGRAVITY_DB)
+    if not db_path.exists():
+        raise FileNotFoundError(
+            f"ZeroGravity database not found: {db_path}. "
+            "Keep zeroGravity beside zero-command-system or set ZEROGRAVITY_ROOT."
+        )
+    return sqlite3.connect(db_path)
 
+
+def count_multi_select_answers(values: list[str | None]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
     for value in values:
         if not value:
             continue
-
-        answers = value.split(",")
-
-        for answer in answers:
+        for answer in value.split(","):
             clean_answer = answer.strip()
-
             if clean_answer:
                 counts[clean_answer] += 1
-
     return dict(counts)
 
 
-def get_total_survey_responses():
-    conn = connect_zerogravity_db()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT COUNT(*) FROM customer_survey_responses")
-    total = cursor.fetchone()[0]
-
-    conn.close()
-    return total
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
 
 
-def get_service_interest_counts():
-    conn = connect_zerogravity_db()
-    cursor = conn.cursor()
+def get_survey_summary() -> dict[str, Any]:
+    try:
+        with connect_zerogravity_db() as conn:
+            if not _table_exists(conn, "customer_survey_responses"):
+                return {
+                    "total_responses": 0,
+                    "service_interest": {},
+                    "budget_range": {},
+                    "warning": "Survey table has not been created yet.",
+                    "database_path": str(ZEROGRAVITY_DB),
+                }
 
-    cursor.execute("SELECT service_interest FROM customer_survey_responses")
-    rows = cursor.fetchall()
+            total = conn.execute(
+                "SELECT COUNT(*) FROM customer_survey_responses"
+            ).fetchone()[0]
+            service_rows = conn.execute(
+                "SELECT service_interest FROM customer_survey_responses"
+            ).fetchall()
+            budget_rows = conn.execute(
+                """SELECT budget_range, COUNT(*)
+                   FROM customer_survey_responses
+                   GROUP BY budget_range
+                   ORDER BY COUNT(*) DESC"""
+            ).fetchall()
 
-    conn.close()
-
-    service_values = [row[0] for row in rows]
-    return count_multi_select_answers(service_values)
-
-
-def get_budget_range_counts():
-    conn = connect_zerogravity_db()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT budget_range, COUNT(*)
-        FROM customer_survey_responses
-        GROUP BY budget_range
-        ORDER BY COUNT(*) DESC
-    """)
-
-    budget_counts = dict(cursor.fetchall())
-
-    conn.close()
-    return budget_counts
-
-
-def get_survey_summary():
-    return {
-        "total_responses": get_total_survey_responses(),
-        "service_interest": get_service_interest_counts(),
-        "budget_range": get_budget_range_counts(),
-    }
+        return {
+            "total_responses": total,
+            "service_interest": count_multi_select_answers([row[0] for row in service_rows]),
+            "budget_range": dict(budget_rows),
+            "warning": None,
+            "database_path": str(ZEROGRAVITY_DB),
+        }
+    except (FileNotFoundError, sqlite3.Error) as error:
+        return {
+            "total_responses": 0,
+            "service_interest": {},
+            "budget_range": {},
+            "warning": str(error),
+            "database_path": str(ZEROGRAVITY_DB),
+        }

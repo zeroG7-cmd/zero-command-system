@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "components/operator_subnav.html" %}
+<section class="execution-hub">
+  <header><p class="eyebrow">OPERATOR DEVELOPMENT</p><h1>Execution Hub</h1><p>Record what you built, practised, performed or delivered.</p></header>
+  <div class="execution-stats"><article><strong>{{ summary.completed }}</strong><span>completed records</span></article><article><strong>{{ summary.minutes }}</strong><span>execution minutes</span></article><article><strong>{{ summary.by_stat|length }}</strong><span>stats exercised</span></article></div>
+  <form id="execution-form" class="execution-form">
+    <input name="title" placeholder="What did you do?" required>
+    <select name="activity_type"><option>project</option><option>experiment</option><option>practice</option><option>training</option><option>business</option><option>creative</option></select>
+    <input name="main_stats" placeholder="Stats, e.g. INT,DISC">
+    <input name="capabilities" placeholder="Capabilities, comma separated">
+    <input name="concepts" placeholder="Concepts or techniques">
+    <input name="duration_minutes" type="number" min="0" placeholder="Minutes">
+    <textarea name="evidence" placeholder="Evidence, one item per line"></textarea>
+    <textarea name="reflection" placeholder="What did you notice or learn?"></textarea>
+    <button type="submit">Record execution</button><output id="execution-result"></output>
+  </form>
+  <div class="execution-records">{% for record in records %}<article><div><strong>{{ record.title }}</strong><span>{{ record.activity_type }} · {{ record.duration_minutes }} min</span></div><p>{{ record.reflection or record.result }}</p><small>{{ record.main_stats|join(' · ') }}{% if record.capabilities %} — {{ record.capabilities|join(', ') }}{% endif %}</small></article>{% else %}<p>No execution records yet.</p>{% endfor %}</div>
+</section>
+<script>
+const form=document.getElementById('execution-form'), out=document.getElementById('execution-result');
+form.addEventListener('submit', async e=>{e.preventDefault(); const f=new FormData(form), split=n=>(f.get(n)||'').split(/[\n,]/).map(x=>x.trim()).filter(Boolean); const payload={title:f.get('title'),activity_type:f.get('activity_type'),main_stats:split('main_stats'),capabilities:split('capabilities'),concepts:split('concepts'),duration_minutes:Number(f.get('duration_minutes')||0),evidence:split('evidence'),reflection:f.get('reflection'),status:'completed',source:'zero_command'}; const r=await fetch('/operator/execution/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await r.json(); out.textContent=r.ok?'Execution recorded.':data.error; if(r.ok)setTimeout(()=>location.reload(),500);});
+</script>
+{% endblock %}

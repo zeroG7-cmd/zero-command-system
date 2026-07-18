@@ -14,7 +14,7 @@
             <p class="eyebrow">ZERO COMMAND / RESEARCH LAB</p>
             <h1>Research & Development</h1>
             <p class="header-copy">
-                One laboratory interface. Separate research and vehicle memory.
+                Zero Command interface powered directly by the zeroGravity R&D engine.
             </p>
         </div>
 
@@ -53,7 +53,7 @@
             <article class="metric-card">
                 <span>R&D Tests</span>
                 <strong>{{ rnd.research.tests.total }}</strong>
-                <small>Stored in zerogravity_rnd.db</small>
+                <small>{{ rnd.research.experiment_summary.total }} experiments registered</small>
             </article>
 
             <article class="metric-card success">
@@ -74,6 +74,33 @@
                 <small>Stored only in shadow.db</small>
             </article>
         </section>
+
+        <section class="engine-status-grid">
+            <article class="engine-card">
+                <span>Repository Health</span>
+                <strong>{{ rnd.repository.health_score }}%</strong>
+                <small>{{ "HEALTHY" if rnd.repository.healthy else "ATTENTION REQUIRED" }}</small>
+            </article>
+            <article class="engine-card">
+                <span>Operator</span>
+                <strong>LVL {{ rnd.operator.level }}</strong>
+                <small>{{ rnd.operator.xp }} XP · {{ rnd.operator.competencies }} competencies</small>
+            </article>
+            <article class="engine-card">
+                <span>Journal</span>
+                <strong>{{ rnd.journal.entries }}</strong>
+                <small>indexed research entries</small>
+            </article>
+            <article class="engine-card">
+                <span>Projects</span>
+                <strong>{{ rnd.projects|length }}</strong>
+                <small>connected R&D projects</small>
+            </article>
+        </section>
+
+        {% if rnd.integration_error %}
+        <div class="integration-alert">{{ rnd.integration_error }}</div>
+        {% endif %}
 
         <section class="workspace-grid">
             <article class="panel panel-large">

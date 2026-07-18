@@ -42,7 +42,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _main_stats(stats: dict[str, Any]) -> list[dict[str, Any]]:
-    preferred = ["CON", "INT", "STR", "DEX", "DIS"]
+    preferred = ["CON", "INT", "STR", "DEX", "DISC", "WILL", "SPIRIT"]
     names = [name for name in preferred if name in stats]
     names.extend(name for name in stats if name not in names)
 
@@ -100,8 +100,8 @@ def _featured_capabilities(competencies: dict[str, Any]) -> list[dict[str, Any]]
 
 def get_operator_dashboard_data() -> dict[str, Any]:
     rnd_root = _rnd_root()
-    stats_path = rnd_root / "learning" / "operator" / "stats.json"
-    competencies_path = rnd_root / "learning" / "config" / "competencies.json"
+    stats_path = rnd_root / "operator_core" / "hubs" / "learning" / "stats" / "learning_stats.json"
+    competencies_path = rnd_root / "operator_core" / "capabilities" / "competencies.json"
 
     stats_data = _load_json(stats_path)
     competencies_data = _load_json(competencies_path)
@@ -159,11 +159,11 @@ def dashboard():
             "workspaces/operator/dashboard.html",
             dashboard=None,
             operator_error=str(error),
-        ), 500
+        ), 200
 
 
 def _capability_graph() -> dict[str, Any]:
-    path = _rnd_root() / "learning" / "config" / "capability_graph.json"
+    path = _rnd_root() / "operator_core" / "capabilities" / "capability_graph.json"
     return _load_json(path)
 
 
@@ -208,7 +208,7 @@ def get_capability_data(slug: str) -> dict[str, Any]:
     if not capability:
         raise KeyError(slug)
     capability_id = capability["id"]
-    competencies = _load_json(_rnd_root() / "learning" / "config" / "competencies.json").get("competencies", {})
+    competencies = _load_json(_rnd_root() / "operator_core" / "capabilities" / "competencies.json").get("competencies", {})
     record = competencies.get(capability_id, {})
     concept_progress = graph.get("concept_progress", {})
     concepts = []
@@ -246,4 +246,4 @@ def capability(slug: str):
     except KeyError:
         abort(404)
     except (FileNotFoundError, ValueError, OSError) as error:
-        return render_template("workspaces/operator/capability.html", capability=None, operator_error=str(error)), 500
+        return render_template("workspaces/operator/capability.html", capability=None, operator_error=str(error)), 200
