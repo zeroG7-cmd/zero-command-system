@@ -1,58 +1,133 @@
 {% extends "base.html" %}
 
-{% block title %}Zero Command System{% endblock %}
+{% block title %}Zero Command Headquarters{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+{% endblock %}
 
 {% block content %}
-<aside class="left-column">
-    <section class="panel greeting-panel">
-        <h2>Good Evening, Zero</h2>
-        <p>Current Focus: R&D Dashboard V1</p>
+<main class="headquarters-shell">
+    <section class="hq-intro" aria-labelledby="hq-title">
+        <div>
+            <p class="hq-kicker">ZERO COMMAND // HOME BASE</p>
+            <h2 id="hq-title">Zero Command Headquarters</h2>
+            <p class="hq-copy">A living interface for the Operator, the laboratory, the business and every system still to come.</p>
+        </div>
+        <div class="hq-status" aria-label="Headquarters status">
+            <span class="status-light"></span>
+            <span>HEADQUARTERS ONLINE</span>
+        </div>
     </section>
 
-    <section class="panel task-panel">
-        <h2>Task Notifications</h2>
-        <p>No urgent tasks.</p>
+    <section class="hq-toolbar" aria-label="Headquarters controls">
+        <div class="hq-readout">
+            <span class="readout-label">CURRENT VIEW</span>
+            <strong id="room-readout">HEADQUARTERS OVERVIEW</strong>
+        </div>
+        <div class="hq-actions">
+            <button class="hq-control is-active" type="button" data-view="overview">Overview</button>
+            <button class="hq-control" type="button" data-view="focus">Focus room</button>
+        </div>
     </section>
 
-    <section class="panel rnd-panel">
-        <h2>R&D Summary</h2>
-        <p>Tests Completed: {{ tests_completed }}</p>
-        <p>Passed: {{ passed }}</p>
-        <p>Failed: {{ failed }}</p>
-        <h3>Recent Tests</h3>
-        {% for test in recent_tests %}
-            <div class="test-row">
-                <span>{{ test[0] }}</span>
-                <strong>{{ test[1] }}</strong>
+    <section class="hq-stage" aria-label="Interactive cross-section of Zero Command Headquarters">
+        <div class="ambient-grid" aria-hidden="true"></div>
+        <div class="hq-building" id="hq-building">
+            <div class="roof-line" aria-hidden="true">
+                <span class="roof-beacon"></span>
+                <span class="roof-title">ZC // HABITAT NODE 01</span>
+                <span class="roof-antenna"></span>
             </div>
-        {% endfor %}
+
+            <div class="hq-floor hq-floor-top">
+                <a class="hq-room room-operator" href="{{ url_for('operator.dashboard') }}" data-room="Operator Study" data-description="Skills, capability progression, tasks and the Operator learning system.">
+                    <span class="room-label">OPERATOR STUDY</span>
+                    <span class="room-status">ACTIVE</span>
+                    <span class="window window-left" aria-hidden="true"></span>
+                    <span class="bookshelf" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                    <span class="desk" aria-hidden="true"></span>
+                    <span class="desk-screen" aria-hidden="true">INT</span>
+                    <span class="chair" aria-hidden="true"></span>
+                    <span class="zero-character zero-at-desk" aria-hidden="true"><i class="zero-head"></i><i class="zero-body"></i></span>
+                    <span class="interaction-hint">Enter study</span>
+                </a>
+
+                <a class="hq-room room-command is-concept" href="#" data-room="Ground Control" data-description="Future tactical room for live camera feeds, telemetry and mission planning." aria-disabled="true">
+                    <span class="room-label">GROUND CONTROL</span>
+                    <span class="room-status concept">CONCEPT</span>
+                    <span class="command-wall" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="holo-table" aria-hidden="true"></span>
+                    <span class="drone-model" aria-hidden="true">◆</span>
+                    <span class="interaction-hint">Future workspace</span>
+                </a>
+            </div>
+
+            <div class="hq-floor">
+                <a class="hq-room room-rnd" href="{{ url_for('research_development.dashboard') }}" data-room="Research & Development Lab" data-description="Experiments, Shadow MK1, digital assets, telemetry and repository health.">
+                    <span class="room-label">R&amp;D LAB</span>
+                    <span class="room-status">ACTIVE</span>
+                    <span class="lab-shelf" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="workbench" aria-hidden="true"></span>
+                    <span class="scope" aria-hidden="true"></span>
+                    <span class="drone-rig" aria-hidden="true"><i></i></span>
+                    <span class="interaction-hint">Enter laboratory</span>
+                </a>
+
+                <a class="hq-room room-business" href="{{ url_for('zerogravity_dashboard') }}" data-room="zeroGravity Office" data-description="Business operations, customers, bookings, finance and market intelligence.">
+                    <span class="room-label">ZEROGRAVITY OFFICE</span>
+                    <span class="room-status">ACTIVE</span>
+                    <span class="office-window" aria-hidden="true"></span>
+                    <span class="office-desk" aria-hidden="true"></span>
+                    <span class="office-screen" aria-hidden="true">zG</span>
+                    <span class="project-board" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="interaction-hint">Enter office</span>
+                </a>
+            </div>
+
+            <div class="hq-floor hq-floor-bottom">
+                <a class="hq-room room-inventory is-concept" href="#" data-room="Inventory Vault" data-description="Future visual storage for motors, batteries, tools, components and digital assets." aria-disabled="true">
+                    <span class="room-label">INVENTORY VAULT</span>
+                    <span class="room-status concept">CONCEPT</span>
+                    <span class="storage-rack rack-one" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="storage-rack rack-two" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="battery-crate" aria-hidden="true">⚡</span>
+                    <span class="interaction-hint">Future workspace</span>
+                </a>
+
+                <section class="hq-room room-core" tabindex="0" data-room="Command Core" data-description="At-a-glance status for the connected Zero Command ecosystem.">
+                    <span class="room-label">COMMAND CORE</span>
+                    <span class="room-status">ONLINE</span>
+                    <div class="core-console">
+                        <div><span>R&amp;D TESTS</span><strong>{{ tests_completed }}</strong></div>
+                        <div><span>PASSED</span><strong>{{ passed }}</strong></div>
+                        <div><span>FAILED</span><strong>{{ failed }}</strong></div>
+                    </div>
+                    <span class="core-reactor" aria-hidden="true"><i></i></span>
+                    <span class="interaction-hint">System overview</span>
+                </section>
+            </div>
+
+            <div class="foundation" aria-hidden="true">
+                <span>ZERO COMMAND SYSTEM // THE HOUSE IS THE INTERFACE</span>
+            </div>
+        </div>
     </section>
-</aside>
 
-<main class="command-centre">
-    <div class="status-row">
-        <section class="panel character-panel">
-            <h2>Character</h2>
-            <p>Level 2 Engineer</p>
-            <p>INT: 15</p>
-            <p>ENG: 25</p>
-        </section>
-
-        <section class="panel balance-panel">
-            <h2>Balance</h2>
-            <p>Personal: £380</p>
-            <p>Business: £0</p>
-        </section>
-
-        <section class="panel personal-panel">
-            <h2>Personal Status</h2>
-            <p>Weight: 75kg</p>
-            <p>Energy: Stable</p>
-        </section>
-    </div>
-
-    <section class="avatar-panel">
-        <p>3D Zero Avatar Here</p>
+    <section class="room-inspector" aria-live="polite">
+        <div>
+            <span class="inspector-label">SELECTED SPACE</span>
+            <h3 id="inspector-title">Headquarters Overview</h3>
+            <p id="inspector-description">Hover over or focus a room to inspect its purpose. Active rooms open the existing Zero Command workspaces.</p>
+        </div>
+        <div class="inspector-key">
+            <span><i class="key-dot active"></i>Active workspace</span>
+            <span><i class="key-dot concept"></i>Future room</span>
+        </div>
     </section>
 </main>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
 {% endblock %}
