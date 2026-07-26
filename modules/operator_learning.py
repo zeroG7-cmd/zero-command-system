@@ -281,6 +281,40 @@ def _card(track: Path) -> dict[str, Any]:
     }
 
 
+def _group_tracks(cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for card in cards:
+        parts = [part.strip() for part in card.get("knowledge_path", "").split(">") if part.strip()]
+        stat = parts[0] if parts else "Unassigned"
+        domain = parts[1] if len(parts) > 1 else "General"
+        category = parts[-1] if len(parts) > 2 else card.get("skill") or "General"
+        key = (stat, domain)
+        group = grouped.setdefault(key, {
+            "stat": stat,
+            "domain": domain,
+            "track_count": 0,
+            "completed_units": 0,
+            "total_units": 0,
+            "categories": {},
+        })
+        group["track_count"] += 1
+        group["completed_units"] += card["completed_count"]
+        group["total_units"] += card["unit_count"]
+        group["categories"].setdefault(category, []).append(card)
+
+    result = []
+    for group in grouped.values():
+        group["percentage"] = round(
+            (group["completed_units"] / group["total_units"]) * 100, 1
+        ) if group["total_units"] else 0.0
+        group["categories"] = [
+            {"name": name, "tracks": sorted(tracks, key=lambda item: item["title"].lower())}
+            for name, tracks in sorted(group["categories"].items())
+        ]
+        result.append(group)
+    return sorted(result, key=lambda item: (item["stat"], item["domain"]))
+
+
 def get_learning_hub_data() -> dict[str, Any]:
     cards: list[dict[str, Any]] = []
     track_errors: list[str] = []
@@ -294,8 +328,21 @@ def get_learning_hub_data() -> dict[str, Any]:
     done = sum(card["completed_count"] for card in cards)
     stats_path = _rnd_root() / "operator_core" / "hubs" / "learning" / "stats" / "learning_stats.json"
     operator_stats = _load_json(stats_path) if stats_path.exists() else {}
+    status_counts: dict[str, int] = {}
+    for card in cards:
+        status = str(card.get("status", "In Progress"))
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    active_tracks = [
+        card for card in cards
+        if str(card.get("status", "")).strip().lower() not in {"complete", "completed", "abandoned"}
+    ]
+
     return {
         "tracks": cards,
+        "active_tracks": active_tracks,
+        "library_groups": _group_tracks(cards),
+        "status_counts": status_counts,
         "track_count": len(cards),
         "total_units": total,
         "completed_units": done,

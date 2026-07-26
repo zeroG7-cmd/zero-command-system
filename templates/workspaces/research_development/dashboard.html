@@ -1,365 +1,320 @@
 {% extends "base.html" %}
 
-{% block title %}Research & Development | Zero Command{% endblock %}
+{% block title %}R&D Laboratory | Zero Command{% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet"
-      href="{{ url_for('static', filename='css/research_development.css') }}">
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/research_development.css') }}">
 {% endblock %}
 
 {% block content %}
-<main class="rnd-workspace">
-    <header class="rnd-command-header">
-        <div>
-            <p class="eyebrow">ZERO COMMAND / RESEARCH LAB</p>
-            <h1>Research & Development</h1>
-            <p class="header-copy">
-                Zero Command interface powered directly by the zeroGravity R&D engine.
-            </p>
+<main class="lab-shell" data-default-room="hub">
+    <header class="lab-header">
+        <div class="lab-heading">
+            <p class="lab-kicker">ZERO COMMAND / ENGINEERING LABORATORY</p>
+            <h1>Research &amp; Development</h1>
+            <p>A shared laboratory for robotics, electronics, simulation, software and future systems.</p>
         </div>
 
-        <div class="database-state-grid">
-            <div class="database-state">
-                <span class="pulse-dot {% if not rnd.research.database_online %}offline{% endif %}"></span>
-                <div>
-                    <strong>R&D DATABASE</strong>
-                    <small>{{ "ONLINE" if rnd.research.database_online else "OFFLINE" }}</small>
-                </div>
+        <div class="lab-status-strip" aria-label="Laboratory status">
+            <div class="status-chip">
+                <span class="status-light {% if not rnd.research.database_online %}offline{% endif %}"></span>
+                <div><small>LAB DATABASE</small><strong>{{ "ONLINE" if rnd.research.database_online else "OFFLINE" }}</strong></div>
             </div>
-
-            <div class="database-state">
-                <span class="pulse-dot {% if not rnd.shadow.database_online %}offline{% endif %}"></span>
-                <div>
-                    <strong>SHADOW DATABASE</strong>
-                    <small>{{ "ONLINE" if rnd.shadow.database_online else "OFFLINE" }}</small>
-                </div>
+            <div class="status-chip">
+                <span class="status-light {% if not rnd.repository.repo_online %}offline{% endif %}"></span>
+                <div><small>REPOSITORY</small><strong>{{ rnd.repository.health_score }}%</strong></div>
+            </div>
+            <div class="status-chip">
+                <span class="status-light {% if not rnd.shadow.database_online %}offline{% endif %}"></span>
+                <div><small>SHADOW LINK</small><strong>{{ rnd.shadow.vehicle.status|upper }}</strong></div>
             </div>
         </div>
     </header>
 
-    <nav class="rnd-tabs" aria-label="R&D workspace sections">
-        <button class="rnd-tab active" data-tab="overview">Overview</button>
-        <button class="rnd-tab" data-tab="experiments">Experiments</button>
-        <button class="rnd-tab" data-tab="simulation">Simulation</button>
-        <button class="rnd-tab" data-tab="shadow">Shadow</button>
-        <button class="rnd-tab" data-tab="hardware">Hardware</button>
-        <button class="rnd-tab" data-tab="digital-twin">Digital Twin</button>
-        <button class="rnd-tab" data-tab="camera">Camera</button>
-        <button class="rnd-tab" data-tab="archive">Archive</button>
-    </nav>
+    {% if rnd.integration_error %}
+    <div class="lab-alert">{{ rnd.integration_error }}</div>
+    {% endif %}
 
-    <section class="rnd-tab-panel active" id="overview">
-        <section class="metric-grid">
-            <article class="metric-card">
-                <span>R&D Tests</span>
-                <strong>{{ rnd.research.tests.total }}</strong>
-                <small>{{ rnd.research.experiment_summary.total }} experiments registered</small>
-            </article>
+    <div class="lab-layout">
+        <aside class="lab-sidebar">
+            <div class="sidebar-title">
+                <span>LAB ROOMS</span>
+                <button class="sidebar-toggle" type="button" aria-label="Collapse laboratory navigation">☰</button>
+            </div>
 
-            <article class="metric-card success">
-                <span>Passed</span>
-                <strong>{{ rnd.research.tests.passed }}</strong>
-                <small>{{ rnd.research.tests.success_rate }}% success rate</small>
-            </article>
+            <nav class="room-nav" aria-label="R&D laboratory rooms">
+                <button class="room-link active" type="button" data-room="hub">
+                    <span class="room-icon">⌂</span><span class="room-label">Lab Hub</span>
+                </button>
+                <button class="room-link" type="button" data-room="projects">
+                    <span class="room-icon">▦</span><span class="room-label">Projects</span>
+                    <span class="room-count">{{ rnd.projects|length }}</span>
+                </button>
+                <button class="room-link" type="button" data-room="experiments">
+                    <span class="room-icon">⚗</span><span class="room-label">Experiments</span>
+                    <span class="room-count">{{ rnd.research.experiment_summary.total }}</span>
+                </button>
+                <button class="room-link" type="button" data-room="simulation">
+                    <span class="room-icon">◫</span><span class="room-label">Simulation Bay</span>
+                    <span class="room-count">{{ rnd.research.simulation.runs }}</span>
+                </button>
+                <button class="room-link" type="button" data-room="hardware">
+                    <span class="room-icon">⌁</span><span class="room-label">Hardware Bench</span>
+                </button>
+                <button class="room-link" type="button" data-room="data">
+                    <span class="room-icon">◉</span><span class="room-label">Data &amp; Results</span>
+                </button>
+                <button class="room-link" type="button" data-room="archive">
+                    <span class="room-icon">▤</span><span class="room-label">Archive</span>
+                    <span class="room-count">{{ rnd.repository.archived_experiments }}</span>
+                </button>
+            </nav>
 
-            <article class="metric-card">
-                <span>Simulation Runs</span>
-                <strong>{{ rnd.research.simulation.runs }}</strong>
-                <small>{{ rnd.research.simulation.telemetry_samples }} simulated samples</small>
-            </article>
+            <div class="sidebar-footer">
+                <small>CURRENT FOCUS</small>
+                <strong>Simulation Readiness</strong>
+                <span>Build, run, review, iterate.</span>
+            </div>
+        </aside>
 
-            <article class="metric-card cyan">
-                <span>Shadow Telemetry</span>
-                <strong>{{ rnd.shadow.telemetry.samples }}</strong>
-                <small>Stored only in shadow.db</small>
-            </article>
-        </section>
-
-        <section class="engine-status-grid">
-            <article class="engine-card">
-                <span>Repository Health</span>
-                <strong>{{ rnd.repository.health_score }}%</strong>
-                <small>{{ "HEALTHY" if rnd.repository.healthy else "ATTENTION REQUIRED" }}</small>
-            </article>
-            <article class="engine-card">
-                <span>Operator</span>
-                <strong>LVL {{ rnd.operator.level }}</strong>
-                <small>{{ rnd.operator.xp }} XP · {{ rnd.operator.competencies }} competencies</small>
-            </article>
-            <article class="engine-card">
-                <span>Journal</span>
-                <strong>{{ rnd.journal.entries }}</strong>
-                <small>indexed research entries</small>
-            </article>
-            <article class="engine-card">
-                <span>Projects</span>
-                <strong>{{ rnd.projects|length }}</strong>
-                <small>connected R&D projects</small>
-            </article>
-        </section>
-
-        {% if rnd.integration_error %}
-        <div class="integration-alert">{{ rnd.integration_error }}</div>
-        {% endif %}
-
-        <section class="workspace-grid">
-            <article class="panel panel-large">
-                <div class="panel-heading">
-                    <div>
-                        <p class="panel-kicker">RESEARCH TIMELINE</p>
-                        <h2>Recent Test Activity</h2>
-                    </div>
-                    <span class="panel-badge">R&D DATA</span>
+        <section class="lab-stage">
+            <section class="lab-room active" id="room-hub" data-room-panel="hub">
+                <div class="room-heading">
+                    <div><p class="lab-kicker">LAB HUB</p><h2>Engineering Overview</h2></div>
+                    <button class="primary-action" type="button" data-open-room="experiments">Open experiment registry</button>
                 </div>
 
-                <div class="test-list">
-                    {% for test in rnd.research.tests.recent %}
-                    <div class="test-row">
-                        <span class="result-indicator {{ test.result_class }}"></span>
-                        <div class="test-main">
-                            <strong>{{ test.test_name }}</strong>
-                            <small>
-                                {{ test.component or "Unassigned" }}
-                                · {{ (test.source or "unknown")|upper }}
-                                {% if test.timestamp %} · {{ test.timestamp }}{% endif %}
-                            </small>
+                <section class="overview-grid">
+                    <article class="hero-card">
+                        <div class="hero-copy">
+                            <span class="card-label">LABORATORY STATUS</span>
+                            <h3>{{ rnd.research.experiment_summary.active }} active experiments</h3>
+                            <p>One workflow for Shadow, the smart garden, cyberdeck, smart mirror, robot arm and electronics practice.</p>
+                            <div class="hero-actions">
+                                <button type="button" data-open-room="projects">Browse projects</button>
+                                <button type="button" data-open-room="simulation">Enter simulation bay</button>
+                            </div>
                         </div>
-                        <span class="result-label {{ test.result_class }}">
-                            {{ (test.result or "pending")|upper }}
-                        </span>
-                    </div>
+                        <div class="lab-orbit" aria-hidden="true">
+                            <span class="orbit-core">R&amp;D</span><i></i><i></i><i></i>
+                        </div>
+                    </article>
+
+                    <article class="snapshot-card">
+                        <span class="card-label">LAB SNAPSHOT</span>
+                        <div class="snapshot-list">
+                            <div><span>Projects</span><strong>{{ rnd.projects|length }}</strong></div>
+                            <div><span>Experiments</span><strong>{{ rnd.research.experiment_summary.total }}</strong></div>
+                            <div><span>Test runs</span><strong>{{ rnd.research.tests.total }}</strong></div>
+                            <div><span>Success rate</span><strong>{{ rnd.research.tests.success_rate }}%</strong></div>
+                            <div><span>Simulation runs</span><strong>{{ rnd.research.simulation.runs }}</strong></div>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="room-grid two-column">
+                    <article class="lab-card">
+                        <div class="card-heading">
+                            <div><span class="card-label">PROJECT ACCESS</span><h3>Connected Projects</h3></div>
+                            <button class="text-action" type="button" data-open-room="projects">View all</button>
+                        </div>
+                        <div class="compact-project-list">
+                            {% for project in rnd.projects[:5] %}
+                            <button type="button" class="compact-project" data-project-target="{{ project.id }}">
+                                <span class="project-mark">{{ project.name[:1] }}</span>
+                                <span><strong>{{ project.name }}</strong><small>{{ project.files }} indexed files</small></span>
+                                <b>›</b>
+                            </button>
+                            {% else %}
+                            <div class="empty-state">No project folders detected yet.</div>
+                            {% endfor %}
+                        </div>
+                    </article>
+
+                    <article class="lab-card">
+                        <div class="card-heading">
+                            <div><span class="card-label">LATEST ACTIVITY</span><h3>Recent Test Runs</h3></div>
+                            <button class="text-action" type="button" data-open-room="data">Open results</button>
+                        </div>
+                        <div class="activity-list">
+                            {% for test in rnd.research.tests.recent[:5] %}
+                            <div class="activity-row">
+                                <span class="result-dot {{ test.result_class }}"></span>
+                                <span><strong>{{ test.test_name }}</strong><small>{{ test.component or "Unassigned" }} · {{ (test.source or "unknown")|upper }}</small></span>
+                                <b class="result-text {{ test.result_class }}">{{ (test.result or "pending")|upper }}</b>
+                            </div>
+                            {% else %}
+                            <div class="empty-state">No test runs recorded yet.</div>
+                            {% endfor %}
+                        </div>
+                    </article>
+                </section>
+
+                <section class="workflow-card">
+                    <div><span class="card-label">STANDARD LAB WORKFLOW</span><h3>From idea to evidence</h3></div>
+                    <ol class="workflow-steps">
+                        <li><span>1</span><strong>Choose project</strong><small>Define the system.</small></li>
+                        <li><span>2</span><strong>Create experiment</strong><small>State the question.</small></li>
+                        <li><span>3</span><strong>Select environment</strong><small>Simulation or hardware.</small></li>
+                        <li><span>4</span><strong>Run test</strong><small>Capture configuration and data.</small></li>
+                        <li><span>5</span><strong>Review result</strong><small>Conclude and plan the next iteration.</small></li>
+                    </ol>
+                </section>
+            </section>
+
+            <section class="lab-room" id="room-projects" data-room-panel="projects">
+                <div class="room-heading">
+                    <div><p class="lab-kicker">PROJECTS ROOM</p><h2>Engineering Projects</h2><p>Every experiment, test and result belongs to a project.</p></div>
+                    <label class="search-box"><span>⌕</span><input id="project-search" type="search" placeholder="Search projects"></label>
+                </div>
+
+                <div class="project-grid" id="project-grid">
+                    {% for project in rnd.projects %}
+                    <article class="project-card" id="project-{{ project.id }}" data-project-name="{{ project.name|lower }}">
+                        <div class="project-topline"><span class="project-mark large">{{ project.name[:1] }}</span><span class="project-status">{{ project.status|upper }}</span></div>
+                        <h3>{{ project.name }}</h3>
+                        <p>{{ project.files }} indexed repository files.</p>
+                        <details>
+                            <summary>Project workspace</summary>
+                            <div class="project-details">
+                                <span><small>Repository path</small><code>{{ project.path }}</code></span>
+                                <div class="project-room-links">
+                                    <button type="button" data-open-room="experiments">Experiments</button>
+                                    <button type="button" data-open-room="simulation">Simulation</button>
+                                    <button type="button" data-open-room="hardware">Hardware</button>
+                                </div>
+                            </div>
+                        </details>
+                    </article>
                     {% else %}
-                    <div class="empty-state">
-                        No research test runs recorded yet.
-                    </div>
+                    <div class="empty-state lab-card">Create project folders inside the R&amp;D repository to populate this room.</div>
                     {% endfor %}
                 </div>
-            </article>
+            </section>
 
-            <article class="panel">
-                <div class="panel-heading">
-                    <div>
-                        <p class="panel-kicker">DATA BOUNDARIES</p>
-                        <h2>Database Separation</h2>
-                    </div>
+            <section class="lab-room" id="room-experiments" data-room-panel="experiments">
+                <div class="room-heading">
+                    <div><p class="lab-kicker">EXPERIMENTS ROOM</p><h2>Experiment Registry</h2><p>Questions, hypotheses, methods, results and next iterations.</p></div>
+                    <div class="room-summary"><span>{{ rnd.research.experiment_summary.active }} active</span><span>{{ rnd.research.experiment_summary.total }} total</span></div>
                 </div>
 
-                <div class="boundary-list">
-                    <div class="boundary-card">
-                        <span>zerogravity_rnd.db</span>
-                        <strong>Research Memory</strong>
-                        <small>
-                            Experiments, simulation, research tests,
-                            datasets and model evaluation.
-                        </small>
-                    </div>
-
-                    <div class="boundary-card">
-                        <span>shadow.db</span>
-                        <strong>Vehicle Memory</strong>
-                        <small>
-                            Real telemetry, missions, faults,
-                            maintenance and hardware health.
-                        </small>
+                <div class="experiment-layout">
+                    <aside class="experiment-guide lab-card">
+                        <span class="card-label">EXPERIMENT TEMPLATE</span>
+                        <h3>Required record</h3>
+                        <ul>
+                            <li>Project and category</li><li>Objective or hypothesis</li><li>Environment</li><li>Equipment/configuration</li><li>Test runs</li><li>Results</li><li>Conclusion</li><li>Next action</li>
+                        </ul>
+                        <p>This prototype reads your existing registry. Creation controls can be connected once the database write service is approved.</p>
+                    </aside>
+                    <div class="experiment-stack">
+                        {% for experiment in rnd.research.experiments %}
+                        <article class="experiment-card">
+                            <div class="experiment-topline"><span>{{ experiment.category or "GENERAL" }}</span><b>{{ experiment.status|upper }}</b></div>
+                            <h3>{{ experiment.experiment_name }}</h3>
+                            <p>{{ experiment.hypothesis or "No hypothesis recorded." }}</p>
+                            {% if experiment.conclusion %}<div class="experiment-conclusion"><small>CONCLUSION</small>{{ experiment.conclusion }}</div>{% endif %}
+                            <footer>{{ experiment.updated_at or experiment.created_at or "No date" }}</footer>
+                        </article>
+                        {% else %}
+                        <div class="empty-state lab-card">No experiments recorded yet. The room is ready for the first registry entry.</div>
+                        {% endfor %}
                     </div>
                 </div>
-            </article>
+            </section>
 
-            <article class="panel">
-                <div class="panel-heading">
-                    <div>
-                        <p class="panel-kicker">SHADOW STATUS</p>
-                        <h2>{{ rnd.shadow.vehicle.name }}</h2>
-                    </div>
-                    <span class="panel-badge standby">
-                        {{ rnd.shadow.vehicle.status|upper }}
-                    </span>
+            <section class="lab-room" id="room-simulation" data-room-panel="simulation">
+                <div class="room-heading">
+                    <div><p class="lab-kicker">SIMULATION BAY</p><h2>Virtual Test Environment</h2><p>Run safely, capture evidence, compare iterations.</p></div>
+                    <span class="bay-state">{{ "READY" if rnd.repository.simulation_files >= 0 else "OFFLINE" }}</span>
                 </div>
 
-                <div class="asset-summary">
-                    <div><span>Model</span><strong>{{ rnd.shadow.vehicle.model }}</strong></div>
-                    <div><span>Missions</span><strong>{{ rnd.shadow.missions.total }}</strong></div>
-                    <div><span>Completed</span><strong>{{ rnd.shadow.missions.completed }}</strong></div>
-                    <div><span>Open faults</span><strong>{{ rnd.shadow.faults.open }}</strong></div>
-                </div>
-            </article>
-
-            <article class="panel panel-wide">
-                <div class="panel-heading">
-                    <div>
-                        <p class="panel-kicker">SHADOW DIGITAL TWIN</p>
-                        <h2>Vehicle Representation</h2>
-                    </div>
-                    <span class="panel-badge standby">STANDBY</span>
-                </div>
-
-                <div class="twin-preview">
-                    <div class="twin-radar">
-                        <div class="radar-ring ring-one"></div>
-                        <div class="radar-ring ring-two"></div>
-                        <div class="radar-ring ring-three"></div>
-                        <div class="drone-glyph">◇</div>
-                    </div>
-
-                    <div class="twin-copy">
-                        <h3>Shadow MK1</h3>
-                        <p>
-                            CAD and URDF assets remain part of the wider R&D repository,
-                            while live operational state is sourced from shadow.db.
-                        </p>
-                        <div class="twin-stats">
-                            <span>CAD <strong>{{ rnd.repository.cad_assets }}</strong></span>
-                            <span>URDF <strong>{{ rnd.repository.urdf_assets }}</strong></span>
-                            <span>STATUS <strong>{{ rnd.shadow.vehicle.status|upper }}</strong></span>
+                <section class="simulation-console">
+                    <article class="simulation-viewport">
+                        <div class="viewport-toolbar"><span>SIMULATION VIEWPORT</span><span>ROS / GAZEBO</span></div>
+                        <div class="viewport-body">
+                            <div class="sim-grid"></div><div class="sim-object">◇</div>
+                            <div class="viewport-message"><strong>Simulation feed slot</strong><span>Connect the ROS/Gazebo bridge here.</span></div>
                         </div>
+                    </article>
+                    <aside class="simulation-stats">
+                        <div><span>Total runs</span><strong>{{ rnd.research.simulation.runs }}</strong></div>
+                        <div><span>Completed</span><strong>{{ rnd.research.simulation.completed_runs }}</strong></div>
+                        <div><span>Telemetry samples</span><strong>{{ rnd.research.simulation.telemetry_samples }}</strong></div>
+                        <div><span>Repository files</span><strong>{{ rnd.repository.simulation_files }}</strong></div>
+                    </aside>
+                </section>
+
+                <section class="room-grid three-column">
+                    <article class="lab-card"><span class="card-label">DRONE &amp; ROBOTICS</span><h3>ROS / Gazebo</h3><p>Navigation, perception, control, mission and sensor simulations.</p></article>
+                    <article class="lab-card"><span class="card-label">CONTROL SYSTEMS</span><h3>PID Sandbox</h3><p>Setpoint tracking, rise time, overshoot, settling time and tuning comparisons.</p></article>
+                    <article class="lab-card"><span class="card-label">GENERAL MODELLING</span><h3>Future Simulators</h3><p>Smart garden logic, electronics models, mechanisms and digital twins.</p></article>
+                </section>
+            </section>
+
+            <section class="lab-room" id="room-hardware" data-room-panel="hardware">
+                <div class="room-heading">
+                    <div><p class="lab-kicker">HARDWARE BENCH</p><h2>Physical Prototyping</h2><p>Breadboards, microcontrollers, sensors, actuators and bench testing.</p></div>
+                    <span class="room-summary"><span>{{ rnd.repository.hardware_files }} hardware files</span></span>
+                </div>
+
+                <section class="bench-grid">
+                    <article class="bench-card"><span class="bench-icon">▥</span><div><small>ELECTRONICS</small><h3>Breadboard Bench</h3><p>Circuits, wiring diagrams, measurements and fault notes.</p></div></article>
+                    <article class="bench-card"><span class="bench-icon">⌬</span><div><small>EMBEDDED</small><h3>Arduino &amp; Controllers</h3><p>Firmware, serial logs, pin maps and control tests.</p></div></article>
+                    <article class="bench-card"><span class="bench-icon">↝</span><div><small>CONTROL</small><h3>PID Test Rig</h3><p>Motor, position, speed and temperature control experiments.</p></div></article>
+                    <article class="bench-card"><span class="bench-icon">⌁</span><div><small>SENSORS</small><h3>Calibration Station</h3><p>Camera, LiDAR, moisture, IMU and environmental sensors.</p></div></article>
+                    <article class="bench-card"><span class="bench-icon">⚙</span><div><small>MECHANISMS</small><h3>Actuator Bench</h3><p>Servos, steppers, motors, joints and mechanical prototypes.</p></div></article>
+                    <article class="bench-card"><span class="bench-icon">◇</span><div><small>ASSET</small><h3>{{ rnd.shadow.vehicle.name }}</h3><p>{{ rnd.shadow.vehicle.type }} · {{ rnd.shadow.vehicle.status }}</p></div></article>
+                </section>
+            </section>
+
+            <section class="lab-room" id="room-data" data-room-panel="data">
+                <div class="room-heading">
+                    <div><p class="lab-kicker">DATA &amp; RESULTS</p><h2>Evidence Room</h2><p>Review test outcomes and repository artefacts.</p></div>
+                    {% if rnd.repository.latest_artifact %}<span class="latest-artifact">Latest: {{ rnd.repository.latest_artifact.name }}</span>{% endif %}
+                </div>
+
+                <section class="metric-grid compact">
+                    <article><span>Passed</span><strong>{{ rnd.research.tests.passed }}</strong></article>
+                    <article><span>Failed</span><strong>{{ rnd.research.tests.failed }}</strong></article>
+                    <article><span>Pending</span><strong>{{ rnd.research.tests.pending }}</strong></article>
+                    <article><span>Journal entries</span><strong>{{ rnd.journal.entries }}</strong></article>
+                </section>
+
+                <article class="lab-card">
+                    <div class="card-heading"><div><span class="card-label">TEST REGISTRY</span><h3>Recent results</h3></div></div>
+                    <div class="results-table-wrap">
+                        <table class="results-table">
+                            <thead><tr><th>Test</th><th>Component</th><th>Source</th><th>Result</th><th>Timestamp</th></tr></thead>
+                            <tbody>
+                            {% for test in rnd.research.tests.recent %}
+                            <tr><td>{{ test.test_name }}</td><td>{{ test.component or "—" }}</td><td>{{ (test.source or "unknown")|upper }}</td><td><span class="table-result {{ test.result_class }}">{{ (test.result or "pending")|upper }}</span></td><td>{{ test.timestamp or "—" }}</td></tr>
+                            {% else %}<tr><td colspan="5">No test runs recorded.</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
                     </div>
+                </article>
+            </section>
+
+            <section class="lab-room" id="room-archive" data-room-panel="archive">
+                <div class="room-heading">
+                    <div><p class="lab-kicker">ARCHIVE</p><h2>Research Memory</h2><p>Completed, superseded and historical work remains discoverable.</p></div>
                 </div>
-            </article>
-        </section>
-    </section>
-
-    <section class="rnd-tab-panel" id="experiments">
-        <section class="section-intro">
-            <div>
-                <p class="eyebrow">R&D DATABASE</p>
-                <h2>Experiment Registry</h2>
-            </div>
-            <p>Experiments are stored independently from Shadow’s operational history.</p>
-        </section>
-
-        <div class="experiment-grid">
-            {% for experiment in rnd.research.experiments %}
-            <article class="experiment-card">
-                <div class="experiment-topline">
-                    <span>{{ experiment.category or "GENERAL" }}</span>
-                    <span class="experiment-status">{{ experiment.status|upper }}</span>
-                </div>
-                <h3>{{ experiment.experiment_name }}</h3>
-                <p>{{ experiment.hypothesis or "No hypothesis recorded." }}</p>
-                <small>{{ experiment.updated_at or experiment.created_at }}</small>
-            </article>
-            {% else %}
-            <div class="empty-state panel">No experiments recorded yet.</div>
-            {% endfor %}
-        </div>
-    </section>
-
-    <section class="rnd-tab-panel" id="simulation">
-        <div class="placeholder-panel">
-            <p class="eyebrow">R&D DATABASE</p>
-            <h2>{{ rnd.research.simulation.runs }} Simulation Runs</h2>
-            <p>
-                Simulated telemetry belongs here, not in Shadow’s live operational database.
-            </p>
-            <div class="placeholder-metrics">
-                <span>RUNS <strong>{{ rnd.research.simulation.runs }}</strong></span>
-                <span>COMPLETED <strong>{{ rnd.research.simulation.completed_runs }}</strong></span>
-                <span>SAMPLES <strong>{{ rnd.research.simulation.telemetry_samples }}</strong></span>
-            </div>
-        </div>
-    </section>
-
-    <section class="rnd-tab-panel" id="shadow">
-        <section class="shadow-grid">
-            <article class="panel shadow-hero">
-                <p class="eyebrow">SHADOW DATABASE</p>
-                <h2>{{ rnd.shadow.vehicle.name }}</h2>
-                <p>{{ rnd.shadow.vehicle.type }}</p>
-
-                <div class="shadow-status">
-                    {{ rnd.shadow.vehicle.status|upper }}
-                </div>
-            </article>
-
-            <article class="panel">
-                <p class="panel-kicker">LIVE OPERATIONS</p>
-                <h2>Vehicle Memory</h2>
-                <div class="asset-summary">
-                    <div><span>Telemetry samples</span><strong>{{ rnd.shadow.telemetry.samples }}</strong></div>
-                    <div><span>Missions</span><strong>{{ rnd.shadow.missions.total }}</strong></div>
-                    <div><span>Maintenance records</span><strong>{{ rnd.shadow.maintenance.records }}</strong></div>
-                    <div><span>Open faults</span><strong>{{ rnd.shadow.faults.open }}</strong></div>
-                </div>
-            </article>
-
-            <article class="panel panel-wide">
-                <p class="panel-kicker">LATEST TELEMETRY</p>
-                {% if rnd.shadow.telemetry.latest %}
-                <div class="telemetry-grid">
-                    <div><span>Battery</span><strong>{{ rnd.shadow.telemetry.latest.battery_percentage or "--" }}%</strong></div>
-                    <div><span>Voltage</span><strong>{{ rnd.shadow.telemetry.latest.battery_voltage or "--" }} V</strong></div>
-                    <div><span>Altitude</span><strong>{{ rnd.shadow.telemetry.latest.altitude or "--" }} m</strong></div>
-                    <div><span>Link</span><strong>{{ rnd.shadow.telemetry.latest.link_quality or "--" }}</strong></div>
-                    <div><span>Mode</span><strong>{{ rnd.shadow.telemetry.latest.flight_mode or "--" }}</strong></div>
-                </div>
-                {% else %}
-                <div class="empty-state">Awaiting real telemetry from Shadow.</div>
+                <section class="archive-grid">
+                    <article class="archive-card"><span>ARCHIVED RECORDS</span><strong>{{ rnd.repository.archived_experiments }}</strong><p>Completed experiment artefacts.</p></article>
+                    <article class="archive-card"><span>CAD ASSETS</span><strong>{{ rnd.repository.cad_assets }}</strong><p>Mechanical and product design files.</p></article>
+                    <article class="archive-card"><span>URDF ASSETS</span><strong>{{ rnd.repository.urdf_assets }}</strong><p>Robot descriptions and simulation models.</p></article>
+                    <article class="archive-card"><span>CAMERA FILES</span><strong>{{ rnd.shadow.camera_files }}</strong><p>Captured hardware camera artefacts.</p></article>
+                </section>
+                {% if rnd.repository.latest_artifact %}
+                <article class="lab-card latest-file-card"><span class="card-label">LATEST INDEXED ARTEFACT</span><h3>{{ rnd.repository.latest_artifact.name }}</h3><code>{{ rnd.repository.latest_artifact.relative_path }}</code><small>{{ rnd.repository.latest_artifact.modified }}</small></article>
                 {% endif %}
-            </article>
+            </section>
         </section>
-    </section>
-
-    <section class="rnd-tab-panel" id="hardware">
-        <div class="placeholder-panel">
-            <p class="eyebrow">REPOSITORY ASSETS</p>
-            <h2>{{ rnd.repository.hardware_files }} Hardware Data Files</h2>
-            <p>
-                Hardware experiments belong to R&D; continuous live vehicle condition belongs to Shadow.
-            </p>
-        </div>
-    </section>
-
-    <section class="rnd-tab-panel" id="digital-twin">
-        <div class="placeholder-panel twin-full">
-            <p class="eyebrow">DIGITAL TWIN BAY</p>
-            <h2>Shadow MK1 Representation Ready</h2>
-            <p>
-                {{ rnd.repository.cad_assets }} CAD assets and
-                {{ rnd.repository.urdf_assets }} URDF assets detected.
-            </p>
-            <div class="large-radar"><span>SHADOW MK1</span></div>
-        </div>
-    </section>
-
-    <section class="rnd-tab-panel" id="camera">
-        <div class="camera-layout">
-            <article class="camera-screen">
-                <div class="camera-overlay">
-                    <span>SHADOW / CAM-01</span>
-                    <span>NO SIGNAL</span>
-                </div>
-                <div class="crosshair"></div>
-                <p>Insert the live Raspberry Pi MJPEG stream here.</p>
-                <code>&lt;img src="http://PI_ADDRESS:5001/video"&gt;</code>
-            </article>
-
-            <article class="panel">
-                <p class="panel-kicker">CAMERA DATA ROUTING</p>
-                <h2>Storage Rule</h2>
-                <div class="boundary-list">
-                    <div class="boundary-card">
-                        <span>shadow.db / live files</span>
-                        <strong>Real vehicle capture</strong>
-                    </div>
-                    <div class="boundary-card">
-                        <span>zerogravity_rnd.db</span>
-                        <strong>Research evaluation</strong>
-                    </div>
-                </div>
-            </article>
-        </div>
-    </section>
-
-    <section class="rnd-tab-panel" id="archive">
-        <div class="placeholder-panel">
-            <p class="eyebrow">REPOSITORY ARCHIVE</p>
-            <h2>{{ rnd.repository.archived_experiments }} Archived Records</h2>
-            <p>
-                Completed and superseded research remains separate from the operational history of Shadow.
-            </p>
-        </div>
-    </section>
+    </div>
 </main>
+{% endblock %}
 
+{% block scripts %}
 <script src="{{ url_for('static', filename='js/research_development.js') }}"></script>
 {% endblock %}

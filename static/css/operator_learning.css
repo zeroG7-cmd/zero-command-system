@@ -284,3 +284,24 @@
 @media (max-width: 900px) {
     .provider-grid { grid-template-columns: 1fr; }
 }
+
+
+.learning-library { display: grid; gap: 0.8rem; }
+.library-domain { border: 1px solid var(--op-border); border-radius: 0.85rem; background: var(--op-panel); overflow: hidden; }
+.library-domain > summary { list-style: none; cursor: pointer; padding: 1rem 1.1rem; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+.library-domain > summary::-webkit-details-marker { display: none; }
+.library-domain > summary > div:first-child span { display: block; color: var(--op-accent); font-size: 0.68rem; letter-spacing: 0.14em; }
+.library-domain > summary strong { display: block; margin-top: 0.2rem; font-size: 1.15rem; }
+.library-summary-metrics { display: flex; gap: 0.65rem; flex-wrap: wrap; justify-content: flex-end; color: var(--op-muted); font-size: 0.75rem; }
+.library-summary-metrics span { border: 1px solid var(--op-border); border-radius: 999px; padding: 0.32rem 0.55rem; }
+.library-domain-content { padding: 0 1rem 1rem; display: grid; gap: 0.8rem; }
+.library-category { border-top: 1px solid var(--op-border); padding-top: 0.9rem; }
+.library-category > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.55rem; }
+.library-category h3, .library-resource-row h4 { margin: 0; }
+.library-category > header span, .library-resource-row p, .library-resource-progress span { color: var(--op-muted); font-size: 0.75rem; }
+.library-resource-list { display: grid; gap: 0.5rem; }
+.library-resource-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 1rem; align-items: center; padding: 0.8rem; border: 1px solid var(--op-border); border-radius: 0.7rem; background: rgba(0,0,0,0.13); }
+.library-resource-row a { color: var(--op-accent); font-weight: 800; text-decoration: none; }
+.library-resource-progress { text-align: right; }
+.library-resource-progress strong, .library-resource-progress span { display: block; }
+@media (max-width: 700px) { .library-domain > summary { align-items: flex-start; flex-direction: column; } .library-summary-metrics { justify-content: flex-start; } .library-resource-row { grid-template-columns: 1fr auto; } .library-resource-row a { grid-column: 1 / -1; } }

@@ -36,6 +36,128 @@
 
     </header>
 
+    {% if dashboard %}
+    <section class="operator-home-grid">
+        <div class="operator-summary-column">
+            <p class="operator-eyebrow overall-label">OPERATOR OVERALL</p>
+            <strong class="overall-value">{{ "%.2f"|format(dashboard.overall) }}</strong>
+            <p class="character-sheet-subtitle">{{ dashboard.operator_title }} · WELCOME BACK, {{ dashboard.operator_name|upper }}</p>
+
+            <div class="operator-avatar-frame" aria-label="Operator 3D model">
+                <model-viewer
+                    src="{{ url_for('static', filename='models/zero.glb') }}"
+                    alt="Zero's 3D avatar model"
+                    camera-controls
+                    auto-rotate
+                    auto-rotate-delay="0"
+                    rotation-per-second="18deg"
+                    shadow-intensity="1"
+                    exposure="1"
+                    class="operator-model-viewer"
+                    loading="eager">
+                    <div slot="progress-bar"></div>
+                </model-viewer>
+                <span>OPERATOR ID</span>
+            </div>
+
+            <div class="main-stat-list">
+                {% for stat in dashboard.main_stats %}
+                <div class="main-stat-row" data-stat="{{ stat.name }}" tabindex="0" role="button">
+                    <span class="main-stat-row-name">{{ stat.name }}</span>
+                    <span class="main-stat-row-value">{{ "%.2f"|format(stat.average_level) }}</span>
+                    <span class="main-stat-row-meta">{{ stat.child_count }} branches</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="operator-hub-column">
+            <button type="button" class="operator-summary-card" data-modal="operator-hub-modal">
+                <strong>Operator Hub</strong>
+                <span>Learning, Execution, Tasks and Reflection.</span>
+            </button>
+            <button type="button" class="operator-summary-card" data-modal="explored-capabilities-modal">
+                <strong>Explored Capabilities</strong>
+                <span>{{ dashboard.featured_capabilities|length }} capabilities tracked.</span>
+            </button>
+            <button type="button" class="operator-summary-card" data-modal="skill-tree-modal">
+                <strong>Skill Tree</strong>
+                <span>Schema {{ dashboard.schema_version }}</span>
+            </button>
+        </div>
+    </section>
+
+    <script type="application/json" id="operator-tree-data">
+        {{ {"tree": dashboard.tree, "concepts_by_capability": dashboard.concepts_by_capability}|tojson }}
+    </script>
+
+    <div class="drilldown-modal" id="operator-drilldown-modal" aria-hidden="true">
+        <div class="drilldown-box" role="dialog" aria-modal="true">
+            <header class="drilldown-header">
+                <div>
+                    <button type="button" class="drilldown-back" aria-label="Go back">&larr; Back</button>
+                    <p class="drilldown-breadcrumb"></p>
+                    <h3 class="drilldown-title"></h3>
+                </div>
+                <button type="button" class="drilldown-close" aria-label="Close">&times;</button>
+            </header>
+            <div class="drilldown-list"></div>
+        </div>
+    </div>
+
+    <div class="drilldown-modal" id="operator-hub-modal" aria-hidden="true" data-static-modal>
+        <div class="drilldown-box" role="dialog" aria-modal="true">
+            <header class="drilldown-header">
+                <h3 class="drilldown-title">Operator Hub</h3>
+                <button type="button" class="drilldown-close" aria-label="Close">&times;</button>
+            </header>
+            <div class="drilldown-list">
+                <a class="operator-hub-card" href="{{ url_for('operator_learning.dashboard') }}"><strong>Learning Hub</strong><span>Acquire concepts and map knowledge across every main stat.</span></a>
+                <a class="operator-hub-card" href="{{ url_for('operator_execution.dashboard') }}"><strong>Execution Hub</strong><span>Record projects, experiments, practice, training and business work.</span></a>
+                <a class="operator-hub-card" href="{{ url_for('operator_tasks.dashboard') }}"><strong>Task Hub</strong><span>Plan actions and generate Discipline and execution evidence.</span></a>
+                <article class="operator-hub-card disabled"><strong>Reflection Hub</strong><span>Journal meaning, identity, lessons and Spirit development. Foundation next.</span></article>
+            </div>
+        </div>
+    </div>
+
+    <div class="drilldown-modal" id="explored-capabilities-modal" aria-hidden="true" data-static-modal>
+        <div class="drilldown-box" role="dialog" aria-modal="true">
+            <header class="drilldown-header">
+                <h3 class="drilldown-title">Explored Capabilities</h3>
+                <button type="button" class="drilldown-close" aria-label="Close">&times;</button>
+            </header>
+            <div class="drilldown-list">
+                {% for capability in dashboard.featured_capabilities %}
+                <a class="capability-launch-card" href="{{ url_for('operator.capability', slug=capability.slug) }}">
+                    <div><span class="card-label">{{ capability.name }}</span><strong>Lv {{ capability.level }}</strong></div>
+                    <p>{{ capability.description }}</p>
+                    <div class="xp-row"><span>{{ capability.xp }} XP</span><span>{{ capability.coverage }}% coverage</span></div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="drilldown-modal" id="skill-tree-modal" aria-hidden="true" data-static-modal>
+        <div class="drilldown-box drilldown-box-wide" role="dialog" aria-modal="true">
+            <header class="drilldown-header">
+                <h3 class="drilldown-title">Skill Tree</h3>
+                <button type="button" class="drilldown-close" aria-label="Close">&times;</button>
+            </header>
+            <div class="drilldown-list">
+                <div class="tree-panel">
+                    {% for stat_name, stat_node in dashboard.tree.items() %}
+                        {% set node = stat_node %}
+                        {% set node_name = stat_name %}
+                        {% set depth = 0 %}
+                        {% include "components/operator_tree_node.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if operator_error %}
     <section class="operator-error">
         <h2>Operator data unavailable</h2>
@@ -44,126 +166,15 @@
     </section>
     {% else %}
 
-    <section class="operator-section operator-hub-section">
-        <div class="section-heading"><div><p class="operator-eyebrow">DEVELOPMENT SYSTEMS</p><h2>Operator Hubs</h2></div></div>
-        <div class="operator-hub-grid">
-            <a class="operator-hub-card" href="{{ url_for('operator_learning.dashboard') }}"><strong>Learning Hub</strong><span>Acquire concepts and map knowledge across every main stat.</span></a>
-            <a class="operator-hub-card" href="{{ url_for('operator_execution.dashboard') }}"><strong>Execution Hub</strong><span>Record projects, experiments, practice, training and business work.</span></a>
-            <a class="operator-hub-card" href="{{ url_for('operator_tasks.dashboard') }}"><strong>Task Hub</strong><span>Plan actions and generate Discipline and execution evidence.</span></a>
-            <article class="operator-hub-card disabled"><strong>Reflection Hub</strong><span>Journal meaning, identity, lessons and Spirit development. Foundation next.</span></article>
-        </div>
-    </section>
-
-    <section class="operator-overview-grid">
-        <article class="operator-card operator-level-card">
-            <span class="card-label">OPERATOR LEVEL</span>
-            <strong class="level-value">{{ dashboard.operator_level }}</strong>
-            <div class="xp-row"><span>{{ dashboard.total_xp }} XP</span><span>Next: {{ dashboard.next_level_xp }} XP</span></div>
-            <div class="progress-track" aria-label="Operator level progress">
-                <div class="progress-fill" style="width: {{ dashboard.level_progress }}%;"></div>
-            </div>
-        </article>
-
-        <article class="operator-card metric-card">
-            <span class="card-label">TOTAL XP</span>
-            <strong>{{ dashboard.total_xp }}</strong>
-            <small>Unique competency experience</small>
-        </article>
-
-        <article class="operator-card metric-card">
-            <span class="card-label">COMPETENCIES</span>
-            <strong>{{ dashboard.competency_count }}</strong>
-            <small>Tracked knowledge nodes</small>
-        </article>
-
-        <article class="operator-card metric-card">
-            <span class="card-label">SHARED</span>
-            <strong>{{ dashboard.shared_competency_count }}</strong>
-            <small>Cross-domain competencies</small>
-        </article>
-    </section>
-
-    <section class="operator-section">
-        <div class="section-heading">
-            <div>
-                <p class="operator-eyebrow">CORE ATTRIBUTES</p>
-                <h2>Main Stats</h2>
-            </div>
-        </div>
-        <div class="main-stat-grid">
-            {% for stat in dashboard.main_stats %}
-            <article class="main-stat-card">
-                <div class="main-stat-name">{{ stat.name }}</div>
-                <div class="main-stat-level">{{ "%.2f"|format(stat.average_level) }}</div>
-                <div class="main-stat-meta">{{ stat.child_count }} branches</div>
-            </article>
-            {% endfor %}
-        </div>
-    </section>
-
-    <section class="operator-section">
-        <div class="section-heading">
-            <div>
-                <p class="operator-eyebrow">INTELLIGENCE MATRIX</p>
-                <h2>INT Domains</h2>
-            </div>
-        </div>
-        <div class="domain-grid">
-            {% for domain in dashboard.int_domains %}
-            <article class="domain-card">
-                <div class="domain-header">
-                    <h3>{{ domain.name }}</h3>
-                    <span>Lv {{ "%.2f"|format(domain.average_level) }}</span>
-                </div>
-                <div class="domain-progress">
-                    <div class="domain-progress-fill" style="width: {{ [domain.average_level * 10, 100]|min }}%;"></div>
-                </div>
-                <p>{{ domain.child_count }} {% if domain.child_count == 1 %}category{% else %}categories{% endif %}</p>
-            </article>
-            {% endfor %}
-        </div>
-    </section>
-
-    <section class="operator-section">
-        <div class="section-heading">
-            <div>
-                <p class="operator-eyebrow">CAPABILITY ECOSYSTEMS</p>
-                <h2>Explore Capabilities</h2>
-            </div>
-        </div>
-        <div class="capability-launch-grid">
-            {% for capability in dashboard.featured_capabilities %}
-            <a class="capability-launch-card" href="{{ url_for('operator.capability', slug=capability.slug) }}">
-                <div><span class="card-label">{{ capability.name }}</span><strong>Lv {{ capability.level }}</strong></div>
-                <p>{{ capability.description }}</p>
-                <div class="xp-row"><span>{{ capability.xp }} XP</span><span>{{ capability.coverage }}% coverage</span></div>
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-
-    <section class="operator-section">
-        <div class="section-heading">
-            <div>
-                <p class="operator-eyebrow">KNOWLEDGE GRAPH</p>
-                <h2>Skill Tree</h2>
-            </div>
-            <span class="schema-badge">Schema {{ dashboard.schema_version }}</span>
-        </div>
-        <div class="tree-panel">
-            {% for stat_name, stat_node in dashboard.tree.items() %}
-                {% set node = stat_node %}
-                {% set node_name = stat_name %}
-                {% set depth = 0 %}
-                {% include "components/operator_tree_node.html" %}
-            {% endfor %}
-        </div>
-    </section>
-
     <footer class="operator-footer">
         <span>Data source</span>
         <code>{{ dashboard.data_source }}</code>
     </footer>
     {% endif %}
 </main>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+<script src="{{ url_for('static', filename='js/operator_drilldown.js') }}" defer></script>
 {% endblock %}

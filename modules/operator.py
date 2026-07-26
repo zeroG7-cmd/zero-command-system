@@ -124,16 +124,44 @@ def get_operator_dashboard_data() -> dict[str, Any]:
         if isinstance(item, dict) and bool(item.get("shared", False))
     )
 
+    main_stats = _main_stats(stats)
+    overall = (
+        sum(item["average_level"] for item in main_stats) / len(main_stats)
+        if main_stats else 0.0
+    )
+    strongest_stat = max(main_stats, key=lambda item: item["average_level"], default=None)
+    int_domains = _int_domains(stats)
+    strongest_domain = max(int_domains, key=lambda item: item["average_level"], default=None)
+    active_capabilities = _featured_capabilities(competencies)
+    current_focus = max(active_capabilities, key=lambda item: (item["xp"], item["coverage"]), default=None)
+
+    if level >= 20:
+        operator_title = "Systems Architect"
+    elif level >= 10:
+        operator_title = "R&D Operator"
+    elif level >= 5:
+        operator_title = "Developing Operator"
+    else:
+        operator_title = "Initiate"
+
     return {
+        "operator_name": "Zero",
+        "operator_title": operator_title,
         "operator_level": level,
+        "overall": overall,
         "total_xp": total_xp,
         "next_level_xp": next_level_xp,
+        "xp_to_next_level": max(next_level_xp - total_xp, 0),
         "level_progress": max(0.0, progress),
+        "strongest_stat": strongest_stat,
+        "strongest_domain": strongest_domain,
+        "current_focus": current_focus,
         "competency_count": int(stats_data.get("competency_count", len(competencies))),
         "shared_competency_count": shared_count,
-        "main_stats": _main_stats(stats),
-        "int_domains": _int_domains(stats),
+        "main_stats": main_stats,
+        "int_domains": int_domains,
         "tree": stats,
+        "concepts_by_capability": _all_capability_concepts(),
         "data_source": str(stats_path),
         "schema_version": stats_data.get("schema_version", "unknown"),
         "capability_names": {item.get("name"): item.get("slug") for item in _capability_graph().get("capabilities", {}).values() if isinstance(item, dict) and item.get("name") and item.get("slug")},
@@ -160,6 +188,31 @@ def dashboard():
             dashboard=None,
             operator_error=str(error),
         ), 200
+
+
+def _all_capability_concepts() -> dict[str, list[dict[str, Any]]]:
+    """Concepts for every capability, keyed by competency_id - reuses the
+    same fields get_capability_data() builds for a single capability, so
+    the drill-down modal and the dedicated capability page never disagree."""
+    graph = _capability_graph()
+    concept_progress = graph.get("concept_progress", {})
+    result: dict[str, list[dict[str, Any]]] = {}
+    for capability in graph.get("capabilities", {}).values():
+        if not isinstance(capability, dict):
+            continue
+        capability_id = capability.get("id", "")
+        concepts = []
+        for concept_id, concept in capability.get("concepts", {}).items():
+            progress = concept_progress.get(concept_id, {})
+            concepts.append({
+                "id": concept_id,
+                "name": concept.get("name", concept_id),
+                "xp": int(progress.get("xp", 0)),
+                "level": int(progress.get("level", 0)),
+                "status": progress.get("status", "Not Started"),
+            })
+        result[capability_id] = concepts
+    return result
 
 
 def _capability_graph() -> dict[str, Any]:
