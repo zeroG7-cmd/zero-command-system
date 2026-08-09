@@ -88,7 +88,13 @@ def get_recent_tests(limit: int = 6) -> list[dict[str, Any]]:
 
 @rnd_bp.route("/")
 def dashboard():
-    return render_template("workspaces/research_development/dashboard.html", rnd=get_workspace_data())
+    from modules.shadow import get_latest_simulated_telemetry
+    return render_template(
+        "workspaces/research_development/dashboard.html",
+        rnd=get_workspace_data(),
+        live_sim=get_latest_simulated_telemetry(),
+        camera_stream_url="http://localhost:5002/video",
+    )
 
 
 @rnd_bp.route("/api/status")

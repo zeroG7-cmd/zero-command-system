@@ -17,6 +17,7 @@ from modules.operator_learning import operator_learning_bp
 from modules.learning_events import learning_events_bp
 from modules.operator_execution import bp as operator_execution_bp
 from modules.tasks import bp as operator_tasks_bp
+from modules.simulation_control import bp as simulation_control_bp
 from flask import redirect, url_for
 app = Flask(__name__)
 
@@ -27,6 +28,7 @@ app.register_blueprint(learning_events_bp)
 app.register_blueprint(rnd_bp)
 app.register_blueprint(operator_execution_bp)
 app.register_blueprint(operator_tasks_bp)
+app.register_blueprint(simulation_control_bp)
 
 @app.route("/")
 def home():

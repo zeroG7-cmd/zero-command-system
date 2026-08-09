@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Digital Twin | Zero Command{% endblock %}
+
+{% block content %}
+<main class="operator-shell">
+    <header class="operator-hero">
+        <div>
+            <p class="operator-eyebrow">RESEARCH &amp; DEVELOPMENT</p>
+            <h1>DIGITAL TWIN</h1>
+            <p class="operator-subtitle">
+                Live simulation - camera and telemetry from Shadow in Gazebo.
+                Separate from Ground Control, which is reserved for real hardware.
+            </p>
+        </div>
+
+        <div class="learning-actions">
+            <a class="learning-button secondary" href="{{ url_for('research_development.dashboard') }}">Back to R&amp;D</a>
+        </div>
+    </header>
+
+    <section class="operator-home-grid">
+        <div class="operator-home-card" style="grid-column: 1 / -1;">
+            <h3>Live Simulation Camera</h3>
+            <p>
+                Requires the simulation running, MAVROS connected, and
+                <code>sim_camera_stream.py</code> running separately on
+                port 5002.
+            </p>
+            <img src="{{ camera_stream_url }}"
+                 alt="Shadow simulation camera feed"
+                 style="width: 100%; max-width: 720px; border-radius: 8px; border: 1px solid #333;">
+        </div>
+
+        <div class="operator-home-card">
+            <h3>Simulation Telemetry</h3>
+            {% if latest %}
+            <p>Scenario: {{ latest.scenario_name }} ({{ latest.run_status }})</p>
+            <p>Flight mode: {{ latest.flight_mode }}</p>
+            <p>Battery: {{ "%.1f"|format(latest.battery_percentage or 0) }}%</p>
+            <p>Altitude: {{ "%.2f"|format(latest.altitude or 0) }} m</p>
+            <p>Roll / Pitch / Yaw: {{ "%.1f"|format(latest.roll or 0) }}° /
+               {{ "%.1f"|format(latest.pitch or 0) }}° /
+               {{ "%.1f"|format(latest.yaw or 0) }}°</p>
+            {% else %}
+            <p>No simulation telemetry yet - start the simulation, MAVROS,
+               and <code>telemetry_bridge.py</code>.</p>
+            {% endif %}
+        </div>
+    </section>
+</main>
+{% endblock %}

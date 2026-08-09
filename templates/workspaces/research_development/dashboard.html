@@ -229,12 +229,24 @@
                     <span class="bay-state">{{ "READY" if rnd.repository.simulation_files >= 0 else "OFFLINE" }}</span>
                 </div>
 
+                <div class="hero-actions" style="margin-bottom: 14px;">
+                    <button type="button" id="sim-start-btn">Start Simulation</button>
+                    <button type="button" id="sim-mission-btn">Run Mission</button>
+                    <button type="button" id="sim-stop-btn">Stop Simulation</button>
+                    <span id="sim-action-status" style="align-self: center; color: var(--lab-muted); font-size: .8rem;"></span>
+                </div>
+
                 <section class="simulation-console">
                     <article class="simulation-viewport">
                         <div class="viewport-toolbar"><span>SIMULATION VIEWPORT</span><span>ROS / GAZEBO</span></div>
                         <div class="viewport-body">
+                            {% if live_sim %}
+                            <img src="{{ camera_stream_url }}" alt="Shadow live camera feed"
+                                 style="position: relative; z-index: 2; max-width: 100%; max-height: 100%;">
+                            {% else %}
                             <div class="sim-grid"></div><div class="sim-object">◇</div>
                             <div class="viewport-message"><strong>Simulation feed slot</strong><span>Connect the ROS/Gazebo bridge here.</span></div>
+                            {% endif %}
                         </div>
                     </article>
                     <aside class="simulation-stats">
@@ -242,12 +254,17 @@
                         <div><span>Completed</span><strong>{{ rnd.research.simulation.completed_runs }}</strong></div>
                         <div><span>Telemetry samples</span><strong>{{ rnd.research.simulation.telemetry_samples }}</strong></div>
                         <div><span>Repository files</span><strong>{{ rnd.repository.simulation_files }}</strong></div>
+                        {% if live_sim %}
+                        <div><span>Live flight mode</span><strong>{{ live_sim.flight_mode }}</strong></div>
+                        <div><span>Live battery</span><strong>{{ "%.0f"|format(live_sim.battery_percentage or 0) }}%</strong></div>
+                        <div><span>Live altitude</span><strong>{{ "%.2f"|format(live_sim.altitude or 0) }} m</strong></div>
+                        {% endif %}
                     </aside>
                 </section>
 
                 <section class="room-grid three-column">
                     <article class="lab-card"><span class="card-label">DRONE &amp; ROBOTICS</span><h3>ROS / Gazebo</h3><p>Navigation, perception, control, mission and sensor simulations.</p></article>
-                    <article class="lab-card"><span class="card-label">CONTROL SYSTEMS</span><h3>PID Sandbox</h3><p>Setpoint tracking, rise time, overshoot, settling time and tuning comparisons.</p></article>
+                    <article class="lab-card"><span class="card-label">CONTROL SYSTEMS</span><h3>PID Sandbox</h3><p>Setpoint tracking, rise time, overshoot, settling time and tuning comparisons. <em>Not yet built - real next step.</em></p></article>
                     <article class="lab-card"><span class="card-label">GENERAL MODELLING</span><h3>Future Simulators</h3><p>Smart garden logic, electronics models, mechanisms and digital twins.</p></article>
                 </section>
             </section>
@@ -317,4 +334,27 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/research_development.js') }}"></script>
+<script>
+function simAction(button, url, label) {
+    const statusEl = document.getElementById('sim-action-status');
+    button.disabled = true;
+    statusEl.textContent = label + '...';
+    fetch(url, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            statusEl.textContent = data.ok ? label + ' triggered.' : ('Error: ' + data.error);
+        })
+        .catch(err => { statusEl.textContent = 'Error: ' + err; })
+        .finally(() => { button.disabled = false; });
+}
+document.getElementById('sim-start-btn').addEventListener('click', function () {
+    simAction(this, '/simulation/start', 'Starting simulation');
+});
+document.getElementById('sim-mission-btn').addEventListener('click', function () {
+    simAction(this, '/simulation/run-mission', 'Running mission');
+});
+document.getElementById('sim-stop-btn').addEventListener('click', function () {
+    simAction(this, '/simulation/stop', 'Stopping simulation');
+});
+</script>
 {% endblock %}

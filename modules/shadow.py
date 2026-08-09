@@ -81,6 +81,36 @@ def get_vehicle_record() -> dict[str, Any]:
     }
 
 
+def get_latest_simulated_telemetry() -> dict[str, Any] | None:
+    try:
+        with _connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    st.timestamp,
+                    st.battery_voltage,
+                    st.battery_percentage,
+                    st.latitude,
+                    st.longitude,
+                    st.altitude,
+                    st.roll,
+                    st.pitch,
+                    st.yaw,
+                    st.flight_mode,
+                    sr.scenario_name,
+                    sr.status AS run_status
+                FROM simulated_telemetry st
+                JOIN simulation_runs sr ON sr.id = st.simulation_run_id
+                ORDER BY st.id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+        return dict(row) if row else None
+    except (sqlite3.Error, OSError):
+        return None
+
+
 def get_shadow_summary() -> dict[str, Any]:
     vehicle = get_vehicle_record()
 
