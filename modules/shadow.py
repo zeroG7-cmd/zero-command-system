@@ -82,8 +82,20 @@ def get_vehicle_record() -> dict[str, Any]:
 
 
 def get_latest_simulated_telemetry() -> dict[str, Any] | None:
+    # Deliberately NOT using _connect() here - that's scoped to
+    # SHADOW_DB, which per the real schema (scripts/init_databases.py)
+    # only holds real-hardware tables (vehicle, telemetry, missions,
+    # hardware_health, faults, maintenance, battery_cycles).
+    # simulated_telemetry and simulation_runs genuinely live in
+    # ZERO_GRAVITY_RND_DB instead - this function was incorrectly
+    # querying SHADOW_DB before, which is why it never returned real
+    # data even with telemetry_bridge.py actually running.
+    from config import ZERO_GRAVITY_RND_DB
+
     try:
-        with _connect() as connection:
+        connection = sqlite3.connect(ZERO_GRAVITY_RND_DB)
+        connection.row_factory = sqlite3.Row
+        with connection:
             row = connection.execute(
                 """
                 SELECT
