@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Fitness Hub | Operator Development{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">{% endblock %}
+{% block content %}
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell">
+<header class="operator-hero">
+<div><p class="operator-eyebrow">OPERATOR DEVELOPMENT</p><h1>FITNESS HUB</h1><p class="operator-subtitle">Daily habits build STR, CON and DEX. Showing up every day builds Discipline. Manual, quantity-based logging until the exercise-recognition device exists.</p></div>
+</header>
+
+{% if fitness_error %}
+<section class="operator-error">
+<h2>Fitness data unavailable</h2>
+<p>{{ fitness_error }}</p>
+<p>Confirm that <code>zeroGravity-rnd</code> and <code>zero-command-system</code> sit beside each other, or configure <code>ZERO_GRAVITY_RND_ROOT</code>.</p>
+</section>
+{% else %}
+
+<section class="learning-summary-grid">
+<article class="learning-summary-card"><span>STR</span><strong>{{ "%.2f"|format(fitness.str_average_level) }}</strong><small>average level</small></article>
+<article class="learning-summary-card"><span>CON</span><strong>{{ "%.2f"|format(fitness.con_average_level) }}</strong><small>average level</small></article>
+<article class="learning-summary-card"><span>DEX</span><strong>{{ "%.2f"|format(fitness.dex_average_level) }}</strong><small>average level</small></article>
+<article class="learning-summary-card"><span>DISC</span><strong>{{ "%.2f"|format(fitness.disc_average_level) }}</strong><small>average level</small></article>
+<article class="learning-summary-card"><span>STREAK</span><strong>{{ fitness.current_streak }}</strong><small>days (best {{ fitness.longest_streak }})</small></article>
+</section>
+
+<section class="operator-section">
+<div class="section-heading"><div><p class="operator-eyebrow">TODAY</p><h2>Log Today's Habits</h2></div><span class="schema-badge">{{ fitness.today_name }}</span></div>
+<p class="operator-subtitle">Enter today's actual numbers, not increments — logging a habit twice for the same day only counts the first entry (v1 keeps each day's log final).</p>
+<form class="operator-task-form fitness-log-form" method="post" action="{{ url_for('operator_fitness.log_day') }}">
+<label>Date <input type="date" name="date"></label>
+{% for habit in fitness.habits %}
+<label>{{ habit.label }} ({{ habit.unit }}, target {{ habit.target }}) <input type="number" step="0.5" min="0" name="{{ habit.key }}" placeholder="{{ habit.target }}"></label>
+{% endfor %}
+<button class="learning-button" type="submit">Log Day</button>
+</form>
+</section>
+
+<section class="operator-section">
+<div class="section-heading"><div><p class="operator-eyebrow">CAPABILITY PROGRESS</p><h2>Habits</h2></div></div>
+<div class="provider-grid">
+{% for habit in fitness.habits %}
+<article class="provider-card">
+<span class="track-provider">{{ habit.unit|upper }}</span>
+<h3>{{ habit.label }}</h3>
+<p>Level {{ habit.level }} · {{ habit.xp }} XP</p>
+<div class="learning-progress"><div style="width: {{ habit.level_progress }}%;"></div></div>
+<small>Daily target: {{ habit.target }} {{ habit.unit }}</small>
+{% if habit.secondary %}
+<p>{{ habit.secondary.label }} — Level {{ habit.secondary.level }} · {{ habit.secondary.xp }} XP</p>
+<div class="learning-progress"><div style="width: {{ habit.secondary.level_progress }}%;"></div></div>
+{% endif %}
+</article>
+{% endfor %}
+<article class="provider-card">
+<span class="track-provider">DISCIPLINE</span>
+<h3>Daily Practice</h3>
+<p>Level {{ fitness.daily_practice.level or 0 }} · {{ fitness.daily_practice.xp or 0 }} XP</p>
+<div class="learning-progress"><div style="width: {{ fitness.daily_practice.level_progress or 0 }}%;"></div></div>
+<small>Showing up every day, regardless of the numbers.</small>
+</article>
+</div>
+</section>
+
+<section class="operator-section">
+<div class="section-heading"><div><p class="operator-eyebrow">{{ fitness.routine.name }}</p><h2>This Week's Gym Routine</h2></div></div>
+<p class="operator-subtitle">{{ fitness.routine.description }}</p>
+<div class="provider-grid">
+{% for day in fitness.routine.days %}
+<article class="provider-card{% if day.day == fitness.today_name %} active{% endif %}">
+<span class="track-provider">{{ day.day|upper }}{% if day.day == fitness.today_name %} · TODAY{% endif %}</span>
+<h3>{{ day.focus }}</h3>
+{% if day.exercises %}
+<ul class="fitness-exercise-list">
+{% for exercise in day.exercises %}<li>{{ exercise.name }} — {{ exercise.sets }}x{{ exercise.reps }}</li>{% endfor %}
+</ul>
+{% else %}<p>Rest day.</p>{% endif %}
+</article>
+{% endfor %}
+</div>
+</section>
+
+<section class="operator-section">
+<div class="section-heading"><div><p class="operator-eyebrow">HISTORY</p><h2>Recent Days</h2></div></div>
+{% for day in fitness.history %}
+<article class="operator-task {% if day.all_habits_met_target %}done{% endif %}">
+<div><strong>{{ day.date }}</strong><span>{{ day.total_xp_today }} XP{% if day.full_day_bonus_xp %} (incl. {{ day.full_day_bonus_xp }} consistency bonus){% endif %} · {{ day.entries|length }} habit(s) logged{% if day.all_habits_met_target %} · all targets met{% endif %}</span></div>
+</article>
+{% else %}<p>No days logged yet — log today's habits above to get started.</p>{% endfor %}
+</section>
+
+{% if action_output %}<section class="operator-section engine-output"><div class="section-heading"><div><p class="operator-eyebrow">ENGINE OUTPUT</p><h2>Last Action</h2></div></div><pre>{{ action_output }}</pre></section>{% endif %}
+
+<footer class="operator-footer"><span>Fitness root</span><code>{{ fitness.rnd_root }}</code></footer>
+{% endif %}
+</main>
+{% endblock %}
