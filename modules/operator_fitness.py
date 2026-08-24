@@ -26,11 +26,11 @@ operator_fitness_bp = Blueprint("operator_fitness", __name__, url_prefix="/opera
 HABIT_FIELDS: list[dict[str, Any]] = [
     {
         "key": "pushups", "label": "Push-ups", "unit": "reps", "target": 60,
-        "tree_path": ["STR", "Muscular Strength", "Upper Body", "Push-ups"],
+        "tree_path": ["STR", "Muscular Strength", "Pushing Strength", "Push-ups"],
     },
     {
         "key": "pullups", "label": "Pull-ups", "unit": "reps", "target": 60,
-        "tree_path": ["STR", "Muscular Strength", "Upper Body", "Pull-ups"],
+        "tree_path": ["STR", "Muscular Strength", "Pulling Strength", "Pull-ups"],
     },
     {
         "key": "situps", "label": "Sit-ups", "unit": "reps", "target": 60,
