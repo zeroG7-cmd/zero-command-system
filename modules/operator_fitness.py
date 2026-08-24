@@ -34,11 +34,11 @@ HABIT_FIELDS: list[dict[str, Any]] = [
     },
     {
         "key": "situps", "label": "Sit-ups", "unit": "reps", "target": 60,
-        "tree_path": ["STR", "Muscular Strength", "Core", "Sit-ups"],
+        "tree_path": ["STR", "Muscular Strength", "Core Strength", "Sit-ups"],
     },
     {
         "key": "squats", "label": "Squats", "unit": "reps", "target": 60,
-        "tree_path": ["STR", "Muscular Strength", "Lower Body", "Squats"],
+        "tree_path": ["STR", "Muscular Strength", "Leg Strength", "Squats"],
     },
     {
         "key": "run_minutes", "label": "Jog", "unit": "minutes", "target": 30,
