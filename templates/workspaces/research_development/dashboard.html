@@ -231,12 +231,21 @@
 
                 <div class="hero-actions" style="margin-bottom: 14px;">
                     <button type="button" id="sim-start-btn">Start Simulation</button>
+                    <select id="sim-mission-select" style="padding: 8px;"></select>
                     <button type="button" id="sim-mission-btn">Run Mission</button>
                     <button type="button" id="sim-stop-btn">Stop Simulation</button>
                     <span id="sim-action-status" style="align-self: center; color: var(--lab-muted); font-size: .8rem;"></span>
                 </div>
 
-                <section class="simulation-console">
+                <section class="simulation-console" style="grid-template-columns: 2fr 1fr;">
+                    <article class="simulation-viewport">
+                        <div class="viewport-toolbar"><span>GAZEBO WORLD VIEW</span><span>LIVE DESKTOP</span></div>
+                        <div class="viewport-body" style="min-height: 550px;">
+                            <iframe src="http://localhost:6080/vnc.html?autoconnect=true&resize=scale"
+                                    style="width: 100%; height: 550px; border: none;"
+                                    title="Gazebo live view"></iframe>
+                        </div>
+                    </article>
                     <article class="simulation-viewport">
                         <div class="viewport-toolbar"><span>SIMULATION VIEWPORT</span><span>ROS / GAZEBO</span></div>
                         <div class="viewport-body">
