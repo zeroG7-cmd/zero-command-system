@@ -1,0 +1,169 @@
+/* Fitness Hub - digital twin layout, corner widgets, hotspot pins.
+   Loaded alongside operator.css and operator_learning.css (see
+   fitness.html's styles block) - reuses their --op-* variables and
+   .learning-*/.provider-*/.section-heading/.operator-subtitle classes
+   rather than redefining them. */
+
+.fitness-twin-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.fitness-twin-viewer {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1rem;
+    border: 1px solid var(--op-border);
+    background: var(--op-panel);
+    border-radius: 1rem;
+}
+
+.fitness-model-viewer {
+    width: 100%;
+    height: min(70vh, 620px);
+    --poster-color: transparent;
+}
+
+.fitness-twin-controls {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+}
+
+.fitness-twin-controls .learning-button {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.78rem;
+}
+
+.fitness-twin-hint {
+    margin: 0;
+    text-align: center;
+    color: var(--op-muted);
+    font-size: 0.72rem;
+}
+
+/* model-viewer hotspot pins */
+.hotspot {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.32rem 0.65rem 0.32rem 0.32rem;
+    background: rgba(8, 20, 16, 0.88);
+    border: 1px solid var(--op-accent);
+    border-radius: 999px;
+    color: var(--op-text);
+    font-size: 0.68rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.hotspot::before {
+    content: '';
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--op-accent);
+    box-shadow: 0 0 0.7rem var(--op-accent);
+    flex-shrink: 0;
+}
+
+.fitness-twin-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.fitness-corner-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--op-border);
+    background: var(--op-panel);
+    border-radius: 1rem;
+}
+
+.fitness-compact-form {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.fitness-compact-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.78rem;
+    color: var(--op-muted);
+}
+
+.fitness-compact-form input {
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--op-border);
+    background: #08141e;
+    color: var(--op-text);
+    font-size: 0.85rem;
+}
+
+.fitness-compact-unit {
+    color: var(--op-muted);
+    font-weight: 400;
+    font-size: 0.7rem;
+}
+
+.fitness-compact-form .learning-button {
+    margin-top: 0.3rem;
+}
+
+.fitness-streak-chip {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--op-border);
+    border-radius: 0.65rem;
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 0.78rem;
+    color: var(--op-muted);
+}
+
+.fitness-streak-chip strong {
+    font-size: 1.1rem;
+    color: var(--op-accent);
+}
+
+.fitness-week-details summary {
+    cursor: pointer;
+    color: var(--op-accent);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0.4rem 0;
+}
+
+.fitness-week-details[open] summary {
+    margin-bottom: 0.5rem;
+}
+
+.fitness-history-summary {
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 0.3rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+@media (max-width: 1050px) {
+    .fitness-twin-layout {
+        grid-template-columns: 1fr;
+    }
+    .fitness-model-viewer {
+        height: 55vh;
+    }
+}

@@ -56,6 +56,22 @@ HABIT_FIELDS: list[dict[str, Any]] = [
 
 DAILY_PRACTICE_TREE_PATH = ["DISC", "Consistency", "Routine Adherence", "Daily Practice"]
 
+# The five Muscular Strength categories, for the digital-twin hotspot labels
+# pinned onto static/models/zero.glb in fitness.html. "position"/"normal" are
+# <model-viewer> hotspot coordinates in the model's own local space - derived
+# from zero.glb's actual vertex bounding box (x: -0.40..0.40, y: -0.95..0.95,
+# z: -0.32..0.32) and standard body proportions, NOT verified against a
+# render, since nothing here can preview the live 3D scene. Treat these as a
+# first pass - nudge the numbers once you see it in the browser if a pin
+# lands in the wrong spot.
+MUSCULAR_STRENGTH_CATEGORIES: list[dict[str, str]] = [
+    {"name": "Pushing Strength", "hotspot": "pushing-strength", "position": "0 0.42 0.28", "normal": "0 0 1"},
+    {"name": "Pulling Strength", "hotspot": "pulling-strength", "position": "0 0.42 -0.28", "normal": "0 0 -1"},
+    {"name": "Grip Strength", "hotspot": "grip-strength", "position": "0.35 -0.2 0.05", "normal": "1 0 0"},
+    {"name": "Leg Strength", "hotspot": "leg-strength", "position": "0.15 -0.42 0.25", "normal": "0 0 1"},
+    {"name": "Core Strength", "hotspot": "core-strength", "position": "0 0.2 0.28", "normal": "0 0 1"},
+]
+
 
 def _rnd_root() -> Path:
     env = os.getenv("ZERO_GRAVITY_RND_ROOT")
@@ -113,11 +129,30 @@ def get_fitness_dashboard_data() -> dict[str, Any]:
 
     daily_practice = _navigate(stats, DAILY_PRACTICE_TREE_PATH)
 
+    # Per-category breakdown for the digital-twin hotspots - each category's
+    # average_level, computed from its own children by fitness/engine/stats.py.
+    muscular_strength_categories = []
+    for cat in MUSCULAR_STRENGTH_CATEGORIES:
+        node = _navigate(stats, ["STR", "Muscular Strength", cat["name"]])
+        muscular_strength_categories.append(
+            {
+                "name": cat["name"],
+                "hotspot": cat["hotspot"],
+                "position": cat["position"],
+                "normal": cat["normal"],
+                "average_level": float(node.get("average_level", 0.0)),
+            }
+        )
+
     history = _load_json(root / "operator_core" / "hubs" / "fitness" / "history" / "fitness_history.json", [])
     if not isinstance(history, list):
         history = []
     progress = _load_json(root / "operator_core" / "hubs" / "fitness" / "progress" / "fitness_progress.json", {})
     routine = _load_json(root / "fitness" / "routines" / "weekly_routine.json", {})
+    today_name = date.today().strftime("%A")
+    todays_routine_day = next(
+        (d for d in routine.get("days", []) if d.get("day") == today_name), None
+    )
 
     return {
         "habits": habits,
@@ -125,12 +160,14 @@ def get_fitness_dashboard_data() -> dict[str, Any]:
         "con_average_level": float(stats.get("CON", {}).get("average_level", 0.0)),
         "dex_average_level": float(stats.get("DEX", {}).get("average_level", 0.0)),
         "disc_average_level": float(stats.get("DISC", {}).get("average_level", 0.0)),
+        "muscular_strength_categories": muscular_strength_categories,
         "daily_practice": daily_practice,
         "history": list(reversed(history[-7:])),
         "current_streak": progress.get("current_streak_days", 0),
         "longest_streak": progress.get("longest_streak_days", 0),
         "routine": routine,
-        "today_name": date.today().strftime("%A"),
+        "todays_routine_day": todays_routine_day,
+        "today_name": today_name,
         "rnd_root": str(root),
     }
 
