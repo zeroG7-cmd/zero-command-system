@@ -224,3 +224,29 @@ def log_day():
             output = f"FITNESS ENGINE ERROR\n{error}"
 
     return redirect(url_for("operator_fitness.dashboard", output=output[-4000:]))
+
+
+@operator_fitness_bp.post("/log-gym-day")
+def log_gym_day():
+    """Mark today's (or a chosen) gym-routine day done - distributes XP into
+    that day's specific gym-lift capabilities via fitness.engine.gym_log,
+    mirroring _run_tracker's subprocess pattern above.
+    """
+    root = _rnd_root()
+    day = request.form.get("day", "").strip()
+    args = ["--day", day] if day else []
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "fitness.engine.gym_log", *args],
+            input="",
+            text=True,
+            capture_output=True,
+            cwd=str(root),
+            timeout=60,
+            check=False,
+        )
+        output = (result.stdout + "\n" + result.stderr).strip()
+    except Exception as error:
+        output = f"FITNESS ENGINE ERROR\n{error}"
+
+    return redirect(url_for("operator_fitness.dashboard", output=output[-4000:]))

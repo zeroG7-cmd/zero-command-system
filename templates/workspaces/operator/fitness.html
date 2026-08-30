@@ -69,6 +69,11 @@
       <ul class="fitness-exercise-list">
         {% for exercise in fitness.todays_routine_day.exercises %}<li>{{ exercise.name }} — {{ exercise.sets }}x{{ exercise.reps }}</li>{% endfor %}
       </ul>
+      <form method="post" action="{{ url_for('operator_fitness.log_gym_day') }}">
+        <input type="hidden" name="day" value="{{ fitness.today_name }}">
+        <button class="learning-button" type="submit">Log Gym Day Done</button>
+      </form>
+      <p class="fitness-twin-hint">Splits XP across today's specific lifts (Bench Press, Barbell Squat, etc.) — one log per calendar date.</p>
       {% else %}
       <p class="operator-subtitle">Rest day.</p>
       {% endif %}
@@ -84,6 +89,10 @@
           <ul class="fitness-exercise-list">
           {% for exercise in day.exercises %}<li>{{ exercise.name }} — {{ exercise.sets }}x{{ exercise.reps }}</li>{% endfor %}
           </ul>
+          <form method="post" action="{{ url_for('operator_fitness.log_gym_day') }}">
+            <input type="hidden" name="day" value="{{ day.day }}">
+            <button class="learning-button" type="submit">Log {{ day.day }} Done</button>
+          </form>
           {% else %}<p>Rest day.</p>{% endif %}
         </article>
         {% endfor %}
