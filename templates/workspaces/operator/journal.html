@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Journal | Operator Zero{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_journal.css') }}">
+{% endblock %}
+{% block content %}
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell journal-shell">
+<header class="operator-hero journal-hero">
+<div><p class="operator-eyebrow">OPERATOR ZERO REFLECTION</p><h1>JOURNAL</h1><p class="operator-subtitle">Write it down. Pick what it's about. The XP finds its own way there.</p></div>
+</header>
+
+{% if error %}
+<div class="journal-error"><strong>Couldn't save that entry.</strong><p>{{ error }}</p></div>
+{% endif %}
+
+{% if just_created %}
+<div class="journal-banner">
+<h3>Saved: {{ just_created.title }}</h3>
+{% if just_created.base_xp and just_created.base_xp > 0 %}
+<p>{{ just_created.base_xp }} XP awarded, split like this:</p>
+<div class="journal-award-list">
+{% for target in just_created.xp_targets %}
+<span class="journal-award-chip"><strong>{{ (target.weight * just_created.base_xp)|round|int }} XP</strong> → {{ target.competency_id }}</span>
+{% endfor %}
+</div>
+{% else %}
+<p>Recorded with no XP - just a note. That's fine, that's what "base_xp = 0" is for.</p>
+{% endif %}
+</div>
+{% endif %}
+
+<section class="journal-form-panel">
+<form method="post" action="{{ url_for('operator_journal.create') }}" id="journal-form">
+
+<div class="journal-field">
+<label for="title">Title</label>
+<input type="text" id="title" name="title" placeholder="A few words about what this is" required>
+</div>
+
+<div class="journal-field">
+<label for="body">What's on your mind?</label>
+<textarea id="body" name="body" placeholder="Write it exactly as you'd say it. This never gets edited or rewritten later." required></textarea>
+</div>
+
+<div class="journal-field">
+<label>What kind of entry is this? (pick one or more)</label>
+<p class="journal-hint">This decides which skill the XP goes to. Picking more than one just splits the same total between them - it doesn't add more XP.</p>
+<div class="journal-type-grid">
+{% for type_key, type_info in type_catalog.items() %}
+<label class="journal-type-option">
+<input type="checkbox" name="entry_types" value="{{ type_key }}">
+<div>
+<strong>{{ type_info.label }}</strong>
+<small>{% for target in type_info.targets %}→ {{ target.name }} ({{ target.stat }}){% if not loop.last %}, {% endif %}{% endfor %}</small>
+</div>
+</label>
+{% endfor %}
+</div>
+<div class="journal-preview" id="journal-preview">
+<p class="journal-hint">Pick at least one type above to see where the XP will go.</p>
+</div>
+</div>
+
+<details class="journal-more">
+<summary>Add project or concept tags (optional)</summary>
+<div class="journal-advanced-body">
+<div class="journal-optional-fields">
+<div class="journal-field"><label for="tags">Tags</label><input type="text" id="tags" name="tags" placeholder="comma, separated"></div>
+<div class="journal-field"><label for="projects">Projects</label><input type="text" id="projects" name="projects" placeholder="e.g. Shadow Ground Control"></div>
+<div class="journal-field"><label for="domains">Domains</label><input type="text" id="domains" name="domains" placeholder="comma, separated"></div>
+<div class="journal-field"><label for="concepts">Concepts</label><input type="text" id="concepts" name="concepts" placeholder="e.g. Camera Systems, REST APIs"></div>
+<div class="journal-field"><label for="capabilities">Capabilities</label><input type="text" id="capabilities" name="capabilities" placeholder="comma, separated"></div>
+</div>
+</div>
+</details>
+
+<details class="journal-advanced">
+<summary>Give this entry its own XP instead of the automatic amount</summary>
+<div class="journal-advanced-body">
+<p class="journal-advanced-note">Leave this closed and the entry just gets the automatic amount shown above. Only open this for something bigger than a normal note - it needs real proof, so it can't be used to farm XP by accident.</p>
+<div class="journal-optional-fields">
+<div class="journal-field"><label for="custom_xp">XP amount</label><input type="number" id="custom_xp" name="custom_xp" min="0" placeholder="e.g. 20"></div>
+<div class="journal-field"><label for="evidence_note">Your proof</label><input type="text" id="evidence_note" name="evidence_note" placeholder="A link, a commit, a file name - anything that backs it up"></div>
+</div>
+</div>
+</details>
+
+<div class="journal-submit-row">
+<button type="submit" class="learning-button">Save Entry</button>
+</div>
+
+</form>
+</section>
+
+<section class="operator-section">
+<div class="section-heading"><div><p class="operator-eyebrow">RECENT ENTRIES</p><h2>Your Journal</h2></div></div>
+<div class="journal-entry-list">
+{% for entry in entries %}
+<article class="journal-entry-card">
+<div class="journal-entry-card-header"><h3>{{ entry.title }}</h3><span class="journal-entry-date">{{ entry.entry_date }}</span></div>
+<div class="journal-type-chip-row">{% for entry_type in entry.entry_types %}<span class="journal-type-chip">{{ entry_type }}</span>{% endfor %}</div>
+<div class="journal-entry-xp">
+{% if entry.receipt_id %}<strong>XP awarded</strong> - {{ entry.status }}{% else %}No XP - just a record{% endif %}
+</div>
+</article>
+{% else %}
+<p class="journal-hint">No journal entries yet - write your first one above.</p>
+{% endfor %}
+</div>
+</section>
+
+<footer class="operator-footer"><span>Journal storage</span><code>journal/entries/YYYY/MM/</code></footer>
+</main>
+{% endblock %}
+{% block scripts %}
+<script>
+const JOURNAL_CATALOG = {{ type_catalog|tojson }};
+const JOURNAL_DEFAULT_XP = 30;
+
+function journalUpdatePreview() {
+    const checked = Array.from(document.querySelectorAll('input[name="entry_types"]:checked')).map(el => el.value);
+    const previewEl = document.getElementById('journal-preview');
+    const customXpInput = document.getElementById('custom_xp');
+    const customXp = parseInt(customXpInput.value, 10);
+
+    if (!checked.length) {
+        previewEl.innerHTML = '<p class="journal-hint">Pick at least one type above to see where the XP will go.</p>';
+        return;
+    }
+
+    const perTypeWeight = 1 / checked.length;
+    const combined = {};
+    checked.forEach(typeKey => {
+        const info = JOURNAL_CATALOG[typeKey];
+        if (!info) return;
+        (info.targets || []).forEach(target => {
+            const weight = target.weight * perTypeWeight;
+            if (!combined[target.competency_id]) {
+                combined[target.competency_id] = {name: target.name, stat: target.stat, weight: 0};
+            }
+            combined[target.competency_id].weight += weight;
+        });
+    });
+
+    const totalXp = (customXp && customXp > 0) ? customXp : JOURNAL_DEFAULT_XP;
+    const chips = Object.values(combined).map(entry => {
+        const xp = Math.round(entry.weight * totalXp);
+        return `<span class="journal-award-chip"><strong>${xp} XP</strong> → ${entry.name} (${entry.stat})</span>`;
+    }).join('');
+
+    previewEl.innerHTML = `<strong>${totalXp} XP total</strong><div class="journal-award-list">${chips}</div>`;
+}
+
+document.querySelectorAll('input[name="entry_types"]').forEach(el => {
+    el.addEventListener('change', () => {
+        el.closest('.journal-type-option').classList.toggle('checked', el.checked);
+        journalUpdatePreview();
+    });
+});
+document.getElementById('custom_xp').addEventListener('input', journalUpdatePreview);
+journalUpdatePreview();
+</script>
+{% endblock %}

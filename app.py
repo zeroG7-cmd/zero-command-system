@@ -19,6 +19,7 @@ from modules.operator_execution import bp as operator_execution_bp
 from modules.tasks import bp as operator_tasks_bp
 from modules.simulation_control import bp as simulation_control_bp
 from modules.operator_fitness import operator_fitness_bp
+from modules.operator_journal import operator_journal_bp
 from flask import redirect, url_for
 app = Flask(__name__)
 
@@ -31,6 +32,7 @@ app.register_blueprint(operator_execution_bp)
 app.register_blueprint(operator_tasks_bp)
 app.register_blueprint(simulation_control_bp)
 app.register_blueprint(operator_fitness_bp)
+app.register_blueprint(operator_journal_bp)
 
 @app.route("/")
 def home():
