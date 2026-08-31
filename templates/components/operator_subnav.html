@@ -3,6 +3,7 @@
     <a class="{% if '/operator/learning' in request.path %}active{% endif %}" href="{{ url_for('operator_learning.dashboard') }}">Learning</a>
     <a class="{% if '/operator/execution' in request.path %}active{% endif %}" href="{{ url_for('operator_execution.dashboard') }}">Execution</a>
     <a class="{% if '/operator/tasks' in request.path %}active{% endif %}" href="{{ url_for('operator_tasks.dashboard') }}">Tasks</a>
+    <a class="{% if '/operator/fitness' in request.path %}active{% endif %}" href="{{ url_for('operator_fitness.dashboard') }}">Fitness</a>
     <span class="operator-subnav-future">Reflection</span>
     <span class="operator-subnav-future">Challenges</span>
     <span class="operator-subnav-future">Achievements</span>

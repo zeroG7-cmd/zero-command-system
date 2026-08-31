@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Fitness Hub | Operator Development{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/operator_learning.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/operator_fitness.css') }}">{% endblock %}
+{% block content %}
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell">
+<header class="operator-hero">
+<div><p class="operator-eyebrow">OPERATOR DEVELOPMENT</p><h1>FITNESS HUB</h1><p class="operator-subtitle">Daily habits build STR, CON and DEX. Showing up every day builds Discipline. Manual, quantity-based logging until the exercise-recognition device exists.</p></div>
+</header>
+
+{% if fitness_error %}
+<section class="operator-error">
+<h2>Fitness data unavailable</h2>
+<p>{{ fitness_error }}</p>
+<p>Confirm that <code>zeroGravity-rnd</code> and <code>zero-command-system</code> sit beside each other, or configure <code>ZERO_GRAVITY_RND_ROOT</code>.</p>
+</section>
+{% else %}
+
+<section class="operator-section">
+<div class="fitness-twin-layout">
+
+  <div class="fitness-twin-viewer" aria-label="Fitness digital twin">
+    <model-viewer
+        src="{{ url_for('static', filename='models/zero.glb') }}"
+        alt="Operator 3D avatar showing trained muscle groups"
+        camera-controls
+        auto-rotate
+        auto-rotate-delay="4000"
+        rotation-per-second="12deg"
+        shadow-intensity="1"
+        exposure="1"
+        camera-orbit="0deg 78deg 105%"
+        id="fitness-twin"
+        class="operator-model-viewer fitness-model-viewer"
+        loading="eager">
+      <div slot="progress-bar"></div>
+      {% for cat in fitness.muscular_strength_categories %}
+      <button slot="hotspot-{{ cat.hotspot }}" class="hotspot" data-position="{{ cat.position }}" data-normal="{{ cat.normal }}">
+        <span class="hotspot-label">{{ cat.name }} — Lv {{ "%.1f"|format(cat.average_level) }}</span>
+      </button>
+      {% endfor %}
+    </model-viewer>
+    <div class="fitness-twin-controls">
+      <button type="button" class="learning-button" data-look="front">Look: Front</button>
+      <button type="button" class="learning-button" data-look="back">Look: Back</button>
+    </div>
+    <p class="fitness-twin-hint">Drag to rotate manually, or use the buttons above. Pins show your current Muscular Strength category levels — first-pass positions, nudge them in operator_fitness.py if a pin lands in the wrong spot.</p>
+  </div>
+
+  <div class="fitness-twin-sidebar">
+
+    <div class="fitness-corner-card">
+      <div class="section-heading"><div><p class="operator-eyebrow">TODAY</p><h2>Log Habits</h2></div><span class="schema-badge">{{ fitness.today_name }}</span></div>
+      <form class="fitness-compact-form" method="post" action="{{ url_for('operator_fitness.log_day') }}">
+        <label class="fitness-compact-date">Date <input type="date" name="date"></label>
+        {% for habit in fitness.habits %}
+        <label>{{ habit.label }} <span class="fitness-compact-unit">({{ habit.unit }}, {{ habit.target }})</span>
+          <input type="number" step="0.5" min="0" name="{{ habit.key }}" placeholder="{{ habit.target }}">
+        </label>
+        {% endfor %}
+        <button class="learning-button" type="submit">Log Day</button>
+      </form>
+      <div class="fitness-streak-chip"><strong>{{ fitness.current_streak }}</strong> day streak <span>(best {{ fitness.longest_streak }})</span></div>
+    </div>
+
+    <div class="fitness-corner-card">
+      <div class="section-heading"><div><p class="operator-eyebrow">{{ fitness.today_name|upper }}</p><h2>{{ fitness.todays_routine_day.focus if fitness.todays_routine_day else 'Routine' }}</h2></div></div>
+      {% if fitness.todays_routine_day and fitness.todays_routine_day.exercises %}
+      <ul class="fitness-exercise-list">
+        {% for exercise in fitness.todays_routine_day.exercises %}<li>{{ exercise.name }} — {{ exercise.sets }}x{{ exercise.reps }}</li>{% endfor %}
+      </ul>
+      <form method="post" action="{{ url_for('operator_fitness.log_gym_day') }}">
+        <input type="hidden" name="day" value="{{ fitness.today_name }}">
+        <button class="learning-button" type="submit">Log Gym Day Done</button>
+      </form>
+      <p class="fitness-twin-hint">Splits XP across today's specific lifts (Bench Press, Barbell Squat, etc.) — one log per calendar date.</p>
+      {% else %}
+      <p class="operator-subtitle">Rest day.</p>
+      {% endif %}
+      <details class="fitness-week-details">
+        <summary>View full week</summary>
+        <p class="operator-subtitle">{{ fitness.routine.description }}</p>
+        <div class="provider-grid">
+        {% for day in fitness.routine.days %}
+        <article class="provider-card{% if day.day == fitness.today_name %} active{% endif %}">
+          <span class="track-provider">{{ day.day|upper }}{% if day.day == fitness.today_name %} · TODAY{% endif %}</span>
+          <h3>{{ day.focus }}</h3>
+          {% if day.exercises %}
+          <ul class="fitness-exercise-list">
+          {% for exercise in day.exercises %}<li>{{ exercise.name }} — {{ exercise.sets }}x{{ exercise.reps }}</li>{% endfor %}
+          </ul>
+          <form method="post" action="{{ url_for('operator_fitness.log_gym_day') }}">
+            <input type="hidden" name="day" value="{{ day.day }}">
+            <button class="learning-button" type="submit">Log {{ day.day }} Done</button>
+          </form>
+          {% else %}<p>Rest day.</p>{% endif %}
+        </article>
+        {% endfor %}
+        </div>
+      </details>
+    </div>
+
+  </div>
+</div>
+</section>
+
+<section class="operator-section">
+<div class="learning-summary-grid">
+<article class="learning-summary-card"><span>STR</span><strong>{{ "%.2f"|format(fitness.str_average_level) }}</strong><small>average level</small></article>
+<article class="learning-summary-card"><span>CON</span><strong>{{ "%.2f"|format(fitness.con_average_level) }}</strong><small>average level</small></article>
+<article class="learning-summary-card"><span>DEX</span><strong>{{ "%.2f"|format(fitness.dex_average_level) }}</strong><small>average level</small></article>
+<article class="learning-summary-card"><span>DISC</span><strong>{{ "%.2f"|format(fitness.disc_average_level) }}</strong><small>average level</small></article>
+</div>
+</section>
+
+<section class="operator-section">
+<div class="section-heading"><div><p class="operator-eyebrow">CAPABILITY PROGRESS</p><h2>Habits</h2></div></div>
+<div class="provider-grid">
+{% for habit in fitness.habits %}
+<article class="provider-card">
+<span class="track-provider">{{ habit.unit|upper }}</span>
+<h3>{{ habit.label }}</h3>
+<p>Level {{ habit.level }} · {{ habit.xp }} XP</p>
+<div class="learning-progress"><div style="width: {{ habit.level_progress }}%;"></div></div>
+<small>Daily target: {{ habit.target }} {{ habit.unit }}</small>
+{% if habit.secondary %}
+<p>{{ habit.secondary.label }} — Level {{ habit.secondary.level }} · {{ habit.secondary.xp }} XP</p>
+<div class="learning-progress"><div style="width: {{ habit.secondary.level_progress }}%;"></div></div>
+{% endif %}
+</article>
+{% endfor %}
+<article class="provider-card">
+<span class="track-provider">DISCIPLINE</span>
+<h3>Daily Practice</h3>
+<p>Level {{ fitness.daily_practice.level or 0 }} · {{ fitness.daily_practice.xp or 0 }} XP</p>
+<div class="learning-progress"><div style="width: {{ fitness.daily_practice.level_progress or 0 }}%;"></div></div>
+<small>Showing up every day, regardless of the numbers.</small>
+</article>
+</div>
+</section>
+
+<section class="operator-section">
+<details>
+<summary class="fitness-history-summary"><span class="operator-eyebrow">HISTORY</span> Recent Days</summary>
+{% for day in fitness.history %}
+<article class="operator-task {% if day.all_habits_met_target %}done{% endif %}">
+<div><strong>{{ day.date }}</strong><span>{{ day.total_xp_today }} XP{% if day.full_day_bonus_xp %} (incl. {{ day.full_day_bonus_xp }} consistency bonus){% endif %} · {{ day.entries|length }} habit(s) logged{% if day.all_habits_met_target %} · all targets met{% endif %}</span></div>
+</article>
+{% else %}<p>No days logged yet — log today's habits above to get started.</p>{% endfor %}
+</details>
+</section>
+
+{% if action_output %}<section class="operator-section engine-output"><div class="section-heading"><div><p class="operator-eyebrow">ENGINE OUTPUT</p><h2>Last Action</h2></div></div><pre>{{ action_output }}</pre></section>{% endif %}
+
+<footer class="operator-footer"><span>Fitness root</span><code>{{ fitness.rnd_root }}</code></footer>
+{% endif %}
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+<script>
+document.querySelectorAll('[data-look]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var twin = document.getElementById('fitness-twin');
+    if (!twin) return;
+    twin.cameraOrbit = (btn.dataset.look === 'back' ? '180deg 78deg 105%' : '0deg 78deg 105%');
+  });
+});
+</script>
+{% endblock %}

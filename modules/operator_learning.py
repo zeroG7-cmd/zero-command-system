@@ -333,14 +333,8 @@ def get_learning_hub_data() -> dict[str, Any]:
         status = str(card.get("status", "In Progress"))
         status_counts[status] = status_counts.get(status, 0) + 1
 
-    active_tracks = [
-        card for card in cards
-        if str(card.get("status", "")).strip().lower() not in {"complete", "completed", "abandoned"}
-    ]
-
     return {
         "tracks": cards,
-        "active_tracks": active_tracks,
         "library_groups": _group_tracks(cards),
         "status_counts": status_counts,
         "track_count": len(cards),
