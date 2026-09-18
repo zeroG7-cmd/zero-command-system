@@ -1,0 +1,102 @@
+.room-back-link {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    color: white;
+    text-decoration: none;
+    background: rgba(10, 12, 18, 0.7);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    z-index: 10;
+    /* This class is also used on a <button> (the home-page embedded room
+       backs out of its zoom in place instead of following a link), so
+       reset the native button chrome that would otherwise show through. */
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+/* Hover label for room objects - also used on the embedded home-page
+   room, which doesn't link command_room.css (that page is no longer
+   the primary way to reach this room), hence living here instead.
+   z-index has to clear .hq-room.is-focused-room's 40 (home.css) - a
+   zoomed-in room fills the stage at that layer, and without this the
+   label renders correctly but sits invisibly behind it. */
+.command-room-label {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(10, 12, 18, 0.9);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    z-index: 50;
+}
+
+/* In-scene popup panel - stays over the room instead of navigating away,
+   per the Sims-style pattern: click an object, see its data, close it,
+   you're still standing in the room. position:fixed (not absolute) on
+   purpose: on the home page this sits outside .hq-building, and a
+   reparented/transformed ancestor would otherwise hijack position:fixed's
+   containing block. z-index has to clear .hq-room.is-focused-room's 40
+   (home.css) - the panel was opening correctly the whole time, it was
+   just rendering behind the zoomed-in room, invisible until you backed
+   out and the room dropped back down to its normal grid-tile layer. */
+.stat-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(420px, 90%);
+    max-height: 80%;
+    overflow-y: auto;
+    background: #14161c;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 24px;
+    z-index: 60;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.stat-panel-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 1.4rem;
+    cursor: pointer;
+}
+
+.stat-panel-close:hover {
+    color: white;
+}
+
+.stat-sub {
+    color: #aaa;
+    margin-top: -8px;
+}
+
+.stat-grid {
+    display: grid;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(180, 180, 180, 0.08);
+    border-radius: 4px;
+}
+
+.stat-name {
+    font-weight: bold;
+}
+
+.stat-error {
+    color: #e08080;
+}

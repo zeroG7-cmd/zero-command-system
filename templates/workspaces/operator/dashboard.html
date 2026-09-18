@@ -40,7 +40,7 @@
     <section class="operator-home-grid">
         <div class="operator-summary-column">
             <p class="operator-eyebrow overall-label">OPERATOR OVERALL</p>
-            <strong class="overall-value">{{ "%.2f"|format(dashboard.overall) }}</strong>
+            <strong class="overall-value">{{ "%.2f"|format(dashboard.overall or 0) }}</strong>
             <p class="character-sheet-subtitle">{{ dashboard.operator_title }} · WELCOME BACK, {{ dashboard.operator_name|upper }}</p>
 
             <div class="operator-avatar-frame" aria-label="Operator 3D model">
@@ -64,7 +64,7 @@
                 {% for stat in dashboard.main_stats %}
                 <div class="main-stat-row" data-stat="{{ stat.name }}" tabindex="0" role="button">
                     <span class="main-stat-row-name">{{ stat.name }}</span>
-                    <span class="main-stat-row-value">{{ "%.2f"|format(stat.average_level) }}</span>
+                    <span class="main-stat-row-value">{{ "%.2f"|format(stat.average_level or 0) }}</span>
                     <span class="main-stat-row-meta">{{ stat.child_count }} branches</span>
                 </div>
                 {% endfor %}

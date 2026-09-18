@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from flask import Blueprint, abort, current_app, render_template
+from flask import Blueprint, abort, current_app, jsonify, render_template, url_for
 
 operator_bp = Blueprint("operator", __name__, url_prefix="/operator")
 
@@ -188,6 +188,41 @@ def dashboard():
             dashboard=None,
             operator_error=str(error),
         ), 200
+
+
+@operator_bp.route("/room")
+def room():
+    """The 3D Operator Development room (gym / study / reflection zones).
+
+    Click-into-full-page-dashboard stays available via the "View Skill
+    Tree" link the stat panel renders - this route is just the room shell,
+    the actual stat data comes from /operator/api/summary below.
+    """
+    return render_template("rooms/operator_development.html")
+
+
+@operator_bp.route("/api/summary")
+def api_summary():
+    """Slim JSON version of get_operator_dashboard_data(), for the
+    in-scene stat panel - same underlying data as the full dashboard page,
+    just shaped for a popup instead of a full render_template() page."""
+    try:
+        data = get_operator_dashboard_data()
+    except (FileNotFoundError, ValueError, OSError) as error:
+        return jsonify({"error": str(error)}), 200
+
+    return jsonify({
+        "operator_name": data["operator_name"],
+        "operator_title": data["operator_title"],
+        "operator_level": data["operator_level"],
+        "overall": data["overall"],
+        "total_xp": data["total_xp"],
+        "next_level_xp": data["next_level_xp"],
+        "xp_to_next_level": data["xp_to_next_level"],
+        "level_progress": data["level_progress"],
+        "main_stats": data["main_stats"],
+        "skill_tree_url": url_for("operator.dashboard"),
+    })
 
 
 def _all_capability_concepts() -> dict[str, list[dict[str, Any]]]:

@@ -29,6 +29,10 @@
         if (node.node_type === "skill") {
             return "Lv " + (node.level || 0) + " \u00b7 " + (node.xp || 0) + " XP";
         }
+        // A genuine fractional level (capability levels average up through
+        // subcategory -> category -> main stat), not a display artifact -
+        // shown as a plain decimal, no "Lv" label, matching the main stat
+        // rows and OPERATOR OVERALL number.
         return (node.average_level || 0).toFixed(2);
     }
 

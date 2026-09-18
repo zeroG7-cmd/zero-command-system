@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Operator Development | Zero Command{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/command_room.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_room.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="command-room">
+    <canvas id="operator-room-canvas"></canvas>
+    <div id="operator-room-label" class="command-room-label" hidden></div>
+
+    <a class="room-back-link" href="{{ url_for('command_room') }}">&larr; Command Room</a>
+
+    <div id="stat-panel" class="stat-panel" hidden>
+        <button id="stat-panel-close" class="stat-panel-close" aria-label="Close">&times;</button>
+        <div id="stat-panel-body">Loading…</div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/rooms/operator_development.js') }}"></script>
+{% endblock %}

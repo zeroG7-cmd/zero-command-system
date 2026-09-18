@@ -4,6 +4,7 @@
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_room.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -20,17 +21,6 @@
         </div>
     </section>
 
-    <section class="hq-toolbar" aria-label="Headquarters controls">
-        <div class="hq-readout">
-            <span class="readout-label">CURRENT VIEW</span>
-            <strong id="room-readout">HEADQUARTERS OVERVIEW</strong>
-        </div>
-        <div class="hq-actions">
-            <button class="hq-control is-active" type="button" data-view="overview">Overview</button>
-            <button class="hq-control" type="button" data-view="focus">Focus room</button>
-        </div>
-    </section>
-
     <section class="hq-stage" aria-label="Interactive cross-section of Zero Command Headquarters">
         <div class="ambient-grid" aria-hidden="true"></div>
         <div class="hq-building" id="hq-building">
@@ -41,17 +31,13 @@
             </div>
 
             <div class="hq-floor hq-floor-top">
-                <a class="hq-room room-operator" href="{{ url_for('operator.dashboard') }}" data-room="Operator Study" data-description="Skills, capability progression, tasks and the Operator learning system.">
+                <div class="hq-room room-operator room-live" tabindex="0" data-room="Operator Development" data-description="Live 3D room - gym, study and reflection zones. Click Zero for your stats.">
+                    <button class="room-back-link" type="button" data-room-back hidden>&larr; House</button>
                     <span class="room-label">OPERATOR STUDY</span>
-                    <span class="room-status">ACTIVE</span>
-                    <span class="window window-left" aria-hidden="true"></span>
-                    <span class="bookshelf" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                    <span class="desk" aria-hidden="true"></span>
-                    <span class="desk-screen" aria-hidden="true">INT</span>
-                    <span class="chair" aria-hidden="true"></span>
-                    <span class="zero-character zero-at-desk" aria-hidden="true"><i class="zero-head"></i><i class="zero-body"></i></span>
-                    <span class="interaction-hint">Enter study</span>
-                </a>
+                    <span class="room-status live">LIVE</span>
+                    <canvas id="operator-room-canvas" class="hq-room-canvas"></canvas>
+                    <span class="interaction-hint">Click room to zoom in</span>
+                </div>
 
                 <a class="hq-room room-command is-concept" href="#" data-room="Ground Control" data-description="Future tactical room for live camera feeds, telemetry and mission planning." aria-disabled="true">
                     <span class="room-label">GROUND CONTROL</span>
@@ -114,6 +100,18 @@
         </div>
     </section>
 
+    {# Live outside .hq-building on purpose: a room can get reparented to
+       .hq-stage and absolutely positioned while it's zoomed-in (see
+       home.js), and an absolutely/transformed ancestor turns position:fixed
+       children into something else entirely - keeping these as siblings
+       means the popup always sits over the whole viewport regardless of
+       whether a room is currently focused. #}
+    <div id="operator-room-label" class="command-room-label" hidden></div>
+    <div id="stat-panel" class="stat-panel" hidden>
+        <button id="stat-panel-close" class="stat-panel-close" aria-label="Close">&times;</button>
+        <div id="stat-panel-body">Loading…</div>
+    </div>
+
     <section class="room-inspector" aria-live="polite">
         <div>
             <span class="inspector-label">SELECTED SPACE</span>
@@ -130,4 +128,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/home.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/rooms/operator_development.js') }}"></script>
 {% endblock %}

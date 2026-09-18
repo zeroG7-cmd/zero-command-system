@@ -1,0 +1,28 @@
+/* Matches the existing panel look (.panel / .command-centre in style.css) —
+   border + translucent grey background — rather than introducing a new
+   visual language for one page. */
+.command-room {
+    grid-column: 1 / 3;
+    position: relative;
+    min-height: 70vh;
+    border: 1px solid white;
+    background: rgba(180, 180, 180, 0.12);
+    overflow: hidden;
+}
+
+#command-room-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.command-room-label {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(10, 12, 18, 0.9);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    z-index: 10;
+}

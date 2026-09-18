@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Command Room | Zero Command{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/command_room.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="command-room">
+    <canvas id="command-room-canvas"></canvas>
+    <div id="command-room-label" class="command-room-label" hidden></div>
+
+    {# Server-known routes handed to the client script as data, not baked
+       into command_room.js — keeps that file a plain static asset with
+       no url_for()/templating of its own. #}
+    <script id="command-room-data" type="application/json">
+        {{ rooms | tojson }}
+    </script>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/command_room.js') }}"></script>
+{% endblock %}

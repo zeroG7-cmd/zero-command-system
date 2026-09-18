@@ -11,3 +11,11 @@ database/*.db
 *.zip
 __pycache__/
 *.py[cod]
+
+# Local virtualenv and PyInstaller build output - both fully regenerable
+# (pip install -r requirements.txt && pyinstaller app.spec), both huge,
+# and dist/ in particular is platform-specific (a Windows build here
+# won't run on Linux/macOS, so there's no point carrying it in git at all)
+venv/
+build/
+dist/
