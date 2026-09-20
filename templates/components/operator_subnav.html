@@ -5,7 +5,7 @@
     <a class="{% if '/operator/tasks' in request.path %}active{% endif %}" href="{{ url_for('operator_tasks.dashboard') }}">Tasks</a>
     <a class="{% if '/operator/fitness' in request.path %}active{% endif %}" href="{{ url_for('operator_fitness.dashboard') }}">Fitness</a>
     <a class="{% if '/operator/journal' in request.path %}active{% endif %}" href="{{ url_for('operator_journal.dashboard') }}">Journal</a>
-    <span class="operator-subnav-future">Challenges</span>
+    <a class="{% if '/operator/analytics' in request.path %}active{% endif %}" href="{{ url_for('operator_analytics.dashboard') }}">Analytics</a>
     <span class="operator-subnav-future">Achievements</span>
-    <span class="operator-subnav-future">Analytics</span>
+    <a class="{% if '/operator/challenges' in request.path %}active{% endif %}" href="{{ url_for('operator_challenges.dashboard') }}">Challenges</a>
 </nav>

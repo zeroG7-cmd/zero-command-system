@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Analytics Hub | Operator Development{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_analytics.css') }}">
+{% endblock %}
+{% block content %}
+<div class="operator-page">
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell">
+<header class="operator-hero">
+<div>
+<p class="operator-eyebrow">OPERATOR DEVELOPMENT</p>
+<h1>ANALYTICS HUB</h1>
+<p class="operator-subtitle">A cross-hub summary — everything Fitness, Learning, Journal, Tasks and Execution have logged, pulled into one view.</p>
+</div>
+</header>
+
+{% if analytics_error %}
+<div class="taskhub-flash error"><strong>Couldn't load Analytics Hub.</strong> {{ analytics_error }}</div>
+{% else %}
+
+<div class="panel an-level-card" id="an-level-card"></div>
+<div class="panel" style="margin-bottom:1.5rem" id="an-stat-panel">
+<h2 class="an-h">Main Stats
+    <span class="an-toggle" id="an-stat-toggle">
+        <button type="button" data-view="cards" class="active">Cards</button>
+        <button type="button" data-view="graph">Graph</button>
+    </span>
+</h2>
+<div class="an-stat-strip" id="an-stat-strip"></div>
+<div class="an-stat-detail" id="an-stat-detail" style="display:none">
+    <div class="an-stat-detail-head">
+        <span id="an-stat-detail-title"></span>
+        <button type="button" class="an-stat-detail-close" id="an-stat-detail-close">Close</button>
+    </div>
+    <div id="an-stat-detail-list"></div>
+</div>
+<div class="an-chart-wrap" id="an-chart-wrap" style="display:none">
+    <div class="an-chart-caption" id="an-chart-caption"></div>
+    <canvas id="an-stat-chart" width="1160" height="320" style="width:100%;height:320px;display:block"></canvas>
+    <div class="an-chart-tooltip" id="an-chart-tooltip"></div>
+    <div class="an-chart-legend" id="an-chart-legend"></div>
+</div>
+</div>
+
+<div class="an-hub-grid" id="an-hub-grid"></div>
+
+<div class="an-layout">
+<div>
+<div class="panel" style="margin-bottom:1.25rem">
+<h2 class="an-h">Top Categories</h2>
+<div id="an-cat-list"></div>
+</div>
+<div class="panel">
+<h2 class="an-h">Top Capabilities</h2>
+<div id="an-cap-list"></div>
+</div>
+</div>
+<div class="panel">
+<h2 class="an-h">Recent Activity — All Hubs</h2>
+<div class="an-timeline" id="an-timeline"></div>
+<div class="an-note" id="an-note"></div>
+</div>
+</div>
+
+{% endif %}
+</main>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if not analytics_error %}
+<script>
+window.__ANALYTICS_DATA__ = {{ data | tojson }};
+window.__ANALYTICS_HUB_URLS__ = {{ hub_urls | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/operator_analytics.js') }}"></script>
+{% endif %}
+{% endblock %}

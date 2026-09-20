@@ -1,24 +1,324 @@
 {% extends "base.html" %}
+{% block title %}Execution Hub | Operator Development{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_execution.css') }}">
+{% endblock %}
 {% block content %}
+<div class="operator-page">
 {% include "components/operator_subnav.html" %}
-<section class="execution-hub">
-  <header><p class="eyebrow">OPERATOR DEVELOPMENT</p><h1>Execution Hub</h1><p>Record what you built, practised, performed or delivered.</p></header>
-  <div class="execution-stats"><article><strong>{{ summary.completed }}</strong><span>completed records</span></article><article><strong>{{ summary.minutes }}</strong><span>execution minutes</span></article><article><strong>{{ summary.by_stat|length }}</strong><span>stats exercised</span></article></div>
-  <form id="execution-form" class="execution-form">
-    <input name="title" placeholder="What did you do?" required>
-    <select name="activity_type"><option>project</option><option>experiment</option><option>practice</option><option>training</option><option>business</option><option>creative</option></select>
-    <input name="main_stats" placeholder="Stats, e.g. INT,DISC">
-    <input name="capabilities" placeholder="Capabilities, comma separated">
-    <input name="concepts" placeholder="Concepts or techniques">
-    <input name="duration_minutes" type="number" min="0" placeholder="Minutes">
-    <textarea name="evidence" placeholder="Evidence, one item per line"></textarea>
-    <textarea name="reflection" placeholder="What did you notice or learn?"></textarea>
-    <button type="submit">Record execution</button><output id="execution-result"></output>
-  </form>
-  <div class="execution-records">{% for record in records %}<article><div><strong>{{ record.title }}</strong><span>{{ record.activity_type }} · {{ record.duration_minutes }} min</span></div><p>{{ record.reflection or record.result }}</p><small>{{ record.main_stats|join(' · ') }}{% if record.capabilities %} — {{ record.capabilities|join(', ') }}{% endif %}</small></article>{% else %}<p>No execution records yet.</p>{% endfor %}</div>
-</section>
+<main class="operator-shell">
+<header class="operator-hero">
+<div>
+<p class="operator-eyebrow">OPERATOR DEVELOPMENT</p>
+<h1>EXECUTION HUB</h1>
+<p class="operator-subtitle">Log a finished project or a completed experiment against the real skill tree. Pick how big it was and finishing awards a flat {{ xp_by_scope.small }}/{{ xp_by_scope.medium }}/{{ xp_by_scope.large }} XP (small/medium/large) - split across every capability it touched. Not hours: hours are self-reported and already earn XP in Task Hub while you're building, so scope is a one-time honest call at completion instead. Business and creative work stay in Journal - this is purely "I shipped it."</p>
+</div>
+</header>
+
+{% if error %}
+<div class="exec-flash error"><strong>Couldn't log that.</strong> {{ error }}</div>
+{% endif %}
+
+<div class="exec-stats">
+<article><strong id="stat-projects">{{ summary.by_type.get('project', 0) }}</strong><span>Projects logged</span></article>
+<article><strong id="stat-experiments">{{ summary.by_type.get('experiment', 0) }}</strong><span>Experiments logged</span></article>
+<article><strong id="stat-xp">{{ summary.total_xp }}</strong><span>Total XP awarded</span></article>
+</div>
+
+<div class="exec-layout">
+<div class="panel">
+
+<div class="exec-type-toggle">
+<div class="exec-type-btn active" data-type="project"><span class="ic">🛠️</span>Project</div>
+<div class="exec-type-btn" data-type="experiment"><span class="ic">🧪</span>Experiment</div>
+</div>
+
+<div class="exec-field">
+<label>Title</label>
+<input type="text" id="exec-title" placeholder="What did you finish?">
+</div>
+
+<div class="exec-field">
+<label>Scope</label>
+<div class="exec-scope-toggle">
+<div class="exec-scope-btn" data-scope="small"><span class="amt">{{ xp_by_scope.small }} xp</span>Small</div>
+<div class="exec-scope-btn active" data-scope="medium"><span class="amt">{{ xp_by_scope.medium }} xp</span>Medium</div>
+<div class="exec-scope-btn" data-scope="large"><span class="amt">{{ xp_by_scope.large }} xp</span>Large</div>
+</div>
+</div>
+
+<div class="exec-field">
+<label>Capabilities this involved</label>
+<div class="exec-picker-row">
+<div><label>Category</label>
+<select id="exec-category"><option value="">Choose…</option></select></div>
+<div><label>Subcategory</label>
+<select id="exec-subcategory" disabled><option value="">Choose…</option></select></div>
+<div><label>Capability</label>
+<select id="exec-capability" disabled><option value="">Choose…</option></select></div>
+<button type="button" class="exec-add-btn" id="exec-add" disabled>+ Add</button>
+</div>
+<div class="exec-chips" id="exec-chips"><span class="exec-chip-empty">No capabilities added yet — pick one above.</span></div>
+</div>
+
+<div class="exec-field">
+<label>Evidence <span style="text-transform:none;letter-spacing:0">(one per line — link, commit, file name)</span></label>
+<textarea id="exec-evidence" placeholder="e.g. github.com/zerogravity/shadow/commit/a1b2c3"></textarea>
+</div>
+
+<div class="exec-field">
+<label>Reflection</label>
+<textarea id="exec-reflection" placeholder="What did this actually prove or build?"></textarea>
+</div>
+
+<div class="exec-preview" id="exec-preview">Pick at least one capability to see where the XP lands.</div>
+
+<div style="margin-top:1rem">
+<button type="button" class="learning-button" id="exec-submit">Log Project</button>
+</div>
+
+</div>
+
+<div class="panel exec-log">
+<h2>Recent Completions</h2>
+<div id="exec-log-list">
+{% if records %}
+{% for entry in records %}
+<div class="exec-log-item">
+<div class="exec-log-head"><b>{{ entry.title }}</b><span class="xp">+{{ entry.xp_total }} xp</span></div>
+<div class="exec-log-meta"><span class="exec-log-type-tag">{{ entry.activity_type }}</span> <span class="exec-log-type-tag">{{ entry.scope }}</span> · {{ entry.created_at[:10] }}</div>
+<div class="exec-log-caps">
+{% for award in entry.xp_awards %}
+<span class="exec-log-cap-chip">{{ competency_names.get(award.competency_id, award.competency_id) }} +{{ award.xp }}</span>
+{% endfor %}
+</div>
+</div>
+{% endfor %}
+{% else %}
+<p class="exec-log-empty">Nothing logged yet — try it above.</p>
+{% endif %}
+</div>
+</div>
+
+</div>
+</main>
+</div>
+{% endblock %}
+{% block scripts %}
 <script>
-const form=document.getElementById('execution-form'), out=document.getElementById('execution-result');
-form.addEventListener('submit', async e=>{e.preventDefault(); const f=new FormData(form), split=n=>(f.get(n)||'').split(/[\n,]/).map(x=>x.trim()).filter(Boolean); const payload={title:f.get('title'),activity_type:f.get('activity_type'),main_stats:split('main_stats'),capabilities:split('capabilities'),concepts:split('concepts'),duration_minutes:Number(f.get('duration_minutes')||0),evidence:split('evidence'),reflection:f.get('reflection'),status:'completed',source:'zero_command'}; const r=await fetch('/operator/execution/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await r.json(); out.textContent=r.ok?'Execution recorded.':data.error; if(r.ok)setTimeout(()=>location.reload(),500);});
+const XP_BY_SCOPE = {{ xp_by_scope|tojson }};
+const CATALOG = {{ catalog|tojson }};
+const CREATE_URL = "{{ url_for('operator_execution.create') }}";
+
+let currentType = 'project';
+let currentScope = 'medium';
+let selectedCaps = []; // {stat, category, subcategory, name, competency_id, xp, level, progress_percentage}
+let submitting = false;
+
+const catSel = document.getElementById('exec-category');
+const subSel = document.getElementById('exec-subcategory');
+const capSel = document.getElementById('exec-capability');
+const addBtn = document.getElementById('exec-add');
+const chipsEl = document.getElementById('exec-chips');
+const preview = document.getElementById('exec-preview');
+const submitBtn = document.getElementById('exec-submit');
+const statProjects = document.getElementById('stat-projects');
+const statExperiments = document.getElementById('stat-experiments');
+const statXp = document.getElementById('stat-xp');
+const logList = document.getElementById('exec-log-list');
+
+// Category select, grouped by stat
+CATALOG.forEach((entry, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = `${entry.stat} · ${entry.category}`;
+    catSel.appendChild(opt);
+});
+
+function resetSelect(sel, enabled) {
+    sel.innerHTML = '<option value="">Choose…</option>';
+    sel.disabled = !enabled;
+}
+
+catSel.addEventListener('change', () => {
+    resetSelect(subSel, false);
+    resetSelect(capSel, false);
+    addBtn.disabled = true;
+    if (catSel.value === '') return;
+    const entry = CATALOG[catSel.value];
+    Object.keys(entry.subcategories).forEach(sub => {
+        const opt = document.createElement('option');
+        opt.value = sub; opt.textContent = sub;
+        subSel.appendChild(opt);
+    });
+    subSel.disabled = false;
+});
+
+subSel.addEventListener('change', () => {
+    resetSelect(capSel, false);
+    addBtn.disabled = true;
+    if (subSel.value === '' || catSel.value === '') return;
+    const entry = CATALOG[catSel.value];
+    (entry.subcategories[subSel.value] || []).forEach(cap => {
+        const opt = document.createElement('option');
+        opt.value = cap.name; opt.textContent = `${cap.name} (Lv ${cap.level})`;
+        capSel.appendChild(opt);
+    });
+    capSel.disabled = false;
+});
+
+capSel.addEventListener('change', () => {
+    addBtn.disabled = capSel.value === '';
+});
+
+addBtn.addEventListener('click', () => {
+    if (catSel.value === '' || subSel.value === '' || capSel.value === '') return;
+    const entry = CATALOG[catSel.value];
+    const cap = (entry.subcategories[subSel.value] || []).find(c => c.name === capSel.value);
+    if (!cap) return;
+    if (selectedCaps.some(c => c.competency_id === cap.competency_id)) return; // no dupes
+    selectedCaps.push({ stat: entry.stat, category: entry.category, subcategory: subSel.value, ...cap });
+    renderChips();
+    updatePreview();
+});
+
+function renderChips() {
+    if (!selectedCaps.length) {
+        chipsEl.innerHTML = '<span class="exec-chip-empty">No capabilities added yet — pick one above.</span>';
+        return;
+    }
+    chipsEl.innerHTML = '';
+    selectedCaps.forEach((cap, i) => {
+        const chip = document.createElement('div');
+        chip.className = 'exec-chip';
+        chip.innerHTML = `<b>${cap.stat}</b> ${cap.category} → ${cap.name} <button type="button" aria-label="Remove">×</button>`;
+        chip.querySelector('button').addEventListener('click', () => {
+            selectedCaps.splice(i, 1);
+            renderChips();
+            updatePreview();
+        });
+        chipsEl.appendChild(chip);
+    });
+}
+
+function updatePreview() {
+    if (!selectedCaps.length) {
+        preview.innerHTML = 'Pick at least one capability to see where the XP lands.';
+        return;
+    }
+    const totalXp = XP_BY_SCOPE[currentScope];
+    const each = Math.round(totalXp / selectedCaps.length);
+    let rows = selectedCaps.map(cap =>
+        `<div class="exec-preview-row"><span>${cap.name}</span><span><b style="color:var(--op-accent)">+${each} xp</b> · Lv ${cap.level} → ${cap.progress_percentage}% to next</span></div>`
+    ).join('');
+    preview.innerHTML = `<div class="total">${totalXp} XP total — flat for a ${currentScope} ${currentType}, split across what it touched</div>${rows}`;
+}
+
+document.querySelectorAll('.exec-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.exec-type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentType = btn.dataset.type;
+        submitBtn.textContent = currentType === 'project' ? 'Log Project' : 'Log Experiment';
+        updatePreview();
+    });
+});
+
+document.querySelectorAll('.exec-scope-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.exec-scope-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentScope = btn.dataset.scope;
+        updatePreview();
+    });
+});
+
+function prependLogEntry(entry) {
+    if (logList.querySelector('.exec-log-empty')) logList.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'exec-log-item';
+    const caps = entry.caps.map(c => `<span class="exec-log-cap-chip">${c} +${entry.each}</span>`).join('');
+    div.innerHTML = `
+        <div class="exec-log-head"><b>${entry.title}</b><span class="xp">+${entry.xp} xp</span></div>
+        <div class="exec-log-meta"><span class="exec-log-type-tag">${entry.type}</span> <span class="exec-log-type-tag">${entry.scope}</span> · ${entry.date}</div>
+        <div class="exec-log-caps">${caps}</div>
+    `;
+    logList.insertBefore(div, logList.firstChild);
+}
+
+submitBtn.addEventListener('click', async () => {
+    if (submitting) return;
+    const title = document.getElementById('exec-title').value.trim();
+    if (!title) { alert('Give it a title first.'); return; }
+    if (!selectedCaps.length) { alert('Add at least one capability.'); return; }
+
+    const evidence = document.getElementById('exec-evidence').value
+        .split('\n').map(s => s.trim()).filter(Boolean);
+    const reflection = document.getElementById('exec-reflection').value.trim();
+
+    const payload = {
+        title,
+        activity_type: currentType,
+        scope: currentScope,
+        capabilities: selectedCaps.map(c => ({
+            stat: c.stat, category: c.category, subcategory: c.subcategory, capability: c.name,
+        })),
+        evidence,
+        reflection,
+    };
+
+    submitting = true;
+    submitBtn.disabled = true;
+    try {
+        const res = await fetch(CREATE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const record = await res.json();
+        if (!res.ok) {
+            alert(record.error || 'Could not log that — try again.');
+            return;
+        }
+        if (record.duplicate) {
+            alert('That exact project/experiment is already logged — no XP awarded twice.');
+            return;
+        }
+
+        const totalXp = XP_BY_SCOPE[currentScope];
+        const each = Math.round(totalXp / selectedCaps.length);
+        prependLogEntry({
+            type: currentType,
+            scope: currentScope,
+            title,
+            caps: selectedCaps.map(c => c.name),
+            xp: totalXp,
+            each,
+            date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        });
+
+        if (currentType === 'project') statProjects.textContent = parseInt(statProjects.textContent, 10) + 1;
+        else statExperiments.textContent = parseInt(statExperiments.textContent, 10) + 1;
+        statXp.textContent = parseInt(statXp.textContent, 10) + totalXp;
+
+        // reset form
+        document.getElementById('exec-title').value = '';
+        document.getElementById('exec-evidence').value = '';
+        document.getElementById('exec-reflection').value = '';
+        selectedCaps = [];
+        renderChips();
+        updatePreview();
+        resetSelect(subSel, false);
+        resetSelect(capSel, false);
+        catSel.value = '';
+        addBtn.disabled = true;
+    } catch (err) {
+        alert('Could not reach the server — try again.');
+    } finally {
+        submitting = false;
+        submitBtn.disabled = false;
+    }
+});
 </script>
 {% endblock %}

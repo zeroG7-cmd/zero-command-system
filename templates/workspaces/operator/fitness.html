@@ -2,6 +2,7 @@
 {% block title %}Fitness Hub | Operator Development{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/operator_learning.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/operator_fitness.css') }}">{% endblock %}
 {% block content %}
+<div class="operator-page">
 {% include "components/operator_subnav.html" %}
 <main class="operator-shell">
 <header class="operator-hero">
@@ -155,6 +156,7 @@
 <footer class="operator-footer"><span>Fitness root</span><code>{{ fitness.rnd_root }}</code></footer>
 {% endif %}
 </main>
+</div>
 {% endblock %}
 
 {% block scripts %}

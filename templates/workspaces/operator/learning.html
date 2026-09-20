@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/operator_learning.css') }}">
 {% endblock %}
 {% block content %}
+<div class="operator-page">
 {% include "components/operator_subnav.html" %}
 <main class="operator-shell learning-shell">
 <header class="operator-hero learning-hero">
@@ -80,4 +81,5 @@
 {% if action_output %}<section class="operator-section engine-output"><div class="section-heading"><div><p class="operator-eyebrow">ENGINE OUTPUT</p><h2>Last Action</h2></div></div><pre>{{ action_output }}</pre></section>{% endif %}
 <footer class="operator-footer"><span>Learning root</span><code>{{ hub.rnd_root }}</code></footer>
 {% endif %}</main>
+</div>
 {% endblock %}

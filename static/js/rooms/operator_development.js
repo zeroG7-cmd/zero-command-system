@@ -1,17 +1,23 @@
 // operator_development.js — the first real themed room: Operator
 // Development, split into three zones (gym / study / reflection) per your
-// description. Two things happen here that command_room.js didn't do:
+// description. Three things happen here that command_room.js didn't do:
 //
 // 1. Zoned floor instead of one flat plane — three colored PlaneGeometry
 //    strips laid side by side, each tagged with a zone name.
-// 2. Clicking yourself (the avatar capsule) doesn't navigate anywhere —
-//    it opens an in-scene panel with real stat data fetched from
-//    /operator/api/summary, and the room stays visible behind it. That's
-//    the actual pattern you asked for: popups over a persistent world,
-//    not page jumps. The bookshelf is visible but not clickable yet -
+// 2. Clicking yourself (the avatar) doesn't navigate anywhere - it opens
+//    an in-scene panel with real stat data fetched from
+//    /operator/api/summary, and the room stays visible behind it. (Note:
+//    the plan going forward is for this to instead navigate to a full
+//    separate profile page - that hasn't been built yet, this is still
+//    the panel behavior.) The bookshelf is visible but not clickable yet -
 //    that's next, once this pattern is proven with real data.
+// 3. The avatar and bookshelf are chunky voxel models built by
+//    voxel_builder.js instead of a placeholder capsule/cuboid - the
+//    avatar from your actual zero_pixel_mini_v2.png pixel art (see
+//    static/data/zero_avatar_voxel.json), the bookshelf fully procedural.
 
 import * as THREE from '../vendor/three.module.js';
+import { buildVoxelAvatar, buildVoxelBookshelf } from '../voxel_builder.js';
 
 const canvas = document.getElementById('operator-room-canvas');
 const hoverLabel = document.getElementById('operator-room-label');
@@ -84,26 +90,48 @@ zones.forEach((zone) => {
 const clickable = [];
 
 // The avatar - stands in the study zone for now (no fixed "home spot"
-// decided yet). Capsule, not a box, so it visually reads as a figure
-// rather than another piece of furniture.
-const avatar = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.6, 1.4, 4, 8),
-  new THREE.MeshStandardMaterial({ color: 0xf2c14e })
-);
-avatar.position.set(0, 1.2, 2.5);
-avatar.userData.label = 'Zero (click for stats)';
-avatar.userData.action = 'stats';
-scene.add(avatar);
-clickable.push(avatar);
+// decided yet). Built from your actual zero_pixel_mini_v2.png pixel art
+// (see static/data/zero_avatar_voxel.json + scripts/build_avatar_voxels.py),
+// extruded into voxels via the shared builder. The back half of the
+// extrusion currently mirrors the front pixel data rather than using a
+// real back-view reference - swap in a proper chibi back image and
+// regenerate the JSON once you've drawn one; nothing else needs to change.
+// Loaded async since it comes from a fetched JSON file, so it fades in a
+// beat after the rest of the room rather than blocking first render.
+fetch('/static/data/zero_avatar_voxel.json')
+  .then((response) => response.json())
+  .then((gridData) => {
+    // depth was originally 4, which at this voxelSize made the figure
+    // roughly 10x thinner than it is wide - basically a slab, which is
+    // why it read as a flat 2D cutout under this room's static isometric
+    // camera. 19 voxels deep is proportional to the 42-wide grid instead
+    // (confirmed by re-rendering under this exact camera before shipping).
+    const avatar = buildVoxelAvatar(gridData, { voxelSize: 0.048, depth: 19 });
+    avatar.position.set(0, 0, 2.5);
+    avatar.userData.label = 'Zero (click for stats)';
+    avatar.userData.action = 'stats';
+    scene.add(avatar);
+    clickable.push(avatar);
+  })
+  .catch((err) => {
+    console.error('Could not load the voxel avatar, falling back to a placeholder capsule:', err);
+    const fallback = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.6, 1.4, 4, 8),
+      new THREE.MeshStandardMaterial({ color: 0xf2c14e })
+    );
+    fallback.position.set(0, 1.2, 2.5);
+    fallback.userData.label = 'Zero (click for stats)';
+    fallback.userData.action = 'stats';
+    scene.add(fallback);
+    clickable.push(fallback);
+  });
 
-// Bookshelf - visible in the study zone, not interactive yet. Will
-// eventually open the Learning Hub's course/completion data the same
-// way the avatar opens stats.
-const bookshelf = new THREE.Mesh(
-  new THREE.BoxGeometry(1.6, 2.2, 0.6),
-  new THREE.MeshStandardMaterial({ color: 0x8a6a3d })
-);
-bookshelf.position.set(1.8, 1.1, -1.5);
+// Bookshelf - a real procedural voxel model (frame, shelves, individual
+// books) instead of a single cuboid. Not interactive yet. Will eventually
+// open the Learning Hub's course/completion data the same way the avatar
+// opens stats.
+const bookshelf = buildVoxelBookshelf({ voxelSize: 0.1 });
+bookshelf.position.set(1.8, 0, -1.5);
 scene.add(bookshelf);
 
 // Gym equipment placeholder.
@@ -136,8 +164,14 @@ function pointerFromEvent(event) {
 function pick(event) {
   pointerFromEvent(event);
   raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(clickable);
-  return hits.length ? hits[0].object : null;
+  // recursive: true because the voxel avatar is a Group of InstancedMeshes,
+  // not a single mesh - a hit lands on one of those children, so walk back
+  // up to whichever ancestor actually carries the clickable userData.
+  const hits = raycaster.intersectObjects(clickable, true);
+  if (!hits.length) return null;
+  let obj = hits[0].object;
+  while (obj && !obj.userData.action && obj.parent) obj = obj.parent;
+  return obj && obj.userData.action ? obj : null;
 }
 
 canvas.addEventListener('mousemove', (event) => {

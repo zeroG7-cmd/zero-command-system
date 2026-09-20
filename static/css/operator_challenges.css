@@ -1,0 +1,72 @@
+/* Operator Challenges Hub - themed on the same --op-* variables operator.css
+   already defines (this file only adds the chl-* rules specific to this
+   page; base shell/hero/panel styling comes from operator.css, same
+   convention operator_tasks.css/operator_execution.css already follow). */
+
+.chl-flash{border-radius:.7rem;padding:.85rem 1.1rem;margin-bottom:1.25rem;font-size:.85rem;border:1px solid}
+.chl-flash.error{border-color:rgba(255,110,110,.4);background:rgba(255,80,80,.08);color:#ffb4b4}
+
+.chl-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}
+.chl-stats article{border:1px solid var(--op-border);background:var(--op-panel);border-radius:1rem;padding:1.2rem;text-align:center}
+.chl-stats strong{display:block;font-size:2.2rem;color:var(--op-accent)}
+.chl-stats span{color:var(--op-muted);font-size:.78rem}
+
+h2.chl-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--op-muted);margin:0 0 1rem}
+
+.chl-list{display:flex;flex-direction:column;gap:.9rem;margin-bottom:1.25rem}
+.chl-empty{color:var(--op-muted);font-size:.85rem;font-style:italic}
+
+.chl-card{border:1px solid var(--op-border);border-radius:.85rem;padding:1.1rem 1.3rem;background:rgba(8,20,16,.55);display:flex;justify-content:space-between;align-items:center;gap:1.5rem;flex-wrap:wrap}
+.chl-info{flex:1 1 240px;min-width:0}
+.chl-info h3{margin:0 0 .3rem;font-size:1rem}
+.chl-info span{color:var(--op-muted);font-size:.8rem}
+.chl-progress-wrap{flex:1 1 220px;min-width:180px}
+.chl-progress-track{height:.55rem;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;border:1px solid var(--op-border)}
+.chl-progress-fill{height:100%;background:var(--op-accent);box-shadow:0 0 .6rem rgba(112,255,180,.5)}
+.chl-progress-nums{display:flex;justify-content:space-between;font-size:.72rem;color:var(--op-muted);margin-top:.3rem}
+
+.chl-suggest-card{border:1px dashed rgba(103,232,249,.4);border-radius:.85rem;padding:1.1rem 1.3rem;background:rgba(8,18,27,.55);display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+.chl-suggest-card .chl-info h3{color:#c8f7ff}
+.chl-why{display:block;font-size:.7rem;color:#67e8f9;margin-top:.3rem}
+
+.btn{padding:.6rem 1.1rem;border-radius:.6rem;border:1px solid var(--op-accent);background:rgba(112,255,180,.12);color:var(--op-accent);font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap;font-family:inherit}
+.btn:hover{background:rgba(112,255,180,.22)}
+.btn.secondary{border-color:rgba(103,232,249,.5);background:rgba(103,232,249,.1);color:#67e8f9}
+.btn.secondary:hover{background:rgba(103,232,249,.2)}
+.btn.ghost{border-color:var(--op-border);background:transparent;color:var(--op-muted)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.chl-new-form{display:none;margin-top:1.25rem;border-top:1px solid var(--op-border);padding-top:1.1rem}
+.chl-new-form.open{display:block}
+.chl-scope-toggle{display:flex;gap:.5rem;margin-bottom:1rem}
+.chl-scope-btn{flex:1;text-align:center;padding:.7rem;border-radius:.6rem;border:1px solid var(--op-border);background:rgba(8,20,16,.55);color:var(--op-muted);cursor:pointer;font-size:.82rem;letter-spacing:.02em;font-family:inherit}
+.chl-scope-btn.active{border-color:var(--op-accent);color:var(--op-text);background:rgba(112,255,180,.08)}
+
+.chl-picker-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:.9rem}
+.chl-picker-row.hidden{display:none}
+#chl-picker-category.chl-picker-row{grid-template-columns:repeat(2,1fr)}
+.chl-picker-row label,.chl-form-row label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--op-muted);margin-bottom:.3rem}
+.chl-picker-row select,.chl-form-row select,.chl-form-row input{width:100%;padding:.6rem .65rem;border-radius:.5rem;border:1px solid var(--op-border);background:#08141e;color:var(--op-text);font-size:.85rem;font-family:inherit;box-sizing:border-box}
+
+.chl-form-row{display:grid;grid-template-columns:140px 140px 1fr;gap:.9rem;margin-bottom:1rem;align-items:end}
+
+.chl-history{margin-top:1.75rem;border:1px solid var(--op-border);border-radius:1rem;padding:1rem 1.3rem;background:rgba(255,255,255,.02)}
+.chl-history summary{cursor:pointer;color:var(--op-accent);font-size:.82rem;font-weight:700;list-style:none}
+.chl-history summary::-webkit-details-marker{display:none}
+.chl-history-body{margin-top:1rem;display:flex;flex-direction:column;gap:.6rem}
+.chl-history-item{padding:.6rem 0;border-top:1px solid var(--op-border);display:flex;justify-content:space-between;gap:1rem;font-size:.82rem;flex-wrap:wrap}
+.chl-history-item:first-child{border-top:none}
+.chl-history-item span{color:var(--op-muted);font-size:.75rem}
+.chl-history-item.completed b{color:var(--op-accent)}
+.chl-history-item.expired b{color:var(--op-muted);text-decoration:line-through;opacity:.7}
+
+.chl-note{margin-top:1.5rem;border:1px solid var(--op-border);border-radius:1rem;padding:1.1rem 1.4rem;color:var(--op-muted);font-size:.78rem;line-height:1.6}
+
+@media(max-width:900px){
+  .chl-picker-row{grid-template-columns:1fr 1fr}
+  .chl-form-row{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .chl-picker-row{grid-template-columns:1fr}
+  .chl-stats{grid-template-columns:1fr}
+}

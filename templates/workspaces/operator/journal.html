@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/operator_journal.css') }}">
 {% endblock %}
 {% block content %}
+<div class="operator-page">
 {% include "components/operator_subnav.html" %}
 <main class="operator-shell journal-shell">
 <header class="operator-hero journal-hero">
@@ -113,6 +114,7 @@
 
 <footer class="operator-footer"><span>Journal storage</span><code>journal/entries/YYYY/MM/</code></footer>
 </main>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>

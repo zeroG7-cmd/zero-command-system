@@ -1,0 +1,46 @@
+/* Task Hub / Weekly Ops - themed on the same --op-* variables as operator.css */
+.taskhub-layout{display:grid;grid-template-columns:1fr 380px;gap:1.25rem;align-items:start;margin-top:1.5rem}
+@media(max-width:1000px){.taskhub-layout{grid-template-columns:1fr}}
+
+.taskhub-tabs{display:flex;gap:.5rem;overflow-x:auto;padding-bottom:.9rem}
+.taskhub-tab{flex:0 0 auto;min-width:76px;text-align:center;padding:.65rem .6rem;border-radius:.65rem;border:1px solid var(--op-border);background:rgba(8,20,16,.55);color:var(--op-muted);text-decoration:none;font-size:.72rem;letter-spacing:.04em}
+.taskhub-tab .ic{display:block;font-size:1.1rem;margin-bottom:.2rem}
+.taskhub-tab.active,.taskhub-tab:hover{border-color:var(--op-accent);color:var(--op-text)}
+
+.taskhub-desc{color:var(--op-muted);font-style:italic;font-size:.85rem;line-height:1.5;margin:.4rem 0 1rem}
+.taskhub-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1rem}
+.taskhub-chip{font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;padding:.35rem .65rem;border-radius:999px;border:1px solid var(--op-border);color:var(--op-accent)}
+
+.taskhub-form{border-top:1px solid var(--op-border);padding-top:1rem}
+.taskhub-selects{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem}
+@media(max-width:640px){.taskhub-selects{grid-template-columns:1fr}}
+.taskhub-selects label,.taskhub-row label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--op-muted);margin-bottom:.25rem}
+.taskhub-selects select,.taskhub-row input[type=number]{width:100%;padding:.6rem .65rem;border-radius:.5rem;border:1px solid var(--op-border);background:#08141e;color:var(--op-text);font-size:.85rem}
+.taskhub-preview{font-size:.75rem;color:var(--op-muted);min-height:2.2rem;margin-bottom:.75rem}
+.taskhub-preview b{color:var(--op-accent)}
+.taskhub-preview .live{display:block;margin-top:.2rem}
+.taskhub-row{display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap}
+.taskhub-row input[type=number]{width:110px}
+
+.taskhub-log{margin-top:1.25rem}
+.taskhub-log h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--op-muted);margin:0 0 .6rem}
+.taskhub-log-item{font-size:.78rem;padding:.55rem 0;border-top:1px solid var(--op-border);color:var(--op-muted)}
+.taskhub-log-item:first-child{border-top:none}
+.taskhub-log-item b{color:var(--op-text)}
+.taskhub-log-empty{font-size:.8rem;color:var(--op-muted)}
+
+.taskhub-flash{padding:.75rem 1rem;border-radius:.6rem;border:1px solid var(--op-border);margin-bottom:1rem;font-size:.82rem}
+.taskhub-flash.error{border-color:#e05f5f;color:#ffb4b4}
+.taskhub-flash.ok{border-color:var(--op-accent);color:var(--op-accent)}
+
+.taskhub-stats h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--op-muted);margin:0 0 .2rem}
+.taskhub-stats-sub{font-size:.72rem;color:var(--op-muted);margin-bottom:.9rem}
+.taskhub-stat-group{margin-bottom:1.1rem}
+.taskhub-stat-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem}
+.taskhub-stat-head .name{font-weight:800;letter-spacing:.1em;font-size:.82rem;color:var(--op-accent)}
+.taskhub-stat-head .val{font-size:.7rem;color:var(--op-muted)}
+.taskhub-cat-row{margin-bottom:.55rem}
+.taskhub-cat-head{display:flex;justify-content:space-between;font-size:.72rem;color:var(--op-muted);margin-bottom:.2rem}
+.taskhub-cat-head b{color:var(--op-text);font-weight:500}
+.taskhub-bar-track{height:.4rem;background:#08141e;border-radius:.4rem;overflow:hidden;border:1px solid var(--op-border)}
+.taskhub-bar-fill{height:100%;background:var(--op-accent);box-shadow:0 0 .6rem rgba(112,255,180,.5)}

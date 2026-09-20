@@ -1,17 +1,178 @@
 {% extends "base.html" %}
 {% block title %}Task Hub | Operator Development{% endblock %}
-{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_tasks.css') }}">
+{% endblock %}
 {% block content %}
+<div class="operator-page">
 {% include "components/operator_subnav.html" %}
 <main class="operator-shell">
-<header class="operator-hero"><div><p class="operator-eyebrow">OPERATOR DEVELOPMENT</p><h1>TASK HUB</h1><p class="operator-subtitle">Tasks are planned execution and a primary evidence source for Discipline.</p></div></header>
-<section class="operator-section">
-<form class="operator-task-form" method="post">
-<input name="title" required placeholder="What needs to be done?">
-<select name="stat"><option>DISC</option><option>INT</option><option>CON</option><option>STR</option><option>DEX</option><option>WILL</option><option>SPIRIT</option></select>
-<button class="learning-button" type="submit">Add Task</button>
+<header class="operator-hero">
+<div>
+<p class="operator-eyebrow">OPERATOR DEVELOPMENT</p>
+<h1>TASK HUB</h1>
+<p class="operator-subtitle">Your weekly routine, mapped straight onto the real skill tree. Log hours against what you actually did - XP lands on the exact capability, never a flat stat.</p>
+</div>
+</header>
+
+{% if error %}
+<div class="taskhub-flash error"><strong>Couldn't log that session.</strong> {{ error }}</div>
+{% endif %}
+{% if logged %}
+<div class="taskhub-flash ok">Session logged.</div>
+{% endif %}
+
+<div class="taskhub-layout">
+<div class="panel" style="padding:1.4rem">
+
+<nav class="taskhub-tabs">
+{% for day in days %}
+<a class="taskhub-tab {% if day.key == active_day.key %}active{% endif %}" href="{{ url_for('operator_tasks.dashboard', day=day.key) }}">
+<span class="ic">{{ day.icon }}</span>{{ day.label }}
+</a>
+{% endfor %}
+</nav>
+
+<p class="operator-eyebrow" style="margin-bottom:.2rem">{{ active_day.label }} · FOCUS AREA</p>
+<h2 style="margin:.1rem 0 .3rem">{{ active_day.icon }} {{ active_day.focus }}</h2>
+<p class="taskhub-desc">{{ active_day.desc }}</p>
+
+<div class="taskhub-chips">
+{% for entry in catalog %}
+<span class="taskhub-chip">{{ entry.stat }} · {{ entry.category }}</span>
+{% endfor %}
+</div>
+
+<form class="taskhub-form" method="post" action="{{ url_for('operator_tasks.log_session') }}" id="taskhub-form">
+<input type="hidden" name="day" value="{{ active_day.key }}">
+<h3 class="operator-eyebrow" style="font-size:.68rem">LOG A SESSION</h3>
+<div class="taskhub-selects">
+<div>
+<label>Category</label>
+<select id="th-category" name="category">
+<option value="">Choose…</option>
+{% for entry in catalog %}
+<option value="{{ loop.index0 }}">{{ entry.category }}</option>
+{% endfor %}
+</select>
+</div>
+<div>
+<label>Subcategory</label>
+<select id="th-subcategory" name="subcategory" disabled><option value="">Choose…</option></select>
+</div>
+<div>
+<label>Capability</label>
+<select id="th-capability" name="capability" disabled><option value="">Choose…</option></select>
+</div>
+</div>
+<input type="hidden" id="th-stat" name="stat" value="">
+<div class="taskhub-preview" id="th-preview">Pick category, subcategory and capability to see where the XP lands.</div>
+<div class="taskhub-row">
+<div><label>Hours</label><input type="number" name="hours" id="th-hours" min="0" max="24" step="0.25" placeholder="0"></div>
+<button type="submit" class="learning-button">Add Session</button>
+</div>
 </form>
-<div class="operator-task-list">
-{% for task in tasks %}<article class="operator-task {% if task.status == 'done' %}done{% endif %}"><div><strong>{{ task.title }}</strong><span>{{ task.stat }} · {{ task.status }}</span></div><form method="post" action="{{ url_for('operator_tasks.toggle', task_id=task.id) }}"><button type="submit">{% if task.status == 'done' %}Reopen{% else %}Complete{% endif %}</button></form></article>{% else %}<p>No tasks yet. Add the first action above.</p>{% endfor %}
-</div></section></main>
+
+<div class="taskhub-log">
+<h3>{{ active_day.label }}'s Sessions</h3>
+{% if day_log %}
+{% for entry in day_log %}
+<div class="taskhub-log-item">
+<b>{{ entry.stat }}</b> → {{ entry.category }} → {{ entry.subcategory }} → {{ entry.capability }} — <b>+{{ entry.xp }} xp</b>
+({{ entry.hours }}h) → Level {{ entry.level_after }}{% if entry.leveled_up %} 🎉 level up{% endif %}
+</div>
+{% endfor %}
+{% else %}
+<p class="taskhub-log-empty">Nothing logged yet.</p>
+{% endif %}
+</div>
+
+</div>
+
+<div class="panel taskhub-stats" style="padding:1.4rem">
+<h2>Operator Stats</h2>
+<p class="taskhub-stats-sub">Category levels — live from learning_stats.json, only what this week's routine logs into</p>
+{% for group in stats_panel %}
+<div class="taskhub-stat-group">
+<div class="taskhub-stat-head">
+<span class="name">{{ group.stat }}</span>
+<span class="val">Overall {{ group.overall_whole }} · {{ group.overall_pct }}%</span>
+</div>
+{% for row in group.categories %}
+<div class="taskhub-cat-row">
+<div class="taskhub-cat-head"><b>{{ row.category }}</b><span>Ov {{ row.whole }} · {{ row.pct }}%</span></div>
+<div class="taskhub-bar-track"><div class="taskhub-bar-fill" style="width:{{ row.pct }}%"></div></div>
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+</div>
+
+</div>
+</main>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const TH_CATALOG = {{ catalog|tojson }};
+
+const catSel = document.getElementById('th-category');
+const subSel = document.getElementById('th-subcategory');
+const capSel = document.getElementById('th-capability');
+const statField = document.getElementById('th-stat');
+const preview = document.getElementById('th-preview');
+
+function thResetSelect(sel, enabled) {
+    sel.innerHTML = '<option value="">Choose…</option>';
+    sel.disabled = !enabled;
+}
+
+function thUpdatePreview() {
+    const catIdx = catSel.value;
+    if (catIdx === '' || !subSel.value || !capSel.value) {
+        preview.textContent = 'Pick category, subcategory and capability to see where the XP lands.';
+        return;
+    }
+    const entry = TH_CATALOG[catIdx];
+    const cap = (entry.subcategories[subSel.value] || []).find(c => c.name === capSel.value);
+    if (!cap) {
+        preview.textContent = 'Pick category, subcategory and capability to see where the XP lands.';
+        return;
+    }
+    preview.innerHTML = `Will credit: <b>${entry.stat}</b> → ${entry.category} → ${subSel.value} → ${cap.name}` +
+        `<span class="live">Currently: <b>Level ${cap.level}</b> · ${cap.progress_percentage}% to next (${cap.xp} xp)</span>`;
+}
+
+catSel.addEventListener('change', () => {
+    thResetSelect(subSel, false);
+    thResetSelect(capSel, false);
+    statField.value = '';
+    if (catSel.value === '') { thUpdatePreview(); return; }
+    const entry = TH_CATALOG[catSel.value];
+    statField.value = entry.stat;
+    Object.keys(entry.subcategories).forEach(sub => {
+        const opt = document.createElement('option');
+        opt.value = sub; opt.textContent = sub;
+        subSel.appendChild(opt);
+    });
+    subSel.disabled = false;
+    thUpdatePreview();
+});
+
+subSel.addEventListener('change', () => {
+    thResetSelect(capSel, false);
+    if (!subSel.value || catSel.value === '') { thUpdatePreview(); return; }
+    const entry = TH_CATALOG[catSel.value];
+    (entry.subcategories[subSel.value] || []).forEach(cap => {
+        const opt = document.createElement('option');
+        opt.value = cap.name; opt.textContent = cap.name;
+        capSel.appendChild(opt);
+    });
+    capSel.disabled = false;
+    thUpdatePreview();
+});
+
+capSel.addEventListener('change', thUpdatePreview);
+</script>
 {% endblock %}

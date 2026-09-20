@@ -1,1 +1,63 @@
-.execution-hub{max-width:1100px;margin:auto;padding:2rem}.execution-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.execution-stats article,.execution-form,.execution-records article{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:1rem;background:rgba(255,255,255,.03)}.execution-stats strong{font-size:2rem;display:block}.execution-form{display:grid;gap:.8rem;margin:1.5rem 0}.execution-form input,.execution-form select,.execution-form textarea{padding:.8rem;background:#0e141b;color:inherit;border:1px solid rgba(255,255,255,.16);border-radius:8px}.execution-records{display:grid;gap:.8rem}.execution-records article span{float:right;opacity:.7}@media(max-width:700px){.execution-stats{grid-template-columns:1fr}.execution-records article span{float:none;display:block}}
+/* Execution Hub — project/experiment completion log.
+   Shares --op-* variables, body, .operator-shell/.operator-hero/.operator-page
+   with static/css/operator.css (loaded first) - only exec-specific rules live
+   here, same convention as operator_tasks.css. */
+
+.exec-flash{border-radius:.7rem;padding:.85rem 1.1rem;margin-bottom:1.25rem;font-size:.85rem;border:1px solid}
+.exec-flash.error{border-color:rgba(255,110,110,.4);background:rgba(255,80,80,.08);color:#ffb4b4}
+
+.exec-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}
+.exec-stats article{border:1px solid var(--op-border);background:var(--op-panel);border-radius:1rem;padding:1.2rem;text-align:center}
+.exec-stats strong{display:block;font-size:2.2rem;color:var(--op-accent)}
+.exec-stats span{color:var(--op-muted);font-size:.78rem}
+
+.exec-layout{display:grid;grid-template-columns:1fr 380px;gap:1.25rem;align-items:start}
+@media(max-width:1000px){.exec-layout{grid-template-columns:1fr}}
+.exec-layout .panel{border:1px solid var(--op-border);background:var(--op-panel);border-radius:1rem;padding:1.4rem}
+
+.exec-type-toggle{display:flex;gap:.5rem;margin-bottom:1.25rem}
+.exec-type-btn{flex:1;text-align:center;padding:.9rem;border-radius:.7rem;border:1px solid var(--op-border);background:rgba(8,20,16,.55);color:var(--op-muted);cursor:pointer;font-size:.9rem;letter-spacing:.03em;transition:border-color .15s,color .15s}
+.exec-type-btn .ic{display:block;font-size:1.3rem;margin-bottom:.25rem}
+.exec-type-btn.active{border-color:var(--op-accent);color:var(--op-text);background:rgba(112,255,180,.08)}
+
+.exec-scope-toggle{display:flex;gap:.5rem}
+.exec-scope-btn{flex:1;text-align:center;padding:.7rem .5rem;border-radius:.6rem;border:1px solid var(--op-border);background:rgba(8,20,16,.55);color:var(--op-muted);cursor:pointer;font-size:.85rem;letter-spacing:.03em;transition:border-color .15s,color .15s}
+.exec-scope-btn .amt{display:block;font-size:.68rem;color:var(--op-accent);margin-bottom:.2rem;letter-spacing:.04em}
+.exec-scope-btn.active{border-color:var(--op-accent);color:var(--op-text);background:rgba(112,255,180,.08)}
+.exec-scope-btn:not(.active) .amt{color:var(--op-muted)}
+
+.exec-field{margin-bottom:1rem}
+.exec-field label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--op-muted);margin-bottom:.3rem}
+.exec-field input[type=text],.exec-field input[type=number],.exec-field textarea,.exec-field select{width:100%;padding:.7rem .75rem;border-radius:.55rem;border:1px solid var(--op-border);background:#08141e;color:var(--op-text);font-size:.88rem;font-family:inherit}
+.exec-field textarea{resize:vertical;min-height:4.2rem}
+
+.exec-picker-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.6rem;align-items:end}
+@media(max-width:720px){.exec-picker-row{grid-template-columns:1fr}}
+.exec-picker-row label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--op-muted);margin-bottom:.3rem}
+.exec-picker-row select{width:100%;padding:.65rem .7rem;border-radius:.55rem;border:1px solid var(--op-border);background:#08141e;color:var(--op-text);font-size:.85rem}
+.exec-add-btn{padding:.65rem 1rem;border-radius:.55rem;border:1px solid var(--op-accent);background:rgba(112,255,180,.1);color:var(--op-accent);cursor:pointer;font-weight:600;white-space:nowrap}
+.exec-add-btn:disabled{opacity:.35;cursor:not-allowed}
+
+.exec-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:.9rem 0}
+.exec-chip{display:flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:999px;border:1px solid var(--op-border);background:rgba(112,255,180,.06);font-size:.78rem}
+.exec-chip b{color:var(--op-accent)}
+.exec-chip button{background:none;border:none;color:var(--op-muted);cursor:pointer;font-size:.9rem;line-height:1;padding:0}
+.exec-chip button:hover{color:#ff8080}
+.exec-chip-empty{color:var(--op-muted);font-size:.8rem;font-style:italic}
+
+.exec-preview{font-size:.8rem;color:var(--op-muted);border-top:1px solid var(--op-border);padding-top:1rem;margin-top:.5rem}
+.exec-preview .total{color:var(--op-accent);font-weight:700;font-size:.95rem}
+.exec-preview-row{display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px dashed rgba(112,255,180,.12)}
+.exec-preview-row:last-child{border-bottom:none}
+
+.exec-log h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--op-muted);margin:0 0 1rem}
+.exec-log-item{padding:.85rem 0;border-top:1px solid var(--op-border)}
+.exec-log-item:first-child{border-top:none}
+.exec-log-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+.exec-log-head b{font-size:.9rem}
+.exec-log-head .xp{color:var(--op-accent);font-weight:700;font-size:.8rem;white-space:nowrap}
+.exec-log-meta{color:var(--op-muted);font-size:.72rem;margin-top:.2rem}
+.exec-log-caps{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.exec-log-cap-chip{font-size:.65rem;letter-spacing:.03em;text-transform:uppercase;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--op-border);color:var(--op-accent)}
+.exec-log-empty{color:var(--op-muted);font-size:.82rem}
+.exec-log-type-tag{font-size:.62rem;padding:.15rem .5rem;border-radius:999px;border:1px solid var(--op-border);color:var(--op-muted);text-transform:uppercase;letter-spacing:.06em}

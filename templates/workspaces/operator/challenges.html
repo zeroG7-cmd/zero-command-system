@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}Challenges | Operator Development{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_challenges.css') }}">
+{% endblock %}
+{% block content %}
+<div class="operator-page">
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell">
+<header class="operator-hero">
+<div>
+<p class="operator-eyebrow">OPERATOR DEVELOPMENT</p>
+<h1>CHALLENGES</h1>
+<p class="operator-subtitle">Time-boxed XP goals, auto-tracked from what you actually log - no manual check-ins. Set your own, or start one flagged from a stat that hasn't moved yet. Finishing one awards a flat {{ bonus_xp }} XP to Discipline (Follow-through) - never to whatever the challenge itself targeted, since that XP is already earned for real.</p>
+</div>
+</header>
+
+{% if error %}
+<div class="chl-flash error"><strong>Couldn't do that.</strong> {{ error }}</div>
+{% endif %}
+
+<div class="chl-stats">
+<article><strong id="chl-stat-active">{{ active_goals|length }}</strong><span>Active</span></article>
+<article><strong id="chl-stat-completed">{{ completed_goals|length }}</strong><span>Completed</span></article>
+<article><strong id="chl-stat-bonus">{{ completed_goals|sum(attribute='bonus_xp') or 0 }}</strong><span>Bonus XP earned</span></article>
+</div>
+
+<section class="panel">
+<h2 class="chl-h">Your Challenges</h2>
+<div class="chl-list" id="chl-active-list">
+{% if active_goals %}
+{% for g in active_goals %}
+<div class="chl-card" data-id="{{ g.id }}">
+<div class="chl-info">
+<h3>{{ g.title }}</h3>
+<span>{{ g.scope_label }} &middot; ends {{ g.ends_at[:10] }}</span>
+</div>
+<div class="chl-progress-wrap">
+<div class="chl-progress-track"><div class="chl-progress-fill" style="width:{{ [100, ((g.progress / g.target_xp * 100) if g.target_xp else 0)|round(0, 'floor')|int]|min }}%"></div></div>
+<div class="chl-progress-nums"><span>{{ g.progress }} / {{ g.target_xp }} xp</span><span>{{ [100, ((g.progress / g.target_xp * 100) if g.target_xp else 0)|round(0, 'floor')|int]|min }}%</span></div>
+</div>
+<button class="btn ghost chl-cancel" data-id="{{ g.id }}">Cancel</button>
+</div>
+{% endfor %}
+{% else %}
+<p class="chl-empty">Nothing active yet - set one below, or start a suggestion.</p>
+{% endif %}
+</div>
+
+<button class="btn ghost" id="chl-new-toggle">+ New challenge</button>
+<div class="chl-new-form" id="chl-new-form">
+<div class="chl-scope-toggle">
+<button type="button" class="chl-scope-btn active" data-mode="competency">Capability</button>
+<button type="button" class="chl-scope-btn" data-mode="category">Category</button>
+<button type="button" class="chl-scope-btn" data-mode="stat">Whole Stat</button>
+</div>
+
+<div class="chl-picker-row" id="chl-picker-competency">
+<label>Stat<select id="chl-stat"><option value="">Choose…</option></select></label>
+<label>Category<select id="chl-category" disabled><option value="">Choose…</option></select></label>
+<label>Subcategory<select id="chl-subcategory" disabled><option value="">Choose…</option></select></label>
+<label>Capability<select id="chl-capability" disabled><option value="">Choose…</option></select></label>
+</div>
+
+<div class="chl-picker-row hidden" id="chl-picker-category">
+<label>Stat<select id="chl-stat-2"><option value="">Choose…</option></select></label>
+<label>Category<select id="chl-category-2" disabled><option value="">Choose…</option></select></label>
+</div>
+
+<div class="chl-picker-row hidden" id="chl-picker-stat">
+<label>Stat<select id="chl-stat-3">
+{% for s in main_stats %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+</select></label>
+</div>
+
+<div class="chl-form-row">
+<label>Target XP<input type="number" id="chl-target" value="150" min="10" max="5000"></label>
+<label>Duration<select id="chl-duration">
+{% for d in durations %}<option value="{{ d }}">{{ d }} days</option>{% endfor %}
+</select></label>
+<label>Title (optional)<input type="text" id="chl-title" placeholder="e.g. Robotics Rebuild"></label>
+</div>
+<button class="btn" id="chl-create-btn" disabled>Create challenge</button>
+</div>
+</section>
+
+<section class="panel" style="margin-top:1.5rem">
+<h2 class="chl-h">Suggested for you</h2>
+<div class="chl-list" id="chl-suggested-list">
+{% if suggestions %}
+{% for s in suggestions %}
+<div class="chl-suggest-card" data-json='{{ s|tojson }}'>
+<div class="chl-info">
+<h3>{{ s.title }}</h3>
+<span class="chl-why">why: {{ s.why }}</span>
+</div>
+<button class="btn secondary chl-start-suggestion">Start this challenge</button>
+</div>
+{% endfor %}
+{% else %}
+<p class="chl-empty">Nothing flagged right now - every stat has at least some real XP logged.</p>
+{% endif %}
+</div>
+</section>
+
+{% if completed_goals or expired_goals %}
+<details class="chl-history">
+<summary>History ({{ completed_goals|length }} completed, {{ expired_goals|length }} expired)</summary>
+<div class="chl-history-body">
+{% for g in completed_goals %}
+<div class="chl-history-item completed"><b>{{ g.title }}</b><span>{{ g.scope_label }} &middot; completed {{ g.completed_at[:10] }} &middot; +{{ g.bonus_xp }} DISC bonus</span></div>
+{% endfor %}
+{% for g in expired_goals %}
+<div class="chl-history-item expired"><b>{{ g.title }}</b><span>{{ g.scope_label }} &middot; expired {{ g.ends_at[:10] }} &middot; {{ g.progress }} / {{ g.target_xp }} xp</span></div>
+{% endfor %}
+</div>
+</details>
+{% endif %}
+
+<div class="chl-note">
+Progress is never a separate counter - it's summed live from the same receipts every other hub already feeds, scoped to whatever this challenge targets and the days between when it started and its deadline. Suggestions come from one plain rule: a stat sitting at exactly 0.00 average_level right now.
+</div>
+
+</main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CATALOG = {{ catalog|tojson }};
+const MAIN_STATS = {{ main_stats|tojson }};
+const CREATE_URL = "{{ url_for('operator_challenges.create') }}";
+const CANCEL_URL_BASE = "{{ url_for('operator_challenges.dashboard') }}api/";
+
+let mode = 'competency';
+let pendingSuggestion = null;
+
+function resetSelect(sel, enabled) {
+    sel.innerHTML = '<option value="">Choose…</option>';
+    sel.disabled = !enabled;
+}
+
+// --- Capability picker (stat -> category -> subcategory -> capability) ---
+const statSel = document.getElementById('chl-stat');
+const catSel = document.getElementById('chl-category');
+const subSel = document.getElementById('chl-subcategory');
+const capSel = document.getElementById('chl-capability');
+
+const statsInCatalog = [...new Set(CATALOG.map(e => e.stat))];
+statsInCatalog.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    statSel.appendChild(opt);
+});
+
+statSel.addEventListener('change', () => {
+    resetSelect(catSel, false); resetSelect(subSel, false); resetSelect(capSel, false);
+    updateCreateEnabled();
+    if (!statSel.value) return;
+    CATALOG.filter(e => e.stat === statSel.value).forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.category; opt.textContent = e.category;
+        catSel.appendChild(opt);
+    });
+    catSel.disabled = false;
+});
+
+catSel.addEventListener('change', () => {
+    resetSelect(subSel, false); resetSelect(capSel, false);
+    updateCreateEnabled();
+    if (!catSel.value) return;
+    const entry = CATALOG.find(e => e.stat === statSel.value && e.category === catSel.value);
+    if (!entry) return;
+    Object.keys(entry.subcategories).forEach(sub => {
+        const opt = document.createElement('option');
+        opt.value = sub; opt.textContent = sub;
+        subSel.appendChild(opt);
+    });
+    subSel.disabled = false;
+});
+
+subSel.addEventListener('change', () => {
+    resetSelect(capSel, false);
+    updateCreateEnabled();
+    if (!subSel.value) return;
+    const entry = CATALOG.find(e => e.stat === statSel.value && e.category === catSel.value);
+    if (!entry) return;
+    (entry.subcategories[subSel.value] || []).forEach(cap => {
+        const opt = document.createElement('option');
+        opt.value = cap; opt.textContent = cap;
+        capSel.appendChild(opt);
+    });
+    capSel.disabled = false;
+});
+capSel.addEventListener('change', updateCreateEnabled);
+
+// --- Category picker (stat -> category, no leaf) ---
+const statSel2 = document.getElementById('chl-stat-2');
+const catSel2 = document.getElementById('chl-category-2');
+statsInCatalog.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    statSel2.appendChild(opt);
+});
+statSel2.addEventListener('change', () => {
+    resetSelect(catSel2, false);
+    updateCreateEnabled();
+    if (!statSel2.value) return;
+    CATALOG.filter(e => e.stat === statSel2.value).forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.category; opt.textContent = e.category;
+        catSel2.appendChild(opt);
+    });
+    catSel2.disabled = false;
+});
+catSel2.addEventListener('change', updateCreateEnabled);
+
+// --- Stat picker (whole stat) ---
+const statSel3 = document.getElementById('chl-stat-3');
+statSel3.addEventListener('change', updateCreateEnabled);
+
+// --- Mode toggle ---
+document.querySelectorAll('.chl-scope-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.chl-scope-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.dataset.mode;
+        document.getElementById('chl-picker-competency').classList.toggle('hidden', mode !== 'competency');
+        document.getElementById('chl-picker-category').classList.toggle('hidden', mode !== 'category');
+        document.getElementById('chl-picker-stat').classList.toggle('hidden', mode !== 'stat');
+        updateCreateEnabled();
+    });
+});
+
+function currentScopePayload() {
+    if (mode === 'competency') {
+        if (!statSel.value || !catSel.value || !subSel.value || !capSel.value) return null;
+        return {
+            scope_type: 'competency',
+            scope: { stat: statSel.value, category: catSel.value, subcategory: subSel.value, capability: capSel.value },
+            label: capSel.value,
+        };
+    }
+    if (mode === 'category') {
+        if (!statSel2.value || !catSel2.value) return null;
+        return {
+            scope_type: 'category',
+            scope: { stat: statSel2.value, category: catSel2.value },
+            label: `${statSel2.value} / ${catSel2.value}`,
+        };
+    }
+    if (mode === 'stat') {
+        if (!statSel3.value) return null;
+        return { scope_type: 'stat', scope: { stat: statSel3.value }, label: statSel3.value };
+    }
+    return null;
+}
+
+function updateCreateEnabled() {
+    document.getElementById('chl-create-btn').disabled = !currentScopePayload();
+}
+updateCreateEnabled();
+
+// --- New-challenge form toggle ---
+document.getElementById('chl-new-toggle').addEventListener('click', () => {
+    document.getElementById('chl-new-form').classList.toggle('open');
+});
+
+function renderChallengeCard(g) {
+    const pct = Math.min(100, Math.round((g.progress || 0) / g.target_xp * 100));
+    const div = document.createElement('div');
+    div.className = 'chl-card';
+    div.dataset.id = g.id;
+    div.innerHTML = `
+        <div class="chl-info"><h3>${g.title}</h3><span>${g.scope_label} · ends ${g.ends_at.slice(0,10)}</span></div>
+        <div class="chl-progress-wrap">
+            <div class="chl-progress-track"><div class="chl-progress-fill" style="width:${pct}%"></div></div>
+            <div class="chl-progress-nums"><span>${g.progress || 0} / ${g.target_xp} xp</span><span>${pct}%</span></div>
+        </div>
+        <button class="btn ghost chl-cancel" data-id="${g.id}">Cancel</button>
+    `;
+    div.querySelector('.chl-cancel').addEventListener('click', () => cancelChallenge(g.id, div));
+    return div;
+}
+
+async function createChallenge(scopePayload, targetXp, durationDays, title, source) {
+    const payload = {
+        scope_type: scopePayload.scope_type,
+        scope: scopePayload.scope,
+        target_xp: targetXp,
+        duration_days: durationDays,
+        title: title || undefined,
+        source: source || 'self',
+    };
+    const res = await fetch(CREATE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        alert(data.error || 'Could not create that challenge — try again.');
+        return null;
+    }
+    return data;
+}
+
+document.getElementById('chl-create-btn').addEventListener('click', async () => {
+    const scopePayload = currentScopePayload();
+    if (!scopePayload) return;
+    const targetXp = parseInt(document.getElementById('chl-target').value, 10) || 0;
+    const durationDays = parseInt(document.getElementById('chl-duration').value, 10) || 7;
+    const title = document.getElementById('chl-title').value.trim();
+    const btn = document.getElementById('chl-create-btn');
+    btn.disabled = true;
+    const goal = await createChallenge(scopePayload, targetXp, durationDays, title, 'self');
+    btn.disabled = false;
+    if (!goal) return;
+
+    const activeList = document.getElementById('chl-active-list');
+    const empty = activeList.querySelector('.chl-empty');
+    if (empty) empty.remove();
+    activeList.appendChild(renderChallengeCard(goal));
+    document.getElementById('chl-stat-active').textContent = parseInt(document.getElementById('chl-stat-active').textContent, 10) + 1;
+    document.getElementById('chl-title').value = '';
+    document.getElementById('chl-new-form').classList.remove('open');
+});
+
+async function cancelChallenge(id, cardEl) {
+    if (!confirm('Cancel this challenge? Progress already earned in the underlying hub stays — this only drops the challenge itself.')) return;
+    const res = await fetch(CANCEL_URL_BASE + id + '/cancel', { method: 'POST' });
+    if (!res.ok) { alert('Could not cancel — try again.'); return; }
+    cardEl.remove();
+    document.getElementById('chl-stat-active').textContent = Math.max(0, parseInt(document.getElementById('chl-stat-active').textContent, 10) - 1);
+    const activeList = document.getElementById('chl-active-list');
+    if (!activeList.querySelector('.chl-card')) {
+        activeList.innerHTML = '<p class="chl-empty">Nothing active yet - set one below, or start a suggestion.</p>';
+    }
+}
+
+document.querySelectorAll('.chl-cancel').forEach(btn => {
+    btn.addEventListener('click', () => cancelChallenge(btn.dataset.id, btn.closest('.chl-card')));
+});
+
+document.querySelectorAll('.chl-start-suggestion').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const card = btn.closest('.chl-suggest-card');
+        const s = JSON.parse(card.dataset.json);
+        btn.disabled = true;
+        const goal = await createChallenge(
+            { scope_type: s.scope_type, scope: s.scope },
+            s.target_xp, s.duration_days, s.title, 'suggested'
+        );
+        if (!goal) { btn.disabled = false; return; }
+        const activeList = document.getElementById('chl-active-list');
+        const empty = activeList.querySelector('.chl-empty');
+        if (empty) empty.remove();
+        activeList.appendChild(renderChallengeCard(goal));
+        document.getElementById('chl-stat-active').textContent = parseInt(document.getElementById('chl-stat-active').textContent, 10) + 1;
+        card.remove();
+    });
+});
+</script>
+{% endblock %}
