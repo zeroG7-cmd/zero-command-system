@@ -2,10 +2,11 @@
     <a class="{% if request.path == '/operator/' %}active{% endif %}" href="{{ url_for('operator.dashboard') }}">Overview</a>
     <a class="{% if '/operator/learning' in request.path %}active{% endif %}" href="{{ url_for('operator_learning.dashboard') }}">Learning</a>
     <a class="{% if '/operator/execution' in request.path %}active{% endif %}" href="{{ url_for('operator_execution.dashboard') }}">Execution</a>
+    <a class="{% if '/operator/flights' in request.path %}active{% endif %}" href="{{ url_for('operator_flights.dashboard') }}">Flights</a>
     <a class="{% if '/operator/tasks' in request.path %}active{% endif %}" href="{{ url_for('operator_tasks.dashboard') }}">Tasks</a>
     <a class="{% if '/operator/fitness' in request.path %}active{% endif %}" href="{{ url_for('operator_fitness.dashboard') }}">Fitness</a>
     <a class="{% if '/operator/journal' in request.path %}active{% endif %}" href="{{ url_for('operator_journal.dashboard') }}">Journal</a>
     <a class="{% if '/operator/analytics' in request.path %}active{% endif %}" href="{{ url_for('operator_analytics.dashboard') }}">Analytics</a>
-    <span class="operator-subnav-future">Achievements</span>
+    <a class="{% if '/operator/achievements' in request.path %}active{% endif %}" href="{{ url_for('operator_achievements.dashboard') }}">Achievements</a>
     <a class="{% if '/operator/challenges' in request.path %}active{% endif %}" href="{{ url_for('operator_challenges.dashboard') }}">Challenges</a>
 </nav>

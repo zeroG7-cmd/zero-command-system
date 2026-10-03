@@ -1,0 +1,71 @@
+/* Operator Achievements Hub - themed on the same --op-* variables operator.css
+   already defines (base shell/hero/panel styling comes from there, same
+   convention operator_analytics.css/operator_tasks.css already follow).
+   ach-cyan/ach-gold are page-local colors for the bonus-split legend (Craft/
+   Goal Commitment/Evidence) - not added to operator.css's shared root since
+   nothing else needs them. */
+
+.ach-track-panel{border:1px solid var(--op-border);background:var(--op-panel);border-radius:1rem;margin-bottom:1.4rem;overflow:hidden}
+.ach-track-header{display:flex;align-items:center;gap:.6rem;padding:1.1rem 1.4rem;cursor:pointer;user-select:none}
+.ach-track-header h2{margin:0;font-size:1.05rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.ach-chevron{font-size:.7rem;color:var(--op-muted);transition:transform .2s ease;flex-shrink:0}
+.ach-track-panel.collapsed .ach-chevron{transform:rotate(-90deg)}
+.ach-track-body{padding:0 1.4rem 1.4rem}
+.ach-track-panel.collapsed .ach-track-body{display:none}
+.ach-track-stat{font-size:.68rem;font-weight:400;color:var(--op-muted);background:rgba(255,255,255,.04);border:1px solid var(--op-border);border-radius:999px;padding:.15rem .6rem}
+
+.ach-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--op-muted);margin:0 0 .3rem}
+.ach-desc{color:var(--op-muted);font-size:.8rem;margin:0 0 1.1rem}
+
+/* bonus split panel */
+.ach-split-panel{margin-bottom:1.5rem}
+.ach-split-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;border:1px solid var(--op-border)}
+.ach-split-bar div{height:100%}
+.ach-split-0{background:var(--op-accent)}
+.ach-split-1{background:#67e8f9}
+.ach-split-2{background:#c9971f}
+.ach-split-legend{display:flex;gap:1.2rem;margin-top:.6rem;font-size:.72rem;color:var(--op-muted);flex-wrap:wrap}
+.ach-split-legend span{display:inline-flex;align-items:center;gap:.4rem}
+.ach-split-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.ach-split-legend i.ach-split-0{background:var(--op-accent)}
+.ach-split-legend i.ach-split-1{background:#67e8f9}
+.ach-split-legend i.ach-split-2{background:#c9971f}
+
+/* badges */
+.ach-badge{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:#ffcf8a;border:1px solid rgba(255,207,138,.4);background:rgba(255,207,138,.08);border-radius:999px;padding:.15rem .55rem}
+
+/* ladder */
+.ach-ladder{display:flex;flex-direction:column;margin-bottom:1.2rem}
+.ach-ladder-row{display:flex;gap:1rem;align-items:stretch}
+.ach-ladder-marker{width:26px;display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.ach-ladder-dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--op-border);background:var(--op-bg);display:flex;align-items:center;justify-content:center;font-size:.68rem;flex-shrink:0;color:var(--op-muted)}
+.ach-ladder-row.cleared .ach-ladder-dot{border-color:var(--op-accent);background:var(--op-accent);color:#062a17}
+.ach-ladder-row.current .ach-ladder-dot{border-color:var(--op-accent);box-shadow:0 0 0 4px rgba(112,255,180,.15)}
+.ach-ladder-row.locked .ach-ladder-dot{opacity:.55}
+.ach-ladder-line{flex:1;width:2px;background:var(--op-border);margin:2px 0}
+.ach-ladder-card-wrap{flex:1;padding-bottom:1rem;min-width:0}
+.ach-ladder-row.locked .ach-ladder-card-wrap{opacity:.55}
+.ach-ladder-row:last-child .ach-ladder-card-wrap{padding-bottom:0}
+
+.ach-side-quests{border-top:1px dashed var(--op-border);padding-top:1rem;display:flex;flex-direction:column;gap:1rem}
+.ach-side-quest-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--op-muted);margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+
+/* achievement cards */
+.ach-card{border:1px solid var(--op-border);border-radius:.9rem;padding:1.1rem;background:rgba(8,20,16,.5);display:flex;flex-direction:column;gap:.55rem}
+.ach-card.proposed{border-style:dashed}
+.ach-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+.ach-head b{font-size:.95rem}
+.ach-tags{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
+.ach-tag{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;padding:.2rem .5rem;border-radius:999px;border:1px solid var(--op-border);color:var(--op-muted);white-space:nowrap}
+.ach-tag.unlocked{border-color:var(--op-accent);color:var(--op-accent)}
+.ach-tag.amber{border-color:rgba(255,207,138,.4);color:#ffcf8a}
+.ach-tag.cyan{border-color:rgba(103,232,249,.4);color:#67e8f9}
+.ach-title-row{display:flex;align-items:center;gap:.5rem}
+.ach-title-row .ach-ic{font-size:.9rem}
+.ach-title-row .ach-title{font-size:.82rem;color:#c9971f;font-weight:600}
+.ach-lore{font-size:.7rem;color:var(--op-muted);line-height:1.4;font-style:italic;margin:0}
+.ach-progress-track{height:8px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid var(--op-border)}
+.ach-progress-fill{height:100%;background:var(--op-accent)}
+.ach-progress-label{display:flex;justify-content:space-between;font-size:.68rem;color:var(--op-muted)}
+.ach-total{font-size:.78rem;color:var(--op-muted);border-top:1px dashed var(--op-border);padding-top:.5rem;margin-top:.2rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.ach-total b{color:var(--op-text)}

@@ -53,7 +53,7 @@
 <select id="th-category" name="category">
 <option value="">Choose…</option>
 {% for entry in catalog %}
-<option value="{{ loop.index0 }}">{{ entry.category }}</option>
+<option value="{{ entry.category }}">{{ entry.category }}</option>
 {% endfor %}
 </select>
 </div>
@@ -129,12 +129,16 @@ function thResetSelect(sel, enabled) {
 }
 
 function thUpdatePreview() {
-    const catIdx = catSel.value;
-    if (catIdx === '' || !subSel.value || !capSel.value) {
+    const catName = catSel.value;
+    if (catName === '' || !subSel.value || !capSel.value) {
         preview.textContent = 'Pick category, subcategory and capability to see where the XP lands.';
         return;
     }
-    const entry = TH_CATALOG[catIdx];
+    const entry = TH_CATALOG.find(e => e.category === catName);
+    if (!entry) {
+        preview.textContent = 'Pick category, subcategory and capability to see where the XP lands.';
+        return;
+    }
     const cap = (entry.subcategories[subSel.value] || []).find(c => c.name === capSel.value);
     if (!cap) {
         preview.textContent = 'Pick category, subcategory and capability to see where the XP lands.';
@@ -149,7 +153,8 @@ catSel.addEventListener('change', () => {
     thResetSelect(capSel, false);
     statField.value = '';
     if (catSel.value === '') { thUpdatePreview(); return; }
-    const entry = TH_CATALOG[catSel.value];
+    const entry = TH_CATALOG.find(e => e.category === catSel.value);
+    if (!entry) { thUpdatePreview(); return; }
     statField.value = entry.stat;
     Object.keys(entry.subcategories).forEach(sub => {
         const opt = document.createElement('option');
@@ -163,7 +168,8 @@ catSel.addEventListener('change', () => {
 subSel.addEventListener('change', () => {
     thResetSelect(capSel, false);
     if (!subSel.value || catSel.value === '') { thUpdatePreview(); return; }
-    const entry = TH_CATALOG[catSel.value];
+    const entry = TH_CATALOG.find(e => e.category === catSel.value);
+    if (!entry) { thUpdatePreview(); return; }
     (entry.subcategories[subSel.value] || []).forEach(cap => {
         const opt = document.createElement('option');
         opt.value = cap.name; opt.textContent = cap.name;

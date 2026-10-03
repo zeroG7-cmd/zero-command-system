@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Achievements | Operator Development{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_achievements.css') }}">
+{% endblock %}
+{% block content %}
+<div class="operator-page">
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell">
+<header class="operator-hero">
+<div>
+<p class="operator-eyebrow">OPERATOR DEVELOPMENT</p>
+<h1>ACHIEVEMENTS</h1>
+<p class="operator-subtitle">Curated milestones and course completions for Python, Premiere Pro and CAD. Bonus XP on top of what the work already earns - for finishing what you started.</p>
+</div>
+</header>
+
+{% if achievements_error %}
+<div class="taskhub-flash error"><strong>Couldn't load Achievements.</strong> {{ achievements_error }}</div>
+{% else %}
+
+<div class="panel ach-split-panel">
+<h2 class="ach-h">Bonus split</h2>
+<p class="ach-desc">Applies to every achievement below, on top of the XP the milestone or course already earned directly.</p>
+<div class="ach-split-bar">
+{% for target in data.bonus_split %}
+<div class="ach-split-seg ach-split-{{ loop.index0 }}" style="width:{{ target.percentage }}%"></div>
+{% endfor %}
+</div>
+<div class="ach-split-legend">
+{% for target in data.bonus_split %}
+<span><i class="ach-split-{{ loop.index0 }}"></i>{{ target.name }} — {{ target.percentage }}%</span>
+{% endfor %}
+</div>
+</div>
+
+{% for track in data.tracks %}
+<div class="ach-track-panel collapsed" data-track="{{ track.key }}">
+<div class="ach-track-header" data-ach-toggle>
+<span class="ach-chevron">▾</span>
+<h2>{{ track.label }} <span class="ach-track-stat">Level {{ track.current_level }} · {{ track.current_xp_display }} xp</span>
+{% if track.has_proposed %}<span class="ach-badge proposed">proposed defaults — confirm</span>{% endif %}</h2>
+</div>
+<div class="ach-track-body">
+
+<div class="ach-ladder">
+{% for m in track.milestones %}
+<div class="ach-ladder-row {{ m.state }}">
+<div class="ach-ladder-marker">
+<div class="ach-ladder-dot">{% if m.state == 'cleared' %}✓{% elif m.state == 'locked' %}🔒{% endif %}</div>
+{% if not loop.last %}<div class="ach-ladder-line"></div>{% endif %}
+</div>
+<div class="ach-ladder-card-wrap">
+<div class="ach-card{% if not m.confirmed %} proposed{% endif %}">
+<div class="ach-head">
+<b>{{ track.label }} — Level {{ m.level_threshold }}</b>
+<span class="ach-tags">
+{% if not m.confirmed %}<span class="ach-tag amber">proposed</span>{% endif %}
+{% if m.state == 'cleared' %}<span class="ach-tag unlocked">✓ unlocked</span>{% elif m.state == 'locked' %}<span class="ach-tag">locked</span>{% endif %}
+</span>
+</div>
+<div class="ach-title-row"><span class="ach-ic">🔨</span><b class="ach-title">{{ m.title }}</b></div>
+<p class="ach-lore">{{ m.description }}</p>
+<div class="ach-progress-track"><div class="ach-progress-fill" style="width:{{ 100 if m.state == 'cleared' else m.progress_percentage }}%"></div></div>
+<div class="ach-progress-label"><span>{{ m.current_xp_display }} / {{ m.xp_needed_display }} xp</span><span>{{ 100 if m.state == 'cleared' else m.progress_percentage }}%</span></div>
+<div class="ach-total">Bonus on unlock <b>+{{ m.base_xp }} xp</b></div>
+</div>
+</div>
+</div>
+{% endfor %}
+</div>
+
+{% if track.courses %}
+<div class="ach-side-quests">
+<div class="ach-side-quest-label">🚩 Course completion — separate from the level ladder</div>
+{% for c in track.courses %}
+<div class="ach-card{% if not c.confirmed %} proposed{% endif %}">
+<div class="ach-head">
+<b>{{ c.description }}</b>
+<span class="ach-tags">
+{% if not c.confirmed %}<span class="ach-tag amber">proposed</span>{% endif %}
+{% if c.unlocked %}<span class="ach-tag unlocked">✓ unlocked</span>{% elif c.course_exists %}<span class="ach-tag cyan">in progress</span>{% else %}<span class="ach-tag">not started</span>{% endif %}
+</span>
+</div>
+<div class="ach-title-row"><span class="ach-ic">🔨</span><b class="ach-title">{{ c.title }}</b></div>
+{% if not c.unlocked and not c.course_exists %}<p class="ach-lore">Not tracked yet — this fires once the course is imported and completed.</p>{% endif %}
+<div class="ach-total">Bonus on completion <b>+{{ c.base_xp }} xp</b></div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+</div>
+</div>
+{% endfor %}
+
+{% endif %}
+</main>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-ach-toggle]').forEach(function (header) {
+    header.addEventListener('click', function () {
+        header.closest('.ach-track-panel').classList.toggle('collapsed');
+    });
+});
+</script>
+{% endblock %}

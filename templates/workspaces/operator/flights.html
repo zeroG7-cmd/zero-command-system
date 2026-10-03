@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}Flight Log | Operator Development{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_flights.css') }}">
+{% endblock %}
+{% block content %}
+<div class="operator-page">
+{% include "components/operator_subnav.html" %}
+<main class="operator-shell">
+<header class="operator-hero">
+<div>
+<p class="operator-eyebrow">OPERATOR DEVELOPMENT</p>
+<h1>FLIGHT LOG</h1>
+<p class="operator-subtitle">Log real and simulated flight time against Aviation. XP is duration-based — {{ hourly_xp_rate }} XP per hour, same rate Task Hub uses for logged hours — split across whatever capabilities the flight touched. Evidence links to the raw footage sitting in your zeroGravity media folder, so a logged flight can play back the actual clip.</p>
+</div>
+</header>
+
+{% if error %}
+<div class="flt-flash error"><strong>Couldn't log that.</strong> {{ error }}</div>
+{% endif %}
+
+<div class="flt-stats">
+<article><strong id="stat-real">{{ "%.1f"|format(summary.real_minutes / 60) }}h</strong><span>Real flight time</span></article>
+<article><strong id="stat-sim">{{ "%.1f"|format(summary.sim_minutes / 60) }}h</strong><span>Simulated flight time</span></article>
+<article><strong id="stat-xp">{{ summary.total_xp }}</strong><span>Total XP awarded</span></article>
+<article><strong id="stat-since">{{ summary.days_since_real if summary.days_since_real is not none else "—" }}</strong><span>Days since last real flight</span></article>
+</div>
+
+<div class="flt-layout">
+<div class="panel">
+
+<div class="flt-kind-toggle">
+<div class="flt-kind-btn active" data-kind="real"><span class="ic">🛸</span>Real</div>
+<div class="flt-kind-btn" data-kind="simulated"><span class="ic">🖥️</span>Simulated</div>
+</div>
+
+<div class="flt-field">
+<label>Aircraft / platform</label>
+<select id="flt-aircraft"><option value="">Choose…</option></select>
+</div>
+
+<div class="flt-row-2">
+<div class="flt-field">
+<label>Date</label>
+<input type="date" id="flt-date" value="{{ today }}">
+</div>
+<div class="flt-field">
+<label>Duration (minutes)</label>
+<input type="number" id="flt-duration" min="1" step="1" placeholder="e.g. 25">
+</div>
+</div>
+
+<div class="flt-field">
+<label>Capabilities this involved</label>
+<div class="flt-picker-row">
+<div><label>Subcategory</label>
+<select id="flt-subcategory"><option value="">Choose…</option></select></div>
+<div><label>Capability</label>
+<select id="flt-capability" disabled><option value="">Choose…</option></select></div>
+<button type="button" class="flt-add-btn" id="flt-add" disabled>+ Add</button>
+</div>
+<div class="flt-chips" id="flt-chips"><span class="flt-chip-empty">No capabilities added yet — pick one above.</span></div>
+</div>
+
+<div class="flt-field">
+<label>Evidence <span style="text-transform:none;letter-spacing:0">(filename already sitting in the aircraft's raw folder — optional)</span></label>
+<input type="text" id="flt-evidence" list="flt-evidence-list" placeholder="Pick an aircraft to see available files…">
+<datalist id="flt-evidence-list"></datalist>
+</div>
+
+<div class="flt-field">
+<label>Notes</label>
+<textarea id="flt-notes" placeholder="What did you work on this flight?"></textarea>
+</div>
+
+<div class="flt-preview" id="flt-preview">Pick an aircraft, a duration, and at least one capability to see where the XP lands.</div>
+
+<div style="margin-top:1rem">
+<button type="button" class="learning-button" id="flt-submit">Log Flight</button>
+</div>
+
+</div>
+
+<div class="panel flt-log">
+<h2>Recent Flights</h2>
+<div id="flt-log-list">
+{% if records %}
+{% for entry in records %}
+<div class="flt-log-item">
+<div class="flt-log-head">
+<b>{{ entry.aircraft }}</b>
+<span class="flt-kind-tag {{ entry.kind }}">{{ "REAL" if entry.kind == "real" else "SIM" }}</span>
+<span class="xp">+{{ entry.xp_total }} xp</span>
+</div>
+<div class="flt-log-meta">{{ entry.date }} · {{ "%.0f"|format(entry.duration_minutes) }} min</div>
+<div class="flt-log-caps">
+{% for award in entry.xp_awards %}
+<span class="flt-log-cap-chip">{{ competency_names.get(award.competency_id, award.competency_id) }} +{{ award.xp }}</span>
+{% endfor %}
+</div>
+{% if entry.notes %}<p class="flt-log-notes">{{ entry.notes }}</p>{% endif %}
+{% for ev in entry.evidence_links %}
+{% if ev.is_video %}
+<div class="flt-evidence-toggle" data-video-url="{{ ev.url }}">▶ View footage — {{ ev.path.split('/')[-1] }}</div>
+<video class="flt-evidence-video" controls preload="none" style="display:none"></video>
+{% else %}
+<a class="flt-evidence-link" href="{{ ev.url }}" target="_blank" rel="noopener">📎 {{ ev.path.split('/')[-1] }}</a>
+{% endif %}
+{% endfor %}
+</div>
+{% endfor %}
+{% else %}
+<p class="flt-log-empty">Nothing logged yet — try it above.</p>
+{% endif %}
+</div>
+</div>
+
+</div>
+</main>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const HOURLY_XP_RATE = {{ hourly_xp_rate|tojson }};
+const CATALOG = {{ catalog|tojson }};
+const AIRCRAFT = {{ aircraft|tojson }};
+const CREATE_URL = "{{ url_for('operator_flights.create') }}";
+const EVIDENCE_URL = "{{ url_for('operator_flights.evidence_files') }}";
+
+let currentKind = 'real';
+let selectedCaps = []; // {subcategory, name, competency_id, xp, level, progress_percentage}
+let submitting = false;
+
+const aircraftSel = document.getElementById('flt-aircraft');
+const subSel = document.getElementById('flt-subcategory');
+const capSel = document.getElementById('flt-capability');
+const addBtn = document.getElementById('flt-add');
+const chipsEl = document.getElementById('flt-chips');
+const preview = document.getElementById('flt-preview');
+const submitBtn = document.getElementById('flt-submit');
+const durationInput = document.getElementById('flt-duration');
+const dateInput = document.getElementById('flt-date');
+const evidenceInput = document.getElementById('flt-evidence');
+const evidenceList = document.getElementById('flt-evidence-list');
+const notesInput = document.getElementById('flt-notes');
+const statReal = document.getElementById('stat-real');
+const statSim = document.getElementById('stat-sim');
+const statXp = document.getElementById('stat-xp');
+const logList = document.getElementById('flt-log-list');
+
+function resetSelect(sel, enabled) {
+    sel.innerHTML = '<option value="">Choose…</option>';
+    sel.disabled = !enabled;
+}
+
+function populateAircraft() {
+    aircraftSel.innerHTML = '<option value="">Choose…</option>';
+    (AIRCRAFT[currentKind] || []).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        aircraftSel.appendChild(opt);
+    });
+}
+
+function populateSubcategories() {
+    resetSelect(subSel, true);
+    Object.keys(CATALOG).forEach(sub => {
+        const opt = document.createElement('option');
+        opt.value = sub; opt.textContent = sub;
+        subSel.appendChild(opt);
+    });
+}
+
+async function refreshEvidenceList() {
+    evidenceList.innerHTML = '';
+    if (!aircraftSel.value) return;
+    try {
+        const res = await fetch(`${EVIDENCE_URL}?kind=${encodeURIComponent(currentKind)}&aircraft=${encodeURIComponent(aircraftSel.value)}`);
+        const data = await res.json();
+        (data.files || []).forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            evidenceList.appendChild(opt);
+        });
+    } catch (err) { /* non-fatal - evidence stays optional */ }
+}
+
+document.querySelectorAll('.flt-kind-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.flt-kind-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentKind = btn.dataset.kind;
+        submitBtn.textContent = currentKind === 'real' ? 'Log Flight' : 'Log Sim Session';
+        populateAircraft();
+        refreshEvidenceList();
+    });
+});
+
+aircraftSel.addEventListener('change', refreshEvidenceList);
+
+subSel.addEventListener('change', () => {
+    resetSelect(capSel, false);
+    addBtn.disabled = true;
+    if (subSel.value === '') return;
+    (CATALOG[subSel.value] || []).forEach(cap => {
+        const opt = document.createElement('option');
+        opt.value = cap.name; opt.textContent = `${cap.name} (Lv ${cap.level})`;
+        capSel.appendChild(opt);
+    });
+    capSel.disabled = false;
+});
+
+capSel.addEventListener('change', () => {
+    addBtn.disabled = capSel.value === '';
+});
+
+addBtn.addEventListener('click', () => {
+    if (subSel.value === '' || capSel.value === '') return;
+    const cap = (CATALOG[subSel.value] || []).find(c => c.name === capSel.value);
+    if (!cap) return;
+    if (selectedCaps.some(c => c.competency_id === cap.competency_id)) return;
+    selectedCaps.push({ subcategory: subSel.value, ...cap });
+    renderChips();
+    updatePreview();
+});
+
+function renderChips() {
+    if (!selectedCaps.length) {
+        chipsEl.innerHTML = '<span class="flt-chip-empty">No capabilities added yet — pick one above.</span>';
+        return;
+    }
+    chipsEl.innerHTML = '';
+    selectedCaps.forEach((cap, i) => {
+        const chip = document.createElement('div');
+        chip.className = 'flt-chip';
+        chip.innerHTML = `${cap.subcategory} → <b>${cap.name}</b> <button type="button" aria-label="Remove">×</button>`;
+        chip.querySelector('button').addEventListener('click', () => {
+            selectedCaps.splice(i, 1);
+            renderChips();
+            updatePreview();
+        });
+        chipsEl.appendChild(chip);
+    });
+}
+
+function updatePreview() {
+    const minutes = parseFloat(durationInput.value) || 0;
+    if (!selectedCaps.length || minutes <= 0) {
+        preview.innerHTML = 'Pick an aircraft, a duration, and at least one capability to see where the XP lands.';
+        return;
+    }
+    const totalXp = Math.round((minutes / 60) * HOURLY_XP_RATE);
+    const each = Math.round(totalXp / selectedCaps.length);
+    let rows = selectedCaps.map(cap =>
+        `<div class="flt-preview-row"><span>${cap.name}</span><span><b style="color:var(--op-accent)">+${each} xp</b> · Lv ${cap.level} → ${cap.progress_percentage}% to next</span></div>`
+    ).join('');
+    preview.innerHTML = `<div class="total">${totalXp} XP total — ${minutes} min at ${HOURLY_XP_RATE}/hr, split across what it touched</div>${rows}`;
+}
+
+durationInput.addEventListener('input', updatePreview);
+
+function prependLogEntry(entry) {
+    if (logList.querySelector('.flt-log-empty')) logList.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'flt-log-item';
+    const caps = entry.caps.map(c => `<span class="flt-log-cap-chip">${c} +${entry.each}</span>`).join('');
+    const kindLabel = entry.kind === 'real' ? 'REAL' : 'SIM';
+    div.innerHTML = `
+        <div class="flt-log-head"><b>${entry.aircraft}</b><span class="flt-kind-tag ${entry.kind}">${kindLabel}</span><span class="xp">+${entry.xp} xp</span></div>
+        <div class="flt-log-meta">${entry.date} · ${entry.duration} min</div>
+        <div class="flt-log-caps">${caps}</div>
+    `;
+    logList.insertBefore(div, logList.firstChild);
+}
+
+submitBtn.addEventListener('click', async () => {
+    if (submitting) return;
+    const aircraft = aircraftSel.value;
+    if (!aircraft) { alert('Pick an aircraft first.'); return; }
+    const minutes = parseFloat(durationInput.value) || 0;
+    if (minutes <= 0) { alert('Enter a duration.'); return; }
+    if (!selectedCaps.length) { alert('Add at least one capability.'); return; }
+
+    const payload = {
+        kind: currentKind,
+        aircraft,
+        date: dateInput.value,
+        duration_minutes: minutes,
+        capabilities: selectedCaps.map(c => ({ subcategory: c.subcategory, capability: c.name })),
+        evidence_filename: evidenceInput.value.trim(),
+        notes: notesInput.value.trim(),
+    };
+
+    submitting = true;
+    submitBtn.disabled = true;
+    try {
+        const res = await fetch(CREATE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const record = await res.json();
+        if (!res.ok) {
+            alert(record.error || 'Could not log that — try again.');
+            return;
+        }
+        if (record.duplicate) {
+            alert('That exact flight is already logged — no XP awarded twice.');
+            return;
+        }
+
+        const totalXp = Math.round((minutes / 60) * HOURLY_XP_RATE);
+        const each = Math.round(totalXp / selectedCaps.length);
+        prependLogEntry({
+            kind: currentKind,
+            aircraft,
+            caps: selectedCaps.map(c => c.name),
+            xp: totalXp,
+            each,
+            date: dateInput.value,
+            duration: minutes,
+        });
+
+        if (currentKind === 'real') statReal.textContent = (parseFloat(statReal.textContent) + minutes / 60).toFixed(1) + 'h';
+        else statSim.textContent = (parseFloat(statSim.textContent) + minutes / 60).toFixed(1) + 'h';
+        statXp.textContent = parseInt(statXp.textContent, 10) + totalXp;
+
+        durationInput.value = '';
+        evidenceInput.value = '';
+        notesInput.value = '';
+        selectedCaps = [];
+        renderChips();
+        updatePreview();
+        resetSelect(capSel, false);
+        subSel.value = '';
+        addBtn.disabled = true;
+    } catch (err) {
+        alert('Could not reach the server — try again.');
+    } finally {
+        submitting = false;
+        submitBtn.disabled = false;
+    }
+});
+
+document.addEventListener('click', async (e) => {
+    const toggle = e.target.closest('.flt-evidence-toggle');
+    if (!toggle) return;
+    const video = toggle.nextElementSibling;
+    if (!video || !video.classList.contains('flt-evidence-video')) return;
+    const showing = video.style.display !== 'none';
+    if (showing) {
+        video.style.display = 'none';
+        video.pause();
+        toggle.textContent = toggle.textContent.replace('▼', '▶');
+    } else {
+        if (!video.src) video.src = toggle.dataset.videoUrl;
+        video.style.display = 'block';
+        toggle.textContent = toggle.textContent.replace('▶', '▼');
+    }
+});
+
+populateAircraft();
+populateSubcategories();
+updatePreview();
+</script>
+{% endblock %}

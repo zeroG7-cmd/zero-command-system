@@ -26,7 +26,7 @@
 <div class="section-heading"><div><p class="operator-eyebrow">NESTED RESOURCE LIBRARY</p><h2>Learning Library</h2><p class="operator-subtitle">Courses are grouped under the capability they strengthen, so multiple Python courses no longer clutter the hub.</p></div></div>
 <div class="learning-library">
 {% for group in hub.library_groups %}
-<details class="library-domain" {% if loop.first %}open{% endif %}>
+<details class="library-domain">
 <summary><div><span>{{ group.stat }}</span><strong>{{ group.domain }}</strong></div><div class="library-summary-metrics"><span>{{ group.track_count }} resources</span><span>{{ group.completed_units }}/{{ group.total_units }} units</span><span>{{ group.percentage }}%</span></div></summary>
 <div class="library-domain-content">
 {% for category in group.categories %}
@@ -37,6 +37,7 @@
 <div><span class="track-provider">{{ track.provider }}</span><h4>{{ track.title }}</h4><p>{{ track.status }} · {{ track.difficulty }}</p><div class="learning-progress library-resource-bar"><div style="width: {{ track.percentage }}%;"></div></div></div>
 <div class="library-resource-progress"><strong>{{ track.percentage }}%</strong><span>{{ track.completed_count }}/{{ track.unit_count }} units</span><span>{{ track.total_xp }} XP</span></div>
 <div class="library-resource-actions">
+{% if track.current_unit %}<button class="continue-btn" type="button" data-notebook-track="{{ track.id }}" data-notebook-title="{{ track.title }}">Continue →</button>{% endif %}
 {% if track.source_url %}<a href="{{ track.source_url }}" target="_blank" rel="noopener noreferrer">Open</a>{% endif %}
 </div>
 </article>
@@ -48,7 +49,16 @@
 {% endfor %}
 </div>
 </section>
-<section class="operator-section import-panel"><div><p class="operator-eyebrow">RESOURCE INTAKE</p><h2>Import Course Manifest</h2><p>Provider manifests may define track, section, or unit-level competency weights.</p></div><form method="post" action="{{ url_for('operator_learning.import_manifest') }}"><label for="manifest_path">Manifest file or resource directory</label><input id="manifest_path" name="manifest_path" type="text" placeholder="learning/resources/udemy/course_name" required><button class="learning-button" type="submit">Import Manifest</button></form></section>
+<section class="operator-section">
+<div class="import-slick">
+  <div class="import-slick-label">📥 <span><b>Import Course</b> — add a new manifest or resource directory</span></div>
+  <button class="import-toggle-btn" type="button" id="importToggleBtn">+ Import Course</button>
+  <form class="import-slick-form" id="importSlickForm" method="post" action="{{ url_for('operator_learning.import_manifest') }}">
+    <input id="manifest_path" name="manifest_path" type="text" placeholder="learning/resources/udemy/course_name" required>
+    <button class="learning-button" type="submit">Import</button>
+  </form>
+</div>
+</section>
 <section class="operator-section provider-center">
 <div>
 <p class="operator-eyebrow">PROVIDER CENTER</p>
@@ -82,4 +92,21 @@
 <footer class="operator-footer"><span>Learning root</span><code>{{ hub.rnd_root }}</code></footer>
 {% endif %}</main>
 </div>
+
+<div class="drawer-backdrop" id="notebookBackdrop"></div>
+<div class="notebook-drawer" id="notebookDrawer">
+  <button class="drawer-close" type="button" id="notebookClose">×</button>
+  <div id="notebookContent"><p class="nb-empty">Loading…</p></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/operator_notebook.js') }}"></script>
+<script>
+document.getElementById('importToggleBtn').addEventListener('click', function () {
+    var form = document.getElementById('importSlickForm');
+    var open = form.classList.toggle('open');
+    this.textContent = open ? '× Cancel' : '+ Import Course';
+    if (open) document.getElementById('manifest_path').focus();
+});
+</script>
 {% endblock %}

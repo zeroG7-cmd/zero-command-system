@@ -1,16 +1,27 @@
 """Zero Command System — Operator Fitness Hub.
 
 Daily bodyweight/cardio habit logging. Mirrors the read-JSON-then-render
-pattern in modules/operator.py, and the subprocess-into-the-engine pattern
-in modules/operator_learning.py's ``_run`` helper — this blueprint has no
-Python import dependency on the zeroGravity-rnd repo, it only reads its
-JSON output and shells out to its CLI, exactly like Learning does.
+pattern in modules/operator.py.
+
+Logging used to shell out to `fitness.engine.tracker`/`gym_log` via
+``subprocess.run([sys.executable, "-m", ...])`` - the same pattern
+modules/operator_learning.py's ``_run`` helper still uses. That breaks once
+the app is bundled with PyInstaller: `sys.executable` then points at the
+frozen `zero-command-backend.exe` itself, not a real Python interpreter, so
+`-m fitness.engine.tracker` is meaningless to it - the subprocess hangs
+until the timeout instead of running anything (this is exactly what the
+desktop app's "FITNESS ENGINE ERROR ... timed out after 60 seconds" was).
+`fitness.engine.tracker.log_day`/`gym_log.log_gym_day` were already clean,
+importable functions returning a plain summary dict (not just CLI wrappers
+around print statements), so this now imports and calls them directly in
+the same request - the same direct-import pattern modules/tasks.py,
+modules/operator_execution.py and modules/operator_journal.py already use,
+and immune to the frozen-exe problem since there's no subprocess at all.
 """
 from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -172,18 +183,67 @@ def get_fitness_dashboard_data() -> dict[str, Any]:
     }
 
 
-def _run_tracker(args: list[str]) -> str:
+def _fitness_engine():
+    """Lazily import fitness.engine.tracker/gym_log from zeroGravity-rnd.
+
+    Lazy + idempotent path insertion (like operator_execution.py's
+    _engine_modules helper) rather than a module-level import, so this file
+    still loads cleanly even if ZERO_GRAVITY_RND_ROOT/the sibling repo isn't
+    set up yet - the error then surfaces from inside the route's own
+    try/except as a normal "FITNESS ENGINE ERROR" instead of crashing the
+    whole app at import time.
+    """
     root = _rnd_root()
-    result = subprocess.run(
-        [sys.executable, "-m", "fitness.engine.tracker", *args],
-        input="",
-        text=True,
-        capture_output=True,
-        cwd=str(root),
-        timeout=60,
-        check=False,
-    )
-    return (result.stdout + "\n" + result.stderr).strip()
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from fitness.engine.tracker import log_day as run_log_day
+    from fitness.engine.gym_log import log_gym_day as run_log_gym_day
+    return run_log_day, run_log_gym_day
+
+
+def _format_log_summary(summary: dict[str, Any]) -> str:
+    """Mirror fitness.engine.tracker._print_summary's exact text, since that
+    function prints to stdout instead of returning a string - now that we
+    call log_day() in-process there's no subprocess stdout left to capture.
+    """
+    lines = [f"Fitness log for {summary['date']}"]
+    if not summary["entries"] and not summary["skipped_already_logged"]:
+        lines.append("  Nothing logged.")
+    for entry in summary["entries"]:
+        flag = "OK" if entry["met_target"] else "under target"
+        lines.append(
+            f"  {entry['label']:<18} {entry['quantity']:g} {entry['unit']:<7} "
+            f"(target {entry['target']}, {flag}) -> +{entry['xp_awarded']} XP"
+        )
+    for label in summary["skipped_already_logged"]:
+        lines.append(f"  {label}: already logged today, skipped (v1 logs are final per day).")
+    if summary["full_day_bonus_xp"]:
+        lines.append(f"  Full-day consistency bonus: +{summary['full_day_bonus_xp']} XP to Discipline")
+    if summary["operator_total_xp"] is not None:
+        lines.append(f"  Operator total XP: {summary['operator_total_xp']} (level {summary['operator_level']})")
+    return "\n".join(lines)
+
+
+def _format_gym_summary(summary: dict[str, Any]) -> str:
+    """Mirror fitness.engine.gym_log._print_summary's exact text - same
+    reasoning as _format_log_summary above.
+    """
+    lines = [f"Gym day log for {summary['date']} ({summary['day']})"]
+    if not summary["logged"]:
+        if summary["reason"] == "rest_day":
+            lines.append(f"  {summary['day']} is a rest day - nothing to log.")
+        elif summary["reason"] == "already_logged":
+            lines.append(f"  Already logged for {summary['date']} (one log per calendar date).")
+        return "\n".join(lines)
+    if summary["capabilities_trained"]:
+        lines.append(f"  {summary['focus']} -> +{summary['xp_awarded']} XP split across:")
+        for competency_id in summary["capabilities_trained"]:
+            lines.append(f"    - {competency_id}")
+    else:
+        lines.append(f"  {summary['focus']} -> +{summary['xp_awarded']} XP to Discipline (showed up)")
+    if summary.get("operator_total_xp") is not None:
+        lines.append(f"  Operator total XP: {summary['operator_total_xp']} (level {summary['operator_level']})")
+    return "\n".join(lines)
 
 
 @operator_fitness_bp.route("/")
@@ -206,20 +266,20 @@ def dashboard():
 
 @operator_fitness_bp.post("/log")
 def log_day():
-    habit_args: list[str] = []
+    quantities: dict[str, float] = {}
     for field in HABIT_FIELDS:
         value = request.form.get(field["key"], "").strip()
         if value:
-            flag = "--" + field["key"].replace("_", "-")
-            habit_args += [flag, value]
+            quantities[field["key"]] = float(value)
 
-    if not habit_args:
+    if not quantities:
         output = "Enter at least one habit quantity before logging."
     else:
-        log_date = request.form.get("date", "").strip()
-        args = habit_args + (["--date", log_date] if log_date else [])
+        log_date = request.form.get("date", "").strip() or None
         try:
-            output = _run_tracker(args)
+            run_log_day, _run_log_gym_day = _fitness_engine()
+            summary = run_log_day(quantities, log_date=log_date)
+            output = _format_log_summary(summary)
         except Exception as error:
             output = f"FITNESS ENGINE ERROR\n{error}"
 
@@ -229,23 +289,13 @@ def log_day():
 @operator_fitness_bp.post("/log-gym-day")
 def log_gym_day():
     """Mark today's (or a chosen) gym-routine day done - distributes XP into
-    that day's specific gym-lift capabilities via fitness.engine.gym_log,
-    mirroring _run_tracker's subprocess pattern above.
+    that day's specific gym-lift capabilities via fitness.engine.gym_log.
     """
-    root = _rnd_root()
-    day = request.form.get("day", "").strip()
-    args = ["--day", day] if day else []
+    day = request.form.get("day", "").strip() or None
     try:
-        result = subprocess.run(
-            [sys.executable, "-m", "fitness.engine.gym_log", *args],
-            input="",
-            text=True,
-            capture_output=True,
-            cwd=str(root),
-            timeout=60,
-            check=False,
-        )
-        output = (result.stdout + "\n" + result.stderr).strip()
+        _run_log_day, run_log_gym_day = _fitness_engine()
+        summary = run_log_gym_day(day_name=day)
+        output = _format_gym_summary(summary)
     except Exception as error:
         output = f"FITNESS ENGINE ERROR\n{error}"
 

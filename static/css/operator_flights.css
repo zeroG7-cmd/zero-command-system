@@ -1,0 +1,81 @@
+/* Flight Log — real/simulated flight practice log, tagged against Aviation.
+   Shares --op-* variables, body, .operator-shell/.operator-hero/.operator-page
+   with static/css/operator.css (loaded first) - only flight-specific rules
+   live here, same convention as operator_execution.css.
+
+   --flt-real reuses the app's existing accent (--op-accent, mint #70ffb4) -
+   "real" flying is the primary, harder-won thing this hub tracks. --flt-sim
+   reuses the existing secondary accent already established in
+   operator_challenges.css (#67e8f9, cyan) rather than inventing a new color.
+   Color is never the only distinction - every real/sim usage is paired with
+   an explicit REAL/SIM text badge. */
+
+:root{--flt-real:var(--op-accent);--flt-sim:#67e8f9}
+
+.flt-flash{border-radius:.7rem;padding:.85rem 1.1rem;margin-bottom:1.25rem;font-size:.85rem;border:1px solid}
+.flt-flash.error{border-color:rgba(255,110,110,.4);background:rgba(255,80,80,.08);color:#ffb4b4}
+
+.flt-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+@media(max-width:900px){.flt-stats{grid-template-columns:repeat(2,1fr)}}
+.flt-stats article{border:1px solid var(--op-border);background:var(--op-panel);border-radius:1rem;padding:1.2rem;text-align:center}
+.flt-stats strong{display:block;font-size:2rem;color:var(--op-accent)}
+.flt-stats span{color:var(--op-muted);font-size:.75rem}
+
+.flt-layout{display:grid;grid-template-columns:1fr 380px;gap:1.25rem;align-items:start}
+@media(max-width:1000px){.flt-layout{grid-template-columns:1fr}}
+.flt-layout .panel{border:1px solid var(--op-border);background:var(--op-panel);border-radius:1rem;padding:1.4rem}
+
+.flt-kind-toggle{display:flex;gap:.5rem;margin-bottom:1.25rem}
+.flt-kind-btn{flex:1;text-align:center;padding:.9rem;border-radius:.7rem;border:1px solid var(--op-border);background:rgba(8,20,16,.55);color:var(--op-muted);cursor:pointer;font-size:.9rem;letter-spacing:.03em;transition:border-color .15s,color .15s}
+.flt-kind-btn .ic{display:block;font-size:1.3rem;margin-bottom:.25rem}
+.flt-kind-btn.active[data-kind="real"]{border-color:var(--flt-real);color:var(--op-text);background:rgba(112,255,180,.08)}
+.flt-kind-btn.active[data-kind="simulated"]{border-color:var(--flt-sim);color:var(--op-text);background:rgba(103,232,249,.08)}
+
+.flt-row-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+@media(max-width:520px){.flt-row-2{grid-template-columns:1fr}}
+
+.flt-field{margin-bottom:1rem}
+.flt-field label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--op-muted);margin-bottom:.3rem}
+.flt-field input[type=text],.flt-field input[type=number],.flt-field input[type=date],.flt-field textarea,.flt-field select{width:100%;padding:.7rem .75rem;border-radius:.55rem;border:1px solid var(--op-border);background:#08141e;color:var(--op-text);font-size:.88rem;font-family:inherit}
+.flt-field textarea{resize:vertical;min-height:4.2rem}
+
+.flt-picker-row{display:grid;grid-template-columns:1fr 1fr auto;gap:.6rem;align-items:end}
+@media(max-width:720px){.flt-picker-row{grid-template-columns:1fr}}
+.flt-picker-row label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--op-muted);margin-bottom:.3rem}
+.flt-picker-row select{width:100%;padding:.65rem .7rem;border-radius:.55rem;border:1px solid var(--op-border);background:#08141e;color:var(--op-text);font-size:.85rem}
+.flt-add-btn{padding:.65rem 1rem;border-radius:.55rem;border:1px solid var(--op-accent);background:rgba(112,255,180,.1);color:var(--op-accent);cursor:pointer;font-weight:600;white-space:nowrap}
+.flt-add-btn:disabled{opacity:.35;cursor:not-allowed}
+
+.flt-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:.9rem 0}
+.flt-chip{display:flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:999px;border:1px solid var(--op-border);background:rgba(112,255,180,.06);font-size:.78rem}
+.flt-chip b{color:var(--op-accent)}
+.flt-chip button{background:none;border:none;color:var(--op-muted);cursor:pointer;font-size:.9rem;line-height:1;padding:0}
+.flt-chip button:hover{color:#ff8080}
+.flt-chip-empty{color:var(--op-muted);font-size:.8rem;font-style:italic}
+
+.flt-preview{font-size:.8rem;color:var(--op-muted);border-top:1px solid var(--op-border);padding-top:1rem;margin-top:.5rem}
+.flt-preview .total{color:var(--op-accent);font-weight:700;font-size:.95rem}
+.flt-preview-row{display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px dashed rgba(112,255,180,.12)}
+.flt-preview-row:last-child{border-bottom:none}
+
+.flt-log h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--op-muted);margin:0 0 1rem}
+.flt-log-item{padding:.85rem 0;border-top:1px solid var(--op-border)}
+.flt-log-item:first-child{border-top:none}
+.flt-log-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+.flt-log-head b{font-size:.9rem}
+.flt-log-head .xp{color:var(--op-accent);font-weight:700;font-size:.8rem;white-space:nowrap;margin-left:auto}
+.flt-log-meta{color:var(--op-muted);font-size:.72rem;margin-top:.2rem}
+.flt-log-caps{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.flt-log-cap-chip{font-size:.65rem;letter-spacing:.03em;text-transform:uppercase;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--op-border);color:var(--op-accent)}
+.flt-log-empty{color:var(--op-muted);font-size:.82rem}
+.flt-log-notes{color:var(--op-muted);font-size:.78rem;margin:.5rem 0 0;font-style:italic}
+
+.flt-kind-tag{font-size:.62rem;padding:.15rem .5rem;border-radius:999px;border:1px solid;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.flt-kind-tag.real{border-color:var(--flt-real);color:var(--flt-real)}
+.flt-kind-tag.simulated{border-color:var(--flt-sim);color:var(--flt-sim)}
+
+.flt-evidence-toggle{display:inline-block;margin-top:.6rem;padding:.4rem .8rem;border-radius:.5rem;border:1px solid var(--op-border);color:var(--op-accent);font-size:.72rem;cursor:pointer;letter-spacing:.02em}
+.flt-evidence-toggle:hover{border-color:var(--op-accent);background:rgba(112,255,180,.06)}
+.flt-evidence-video{display:block;width:100%;max-width:480px;margin-top:.6rem;border-radius:.6rem;border:1px solid var(--op-border);background:#000}
+.flt-evidence-link{display:inline-block;margin-top:.6rem;color:var(--op-muted);font-size:.72rem;text-decoration:none;border:1px solid var(--op-border);padding:.4rem .8rem;border-radius:.5rem}
+.flt-evidence-link:hover{color:var(--op-accent);border-color:var(--op-accent)}
