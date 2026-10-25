@@ -31,3 +31,22 @@ OPERATOR_STATS = ZERO_GRAVITY_RND_ROOT / "operator_core" / "hubs" / "learning" /
 COMPETENCIES_FILE = ZERO_GRAVITY_RND_ROOT / "operator_core" / "capabilities" / "competencies.json"
 SKILL_TREE_FILE = ZERO_GRAVITY_RND_ROOT / "operator_core" / "capabilities" / "skill_tree.json"
 CAPABILITY_GRAPH_FILE = ZERO_GRAVITY_RND_ROOT / "operator_core" / "capabilities" / "capability_graph.json"
+
+# nodes/telemetry_publisher.py (shadow_drone, Oct 3 2026) writes Shadow's
+# live sim snapshot here at ~20Hz, atomically (temp file + os.replace) -
+# same override convention as the two repo roots above. Matches that
+# script's own DEFAULT_OUTPUT_PATH ('~/shadow_sim_runtime/telemetry/latest.json')
+# exactly when SHADOW_SIM_RUNTIME_ROOT isn't overridden, since WORKSPACE_ROOT
+# is this app's own parent folder - the same folder shadow_sim_runtime lives
+# in as a sibling, not a guess.
+SHADOW_SIM_RUNTIME_ROOT = _external_root("SHADOW_SIM_RUNTIME_ROOT", "shadow_sim_runtime")
+SHADOW_TELEMETRY_JSON = SHADOW_SIM_RUNTIME_ROOT / "telemetry" / "latest.json"
+
+# shadow_drone's own progress.json (the real, git-tracked file
+# nodes/run_skill.py writes every skill pass/fail to - streak/unlocked
+# per skill, not telemetry). Same override convention as the two repo
+# roots above; by default resolves to WORKSPACE_ROOT/shadow_ws/src/shadow_drone,
+# which matches this machine's real layout (shadow_ws and
+# zero-command-system are both direct siblings under /home/zero).
+SHADOW_DRONE_REPO_ROOT = _external_root("SHADOW_DRONE_REPO_ROOT", "shadow_ws/src/shadow_drone")
+SHADOW_PROGRESS_JSON = SHADOW_DRONE_REPO_ROOT / "progress.json"

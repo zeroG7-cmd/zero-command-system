@@ -1,0 +1,1565 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Simulation Bay</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#f6f3ee;
+    --void:#f5f2ec;
+    --surface: rgba(255,255,255,0.82);
+    --surface-solid:#ffffff;
+    --border: rgba(28,27,24,0.09);
+    --border-bright: rgba(169,92,37,0.4);
+    --fg:#211f1b;
+    --fg-muted:#6c665b;
+    --fg-faint:#9a9284;
+    --accent:#a9602a;
+    --accent-glow:#c9793d;
+    --accent-rgb: 169,96,42;
+    --ok:#1f8f63;
+    --warn:#a8720f;
+    --locked:#a39b8c;
+    --font-display:'Space Mono','Courier New',monospace;
+    --font-body:'Manrope',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; padding:0; background:var(--void); color:var(--fg);
+    font-family:var(--font-body); overflow:hidden; height:100%;
+  }
+  .mono{font-family:var(--font-display);}
+  button{font-family:inherit;}
+
+  /* ====================== TITLE / MENU ====================== */
+  /* Wrapper is transparent and click-through, so the 3D room behind it
+     stays draggable everywhere except over the floating card itself. */
+  #title{
+    position:fixed; inset:0; z-index:40; display:flex;
+    align-items:center; justify-content:flex-end; text-align:center;
+    padding:24px 16px calc(56px + env(safe-area-inset-bottom, 0px));
+    pointer-events:none;
+  }
+  .menu-card{
+    pointer-events:auto;
+    width:100%; max-width:380px; padding:34px 28px 26px;
+    background:var(--surface); backdrop-filter:blur(14px);
+    border:1px solid var(--border); border-radius:18px;
+    box-shadow:0 30px 80px rgba(60,50,30,0.14), 0 2px 10px rgba(60,50,30,0.06);
+    transition:opacity .6s ease, transform .6s ease, visibility .6s;
+  }
+  #title.leaving .menu-card{opacity:0; transform:translateY(10px) scale(.98); visibility:hidden; pointer-events:none;}
+  .wordmark-org{font-family:var(--font-display); font-size:10.5px; letter-spacing:.2em; color:var(--fg-faint);}
+  .wordmark{
+    font-family:var(--font-display); font-weight:700; font-size:clamp(34px,8vw,52px);
+    letter-spacing:.02em; margin:6px 0 2px; color:var(--fg);
+  }
+  .wordmark .glow{color:var(--accent-glow);}
+  .tagline{font-size:11.5px; letter-spacing:.14em; color:var(--fg-muted); text-transform:uppercase; margin-bottom:32px;}
+
+  .menu{display:flex; flex-direction:column; align-items:center; gap:2px; width:100%;}
+  .menu-item{
+    width:100%; background:transparent; border:none; color:var(--fg-muted);
+    font-family:var(--font-display); font-size:14px; letter-spacing:.1em;
+    padding:10px 14px; cursor:pointer; border-radius:6px; text-transform:uppercase;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .menu-item .car{opacity:0; transition:opacity .15s;}
+  .menu-item:hover:not([disabled]), .menu-item:focus-visible:not([disabled]){color:var(--fg);}
+  .menu-item:hover:not([disabled]) .car, .menu-item:focus-visible:not([disabled]) .car{opacity:1; color:var(--accent-glow);}
+  .menu-item.primary{color:var(--accent-glow); font-weight:700;}
+  .menu-item[disabled]{color:var(--fg-faint); cursor:not-allowed; opacity:.55;}
+
+  .worldselect{
+    width:100%; max-width:360px; margin-top:6px; display:flex; flex-direction:column; gap:6px;
+    max-height:0; overflow:hidden; transition:max-height .35s ease;
+  }
+  .worldselect.open{max-height:220px;}
+  .world-opt{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 14px; border:1px solid var(--border); border-radius:7px; background:rgba(28,27,24,0.03);
+    font-size:12.5px; cursor:pointer;
+  }
+  .world-opt[aria-disabled="true"]{cursor:not-allowed; opacity:.5;}
+  .world-opt.sel{border-color:var(--border-bright); background:rgba(var(--accent-rgb),0.08);}
+  .world-opt .wname{font-weight:600;}
+  .world-opt .wnote{color:var(--fg-faint); font-size:10.5px; font-family:var(--font-display);}
+
+  .title-foot{margin-top:34px; font-size:10.5px; color:var(--fg-faint); font-family:var(--font-display); letter-spacing:.06em;}
+
+  /* ---- Lab Hub HUD: whole-R&D-lab status on the home screen itself ---- */
+  .lab-hud{margin:16px 0 22px; padding:12px 13px; border:1px solid var(--border); border-radius:8px; background:var(--surface-solid);}
+  .lab-hud-lights{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px;}
+  .lab-hud-chip{display:flex; align-items:center; gap:5px; font-family:var(--font-display); font-size:9.5px; letter-spacing:.08em; color:var(--fg-muted);}
+  .lab-hud-chip b{color:var(--fg); font-weight:600;}
+  .lab-hud-light{width:6px; height:6px; border-radius:50%; background:var(--warn); flex:none; display:inline-block;}
+  .lab-hud-light.ok{background:var(--ok);}
+  .lab-hud-light.off{background:var(--fg-faint);}
+  .lab-hud-snapshot{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:10.5px; color:var(--fg-muted); padding-top:8px; border-top:1px solid var(--border);}
+  .lab-hud-snapshot b{font-family:var(--font-display); color:var(--fg); font-weight:600;}
+  .lab-hud-source{margin-top:7px; font-family:var(--font-display); font-size:9.5px; color:var(--fg-faint); letter-spacing:.04em;}
+
+  /* ====================== STAGE (3D) ====================== */
+  /* Live from page load - the room is always there behind the menu card. */
+  #stage{position:fixed; inset:0; z-index:1;}
+  #stage canvas{display:block; width:100%; height:100%;}
+
+  #stagehud{position:fixed; inset:0; z-index:10; pointer-events:none; opacity:0; transition:opacity .6s ease .2s;}
+  #stagehud.live{opacity:1;}
+
+  /* ====================== DIGITIZE TRANSITION ====================== */
+  #digitize{
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    background:var(--void); opacity:0; pointer-events:none; transition:opacity .4s ease;
+  }
+  #digitize.show{opacity:1; pointer-events:auto;}
+  .digitize-sweep{
+    position:absolute; inset:0; opacity:.55;
+    background:repeating-linear-gradient(0deg, rgba(169,96,42,0.08) 0px, rgba(169,96,42,0.08) 2px, transparent 2px, transparent 6px);
+    animation:sweepmove 0.9s linear infinite;
+  }
+  @keyframes sweepmove{ 0%{ background-position-y:0; } 100%{ background-position-y:48px; } }
+  .digitize-readout{ position:relative; font-family:var(--font-display); font-size:12px; letter-spacing:.1em; color:var(--fg-muted); text-align:center; }
+  .d-line{ opacity:0; transform:translateY(4px); transition:opacity .3s ease, transform .3s ease; margin-bottom:8px; }
+  .d-line.show{ opacity:1; transform:translateY(0); color:var(--fg); }
+  .d-line.show.done{ color:var(--ok); }
+
+  .hud-top{
+    position:absolute; top:0; left:0; right:0; pointer-events:auto;
+    padding: calc(14px + env(safe-area-inset-top,0px)) 16px 14px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:linear-gradient(180deg, rgba(246,243,238,0.85), transparent);
+  }
+  .room-tag{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .room-tag .k{font-family:var(--font-display); font-size:10px; letter-spacing:.14em; color:var(--fg-faint);}
+  .room-tag .v{font-family:var(--font-display); font-size:13px; color:var(--fg);}
+  #exitbtn{
+    font-family:var(--font-display); font-size:11px; letter-spacing:.06em; padding:7px 13px;
+    border-radius:6px; border:1px solid var(--border); background:var(--surface-solid); color:var(--fg-muted);
+    cursor:pointer; box-shadow:0 2px 8px rgba(60,50,30,0.08);
+  }
+  #exitbtn:hover{color:var(--fg); border-color:var(--border-bright);}
+
+  .hud-hint{
+    position:absolute; left:0; right:0; bottom:88px; text-align:center; pointer-events:none;
+    font-size:11px; color:var(--fg-faint); font-family:var(--font-display); letter-spacing:.04em;
+    transition:opacity .6s ease;
+  }
+
+  /* FPV picture-in-picture - these pixel values (356x244, 16px margin) must
+     match FPV_PIP_W/H/MARGIN in the script, so the frame lines up with the
+     actual WebGL viewport it's decorating. */
+  .pip-frame{
+    position:absolute; top:16px; right:16px; width:356px; height:244px;
+    border:2px solid rgba(255,255,255,0.6); border-radius:8px;
+    box-shadow:0 10px 26px rgba(40,32,18,0.28), inset 0 0 0 1px rgba(30,24,14,0.12);
+    pointer-events:none;
+  }
+  .pip-label{
+    position:absolute; top:-9px; left:10px; background:var(--surface-solid); color:var(--fg-muted);
+    font-family:var(--font-display); font-size:9.5px; letter-spacing:.1em; padding:2px 7px;
+    border-radius:5px; border:1px solid var(--border);
+  }
+  .pip-toggle{
+    position:absolute; bottom:-15px; right:8px; width:28px; height:28px; border-radius:50%;
+    background:var(--surface-solid); border:1px solid var(--border-bright); color:var(--accent-glow);
+    font-size:14px; cursor:pointer; pointer-events:auto; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(60,50,30,0.22);
+  }
+  .pip-toggle:hover{ color:var(--fg); border-color:var(--border-bright); }
+
+  .dock{
+    position:absolute; left:0; right:0; bottom:0; pointer-events:auto;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));
+    display:flex; justify-content:center; gap:8px; flex-wrap:wrap;
+    background:linear-gradient(0deg, rgba(246,243,238,0.9), transparent);
+  }
+  .dock-btn{
+    display:flex; align-items:center; gap:7px; font-family:var(--font-display); font-size:11px;
+    letter-spacing:.05em; padding:9px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface-solid); color:var(--fg-muted); cursor:pointer; backdrop-filter:blur(6px);
+    box-shadow:0 2px 10px rgba(60,50,30,0.07);
+  }
+  .dock-btn .plus{color:var(--accent-glow); font-weight:700;}
+  .dock-btn:hover{color:var(--fg); border-color:var(--border-bright);}
+  .dock-btn.active{color:var(--fg); border-color:var(--border-bright); background:rgba(var(--accent-rgb),0.12);}
+  .dock-btn.active .plus{transform:rotate(45deg); display:inline-block;}
+  .dock-btn[disabled]{opacity:0.4; cursor:not-allowed; pointer-events:none;}
+
+  /* floating panels */
+  .flpanel{
+    position:absolute; width:min(300px, calc(100vw - 32px)); max-height:min(70vh, 520px);
+    background:var(--surface); border:1px solid var(--border-bright); border-radius:12px;
+    backdrop-filter: blur(10px); pointer-events:auto; overflow:hidden;
+    display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(60,50,30,0.16);
+    opacity:0; transform:translateY(10px) scale(.98); transition:opacity .25s ease, transform .25s ease;
+  }
+  .flpanel.open{opacity:1; transform:translateY(0) scale(1);}
+  .flpanel.hidden{display:none;}
+  .flpanel-head{
+    display:flex; align-items:center; justify-content:space-between; padding:11px 13px;
+    border-bottom:1px solid var(--border); flex:none;
+    cursor:grab; touch-action:none; user-select:none;
+  }
+  .flpanel-head:active{cursor:grabbing;}
+  .flpanel-head h3{font-family:var(--font-display); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-muted); margin:0;}
+  .flpanel-close{background:none; border:none; color:var(--fg-faint); cursor:pointer; font-size:14px; padding:2px 4px;}
+  .flpanel-close:hover{color:var(--fg);}
+  .flpanel-body{padding:12px 13px; overflow-y:auto; font-size:12.5px; line-height:1.5;}
+
+  #panel-skills{left:16px; top:72px;}
+  #panel-log{right:16px; top:72px;}
+  #panel-settings{left:50%; top:72px; transform:translateX(-50%);}
+  #panel-settings.open{transform:translateX(-50%) translateY(0) scale(1);}
+  #panel-telemetry{left:50%; top:340px; transform:translateX(-50%);}
+  #panel-telemetry.open{transform:translateX(-50%) translateY(0) scale(1);}
+  #panel-training{left:16px; top:340px;}
+  #panel-registry{right:16px; top:340px;}
+  #panel-testbench{left:16px; top:420px;}
+
+  .slider-row{margin-bottom:12px;} .slider-row:last-child{margin-bottom:0;}
+  .slider-row .slabel{display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;}
+  .slider-row .slabel .sval{font-family:var(--font-display); color:var(--fg-muted);}
+  .slider-row input[type="range"]{
+    width:100%; appearance:none; height:3px; border-radius:2px;
+    background:var(--border); outline:none; margin:0;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb{
+    appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--accent-glow); cursor:pointer; border:2px solid var(--surface-solid);
+    box-shadow:0 1px 4px rgba(60,50,30,0.3);
+  }
+  .slider-row input[type="range"]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%; background:var(--accent-glow);
+    cursor:pointer; border:2px solid var(--surface-solid);
+  }
+  .hold-btn{
+    width:100%; padding:12px; border-radius:8px; border:1px solid var(--border-bright);
+    background:rgba(var(--accent-rgb),0.1); color:var(--accent-glow); font-weight:700;
+    font-family:var(--font-display); font-size:12px; letter-spacing:.08em; cursor:pointer;
+    text-align:center; user-select:none; touch-action:none; margin-bottom:8px;
+  }
+  .hold-btn.holding{background:rgba(var(--accent-rgb),0.26);}
+  .reset-btn{
+    width:100%; padding:9px; border-radius:7px; border:1px solid var(--border);
+    background:var(--surface-solid); color:var(--fg-muted); font-family:var(--font-display);
+    font-size:11px; letter-spacing:.05em; cursor:pointer;
+  }
+  .reset-btn:hover{color:var(--fg); border-color:var(--border-bright);}
+
+  .tier{margin-bottom:12px;} .tier:last-child{margin-bottom:0;}
+  .tier-head{display:flex; justify-content:space-between; margin-bottom:5px;}
+  .tier-head .name{font-weight:700; font-size:11.5px;}
+  .tier-head .num{font-family:var(--font-display); font-size:9.5px; color:var(--fg-faint);}
+  .skill{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 8px; border-radius:5px; background:rgba(28,27,24,0.035); margin-bottom:4px; font-size:11.5px;}
+  .skill:last-child{margin-bottom:0;}
+  .chip{font-family:var(--font-display); font-size:9px; padding:2px 6px; border-radius:4px; white-space:nowrap;}
+  .chip-locked{background:rgba(163,155,140,0.22); color:var(--fg-muted);}
+  .chip-ok{background:rgba(31,143,99,0.14); color:var(--ok);}
+
+  .streak{display:flex; align-items:center; gap:4px; flex:none;}
+  .streak .pip{width:6px; height:6px; border-radius:50%; background:rgba(28,27,24,0.14); transition:background .25s;}
+  .streak .pip.on{background:var(--ok);}
+  .streak .skill-count{font-family:var(--font-display); font-size:9.5px; color:var(--fg-faint); margin-right:2px;}
+  .skill.unlocked{background:rgba(31,143,99,0.08);}
+
+  .tele-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px;}
+  .tele-row:last-child{border-bottom:none;}
+  .tele-row .val{font-family:var(--font-display); font-size:13px; color:var(--fg); font-variant-numeric:tabular-nums;}
+  .tele-row .val.armed{color:var(--ok);}
+  .tele-note{font-size:10.5px; color:var(--fg-faint); margin-top:8px; line-height:1.5; padding-top:8px; border-top:1px solid var(--border);}
+
+  .reg-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px;}
+  .reg-row:last-child{border-bottom:none;}
+  .reg-row .vid{font-family:var(--font-display); font-size:12px;}
+  .reg-row .vnote{font-size:10.5px; color:var(--fg-faint);}
+
+  .dr-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; font-size:11.5px; color:var(--fg-muted);}
+  .dr-row .vr{font-family:var(--font-display); font-size:11px; color:var(--fg-faint);}
+
+  .chart-wrap{margin:4px 0 10px;}
+  .chart-wrap svg{width:100%; height:auto; display:block; overflow:visible;}
+  .chart-label{font-family:var(--font-display); font-size:9.5px; fill:var(--fg-faint);}
+  .credits{font-size:10.5px; color:var(--fg-faint); line-height:1.6;}
+  .credits a{color:var(--fg-muted); text-decoration:underline;}
+
+  .dock-btn.primary-action{
+    border-color:var(--border-bright); color:var(--accent-glow); font-weight:700;
+    background:rgba(var(--accent-rgb),0.1);
+  }
+  .dock-btn.primary-action:hover{background:rgba(var(--accent-rgb),0.18);}
+  .dock-btn.primary-action[disabled]{opacity:.5; cursor:not-allowed; color:var(--fg-muted);}
+  .dock-divider{width:1px; align-self:stretch; background:var(--border); margin:4px 2px;}
+
+  .log-entry{padding:8px 0; border-bottom:1px solid var(--border);} .log-entry:last-child{border-bottom:none;}
+  .log-entry time{font-family:var(--font-display); font-size:10px; color:var(--fg-faint);}
+  .log-entry .headline{display:block; font-weight:600; margin:2px 0 2px;}
+  .log-entry p{margin:0; color:var(--fg-muted);}
+
+  .setting-item{padding:7px 0; border-bottom:1px solid var(--border);}
+  .setting-item:last-child{border-bottom:none;}
+  .setting-row{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px;}
+  .setting-row .val{font-family:var(--font-display); color:var(--fg-muted); font-size:11.5px; text-align:right;}
+  .setting-explain{font-size:10.5px; color:var(--fg-faint); line-height:1.45; margin-top:3px;}
+
+  #hint-toast{
+    position:absolute; left:50%; bottom:88px; transform:translateX(-50%);
+    font-family:var(--font-display); font-size:10.5px; color:var(--fg-faint);
+    opacity:0; transition:opacity .4s;
+  }
+  #hint-toast.show{opacity:1;}
+
+  @media (max-width: 720px){
+    .flpanel{position:fixed; left:16px; right:16px; width:auto; top:auto; bottom:84px; transform:none !important;}
+  }
+</style>
+
+<!-- ====================== TITLE ====================== -->
+<div id="title">
+  <div class="menu-card">
+    <span class="wordmark-org">ZEROGRAVITY // ZERO COMMAND</span>
+    <h1 class="wordmark">SHAD<span class="glow">O</span>W</h1>
+    <div class="tagline">Simulation Bay</div>
+
+    <div class="lab-hud" id="lab-hud">
+      <div class="lab-hud-lights">
+        <span class="lab-hud-chip"><i class="lab-hud-light" data-light="db"></i>LAB DB</span>
+        <span class="lab-hud-chip"><i class="lab-hud-light" data-light="repo"></i>REPO <b data-val="repo">--</b>%</span>
+        <span class="lab-hud-chip"><i class="lab-hud-light" data-light="shadow"></i>SHADOW <b data-val="shadow">--</b></span>
+      </div>
+      <div class="lab-hud-snapshot">
+        <span><b data-val="projects">--</b> PROJECTS</span>
+        <span><b data-val="experiments">--</b> EXPERIMENTS</span>
+        <span><b data-val="tests">--</b> TESTS (<b data-val="success">--</b>%)</span>
+        <span><b data-val="simruns">--</b> SIM RUNS</span>
+      </div>
+      <div class="lab-hud-source" id="lab-hud-source">CONNECTING&hellip;</div>
+    </div>
+
+    <div class="menu" role="menu">
+      <button class="menu-item primary" id="btn-enter" type="button"><span class="car">&gt;</span>ENTER SIMULATION<span class="car">&lt;</span></button>
+      <button class="menu-item" id="btn-world" type="button" aria-expanded="false"><span class="car">&gt;</span>WORLD SELECT<span class="car">&lt;</span></button>
+      <button class="menu-item" type="button" disabled title="Not wired yet"><span class="car">&gt;</span>SETTINGS<span class="car">&lt;</span></button>
+    </div>
+
+    <div class="worldselect" id="worldselect">
+      <div class="world-opt sel" data-world="shadow_runway" data-label="SHADOW_RUNWAY.SDF" data-hue="27">
+        <span class="wname">Shadow Runway</span><span class="wnote">GATE 2 · TONIGHT</span>
+      </div>
+      <div class="world-opt" data-world="iris_runway" data-label="IRIS_RUNWAY.SDF" data-hue="190">
+        <span class="wname">Iris Runway</span><span class="wnote">REFERENCE</span>
+      </div>
+      <div class="world-opt" aria-disabled="true" data-world="living_room" data-label="LIVING_ROOM.WORLD" data-hue="27">
+        <span class="wname">Living Room</span><span class="wnote">NOT PORTED</span>
+      </div>
+    </div>
+
+    <div class="title-foot">GAZEBO HARMONIC · ARDUPILOT SITL</div>
+  </div>
+</div>
+
+<!-- ====================== 3D STAGE ====================== -->
+<div id="stage"><canvas id="gl"></canvas></div>
+
+<!-- ====================== DIGITIZE TRANSITION ====================== -->
+<div id="digitize">
+  <div class="digitize-sweep"></div>
+  <div class="digitize-readout">
+    <div class="d-line">CALIBRATING AERO MODEL</div>
+    <div class="d-line">LOADING GAZEBO_HARMONIC</div>
+    <div class="d-line">ARDUPILOT SITL LINK</div>
+    <div class="d-line">WORLD RENDERED</div>
+  </div>
+</div>
+
+<div id="stagehud">
+  <div class="hud-top">
+    <div class="room-tag"><span class="k">ROOM</span><span class="v mono" id="roomname">SHADOW_RUNWAY.SDF</span></div>
+    <button id="exitbtn" type="button">EXIT TO MENU</button>
+  </div>
+
+  <div class="hud-hint" id="draghint">drag to look around &middot; scroll to zoom</div>
+  <div id="hint-toast">spawn marker &middot; shadow not placed yet</div>
+
+  <div class="pip-frame" id="pip-frame">
+    <div class="pip-label" id="pip-label">FPV</div>
+    <button class="pip-toggle" id="btn-fpv-toggle" type="button" title="Swap world view and FPV view">&#8644;</button>
+  </div>
+
+  <div class="flpanel" id="panel-skills">
+    <div class="flpanel-head"><h3>Skill Tree</h3><button class="flpanel-close" data-close="panel-skills">&times;</button></div>
+    <div class="flpanel-body">
+      <p class="tele-note" style="margin-top:0; border-top:none; padding-top:0;">This is Shadow's task suite in an RPG skin. Real drone-RL platforms (Isaac Lab, OmniDrones) define the same idea as named benchmark tasks: hover, trajectory tracking, gate navigation. Same concept, your framing.</p>
+      <div class="tele-row" style="padding-top:0;"><span>Source</span><span class="val" id="skills-source">LOCAL DEMO</span></div>
+      <div class="tier">
+        <div class="tier-head"><span class="name">Flight</span><span class="num mono">TIER 1</span></div>
+        <div class="skill" data-skill="arm"><span>arm</span><span class="streak" data-pips><span class="mono skill-count"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span></div>
+        <div class="skill" data-skill="takeoff"><span>takeoff</span><span class="streak" data-pips><span class="mono skill-count"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span></div>
+        <div class="skill" data-skill="hover"><span>hover</span><span class="streak" data-pips><span class="mono skill-count"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span></div>
+        <div class="skill" data-skill="go_to"><span>go_to</span><span class="streak" data-pips><span class="mono skill-count"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span></div>
+        <div class="skill" data-skill="land"><span>land</span><span class="streak" data-pips><span class="mono skill-count"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span></div>
+      </div>
+      <div class="tele-note">Pips fill (capped at 3) as real training runs pass on your actual machine - 3 in a row unlocks a skill for real. The small number is the real streak, which keeps counting past 3. Reads straight from shadow_drone's own <span class="mono">progress.json</span> via Zero Command's <span class="mono">/shadow/progress</span> route, same URL as the Telemetry panel below - connect there first. Shows "LOCAL DEMO" with everything at zero until that connection succeeds, never invented numbers.</div>
+      <div class="tier">
+        <div class="tier-head"><span class="name">Delivery</span><span class="num mono">TIER 2</span></div>
+        <div class="skill"><span>spot_target</span><span class="chip chip-locked">DRAFTED</span></div>
+        <div class="skill"><span>approach_target</span><span class="chip chip-locked">DRAFTED</span></div>
+        <div class="skill"><span>grab / release</span><span class="chip chip-locked">NOT BUILT</span></div>
+      </div>
+      <div class="tier">
+        <div class="tier-head"><span class="name">Mind</span><span class="num mono">&mdash;</span></div>
+        <div class="skill"><span>choose_ability</span><span class="chip chip-locked">LOCKED</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flpanel" id="panel-log">
+    <div class="flpanel-head"><h3>Mission Log</h3><button class="flpanel-close" data-close="panel-log">&times;</button></div>
+    <div class="flpanel-body">
+      <div class="log-entry"><time>17:45</time><span class="headline">Gate 1: stock quad flying</span><p>Armed, took off to 5m, landed cleanly in Gazebo Harmonic.</p></div>
+      <div class="log-entry"><time>19:40</time><span class="headline">Rotor inertia fixed</span><p>Matched to iris's proven value, and tumbling became a mild wobble.</p></div>
+      <div class="log-entry"><time>20:15</time><span class="headline">p_gain 0.20 &rarr; 0.02</span><p>Iris's gain was too aggressive for Shadow's frame. 0.02 arms clean.</p></div>
+      <div class="log-entry"><time>21:50</time><span class="headline">Gate 2: Shadow's body flies</span><p>Real 250mm frame, full arm &rarr; takeoff 5m &rarr; land, no wobble.</p></div>
+      <div class="log-entry"><time>22:10</time><span class="headline">Thrust calibration</span><p>area 0.0008 (too weak) &rarr; 0.002 (iris, oversized) &rarr; 0.0014 (current, flies clean).</p></div>
+    </div>
+  </div>
+
+  <div class="flpanel" id="panel-settings">
+    <div class="flpanel-head"><h3>World Settings</h3><button class="flpanel-close" data-close="panel-settings">&times;</button></div>
+    <div class="flpanel-body">
+      <p class="tele-note" style="margin-top:0;">Shadow's real tuned values, pulled straight from the actual Gazebo/ArduPilot SDF and param files on your Ubuntu machine &mdash; read-only here on purpose. Want to tweak values and watch it react live instead? That's what the Test Bench panel is for.</p>
+
+      <div class="setting-item" style="border-top:1px solid var(--border); padding-top:10px;">
+        <div class="setting-row"><span>Gravity</span><span class="val">9.82 m/s&sup2; down</span></div>
+        <div class="setting-explain">Standard Earth gravity, the exact value this sandbox's cannon.js physics uses (Gazebo uses its own close equivalent). Not editable &mdash; changing gravity isn't a thing your real drone will ever face.</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-row"><span>Frame</span><span class="val">250mm X-quad</span></div>
+        <div class="setting-explain">Diagonal motor-to-motor distance on Shadow's real airframe.</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-row"><span>Props</span><span class="val">5&Prime; (0.0635m radius)</span></div>
+        <div class="setting-explain">Real propeller size, which is why Shadow needed its own LiftDrag numbers instead of iris's.</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-row"><span>Drone's real mass</span><span class="val">0.85 kg</span></div>
+        <div class="setting-explain">Shadow's actual measured weight, from the real SDF model Gazebo loads on your machine.</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-row"><span>LiftDrag area</span><span class="val">0.0014</span></div>
+        <div class="setting-explain">A Gazebo aerodynamics setting: how much lift one rotor blade generates per unit of simulated airspeed. Bigger means more thrust at the same spin speed. This is the number from tonight's saga &mdash; 0.0008 was too weak to get off the ground, iris's 0.002 was probably oversized for Shadow's smaller props, 0.0014 is what actually flies clean.</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-row"><span>LiftDrag cp</span><span class="val">&plusmn;0.059</span></div>
+        <div class="setting-explain">Center of pressure offset for that same aerodynamic model, in meters. It's paired with area above inside Gazebo's LiftDrag plugin math, not something tuned by itself.</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-row"><span>p_gain</span><span class="val">0.02 (x4 channels)</span></div>
+        <div class="setting-explain">How hard each rotor's spin speed chases ArduPilot's commanded speed. iris's value of 0.20 was too aggressive for Shadow's lighter frame and failed PreArm; 0.02 is what let it arm and fly cleanly.</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-row"><span>Last real ceiling</span><span class="val">5 m</span></div>
+        <div class="setting-explain">Highest altitude Shadow has actually reached in a confirmed real sim flight tonight.</div>
+      </div>
+      <div class="setting-item" style="border-bottom:none;">
+        <div class="setting-row"><span>Autopilot</span><span class="val">ArduCopter V4.8.0-dev</span></div>
+        <div class="setting-explain">The real flight-controller firmware version running the control loops in SITL, same code that would fly the real Navio2.</div>
+      </div>
+      <p class="tele-note">This is the Data station from your ML platform plan: every real flight becomes a labelled episode once the Training Lab is wired to real telemetry instead of this toy sandbox.</p>
+    </div>
+  </div>
+
+  <div class="flpanel" id="panel-telemetry">
+    <div class="flpanel-head"><h3>Telemetry</h3><button class="flpanel-close" data-close="panel-telemetry">&times;</button></div>
+    <div class="flpanel-body">
+      <p class="tele-note" style="margin-top:0; border-top:none; padding-top:0;">Reads real telemetry off <span class="mono">zero-command-system</span>'s <span class="mono">/shadow/telemetry</span> route (nodes/telemetry_publisher.py, four real MAVROS topics) - only works while that Flask app is running and reachable from this browser. The first time you go live, Chrome will likely ask permission for this page to reach your local network - that's expected, since this page is served from claude.ai and the Flask app is on your own machine; allow it once and it won't ask again on this device.</p>
+      <div class="slider-row" style="margin-bottom:10px;">
+        <div class="slabel"><span>Zero Command URL</span></div>
+        <input type="text" id="live-url" value="http://127.0.0.1:5000" spellcheck="false" style="width:100%; font-family:var(--font-display); font-size:11.5px; padding:7px 9px; border:1px solid var(--border); border-radius:6px; background:var(--surface-solid); color:var(--fg);">
+      </div>
+      <button class="hold-btn" id="btn-live-toggle" type="button" style="background:rgba(31,143,99,0.1); color:var(--ok); border-color:rgba(31,143,99,0.4);">GO LIVE</button>
+      <div class="tele-row"><span>Link</span><span class="val" id="tele-live-status">OFFLINE</span></div>
+      <div class="tele-row"><span>Mode</span><span class="val" id="tele-mode">GUIDED</span></div>
+      <div class="tele-row"><span>Armed</span><span class="val" id="tele-armed">NO</span></div>
+      <div class="tele-row"><span>Altitude</span><span class="val" id="tele-alt">0.0 m</span></div>
+      <div class="tele-row"><span>Raw IMU noise</span><span class="val" id="tele-noise">&ndash;</span></div>
+      <div class="tele-note" id="tele-note">Idle. Run a training flight below, or go live, to see this move.</div>
+      <p class="tele-note">This is Deploy &amp; Monitor: whatever's actually flying Shadow right now, and how it's doing. "Raw IMU noise" is the real gap between the raw and EKF-filtered gyro/accelerometer readings &mdash; genuine sensor noise being filtered out, not a cosmetic effect. Rotor spin while live reflects ArduPilot's real commanded PWM per motor, not a measured RPM (SITL has no tachometer) &mdash; same honesty rule the real telemetry bridge uses.</p>
+    </div>
+  </div>
+
+  <div class="flpanel" id="panel-training">
+    <div class="flpanel-head"><h3>Training Lab</h3><button class="flpanel-close" data-close="panel-training">&times;</button></div>
+    <div class="flpanel-body">
+      <div class="chart-wrap">
+        <svg viewBox="0 0 260 100" role="img" aria-label="Live success-rate curve from the sandbox's own training runs">
+          <line x1="10" y1="80" x2="250" y2="80" stroke="var(--border)" stroke-width="1"/>
+          <line x1="10" y1="45" x2="250" y2="45" stroke="var(--border)" stroke-width="1"/>
+          <line x1="10" y1="10" x2="250" y2="10" stroke="var(--border)" stroke-width="1"/>
+          <text x="2" y="83" class="chart-label">0%</text>
+          <text x="2" y="48" class="chart-label">50%</text>
+          <text x="2" y="13" class="chart-label">100%</text>
+          <path id="chart-area" d="" fill="var(--accent)" opacity="0.14"/>
+          <polyline id="chart-line" points="" fill="none" stroke="var(--accent-glow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle id="chart-dot-last" cx="0" cy="0" r="3.2" fill="var(--accent-glow)" style="display:none"/>
+          <text id="chart-pct" x="246" y="14" text-anchor="end" class="chart-label" style="fill:var(--accent-glow)"></text>
+        </svg>
+      </div>
+      <p class="tele-note" style="margin-top:0; border-top:none; padding-top:0;">Real episodes run so far: <strong id="train-episode-count">0</strong>. Shadow itself has only ever been hand-flown through MAVProxy, never trained by a policy, but the button below runs a genuine small learning loop, live, right here.</p>
+
+      <button class="hold-btn" id="btn-live-train" type="button" style="margin-top:4px;">RUN LIVE TRAINING</button>
+      <p class="tele-note" id="train-live-note" style="margin-top:8px;">Each click runs 25 real episodes: a tiny learned controller (2 weights + a bias, no more) proposes a thrust response to a physics-simulated drone falling under real gravity in <a href="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js" target="_blank" rel="noopener">cannon.js</a>. If a randomly-tweaked version does better than the best one so far, it's kept; if not, it's thrown away. That is a real evolution-strategy search, the simplest honest form of "fail, measure, improve" - not scripted, and the chart above is drawn from its actual results, not a mockup.</p>
+
+      <div style="margin-top:10px; border-top:1px solid var(--border); padding-top:10px;">
+        <div class="tier-head"><span class="name" style="font-size:11px;">What this sandbox is not (yet)</span></div>
+        <div class="dr-row"><span>Shadow's real task</span><span class="vr">vertical-only toy, not full flight</span></div>
+        <div class="dr-row"><span>Shadow's real physics</span><span class="vr">cannon.js, not Gazebo/LiftDrag</span></div>
+        <div class="dr-row"><span>Shadow's real algorithm</span><span class="vr">ES search, not PPO</span></div>
+      </div>
+
+      <div class="credits">The real version of this, against Shadow's actual ArduPilot+Gazebo physics with PPO via Stable-Baselines3, is spec'd out in the training doc, not built yet. This sandbox exists so you can watch the underlying idea - propose, test, keep what works - happen for real, today, before that bigger build.</div>
+    </div>
+  </div>
+
+  <div class="flpanel" id="panel-registry">
+    <div class="flpanel-head"><h3>Model Registry</h3><button class="flpanel-close" data-close="panel-registry">&times;</button></div>
+    <div class="flpanel-body">
+      <div class="reg-row">
+        <div><div class="vid">v0 &middot; manual-pilot</div><div class="vnote">You, flying MAVProxy by hand</div></div>
+        <span class="chip chip-ok">DEPLOYED</span>
+      </div>
+      <div class="reg-row">
+        <div><div class="vid">v1 &middot; first policy</div><div class="vnote" id="reg-v1-note">Appears once the Training Lab produces a checkpoint</div></div>
+        <span class="chip chip-locked" id="reg-v1-chip">NOT TRAINED</span>
+      </div>
+      <p class="tele-note" style="border-top:none; padding-top:0;">Real registries (MLflow, which is already in your roadmap) track exactly this: every checkpoint, which one is live, and why it was promoted.</p>
+    </div>
+  </div>
+
+  <div class="flpanel" id="panel-testbench">
+    <div class="flpanel-head"><h3>Test Bench</h3><button class="flpanel-close" data-close="panel-testbench">&times;</button></div>
+    <div class="flpanel-body">
+      <p class="tele-note" style="margin-top:0; border-top:none; padding-top:0;">A sandbox for trying things quickly, not for training. Hold the button to thrust the drone against real gravity and wind in <span class="mono">cannon.js</span> physics, with no policy involved. The dials change the physics live while you fly.</p>
+
+      <button class="hold-btn" id="btn-hold-thrust" type="button">HOLD TO THRUST</button>
+
+      <div class="slider-row">
+        <div class="slabel"><span>Mass</span><span class="sval" id="val-mass">0.85 kg</span></div>
+        <input type="range" id="sld-mass" min="0.3" max="2.0" step="0.05" value="0.85">
+      </div>
+      <div class="slider-row">
+        <div class="slabel"><span>Wind gust</span><span class="sval" id="val-wind">0.0 N</span></div>
+        <input type="range" id="sld-wind" min="0" max="6" step="0.2" value="0">
+      </div>
+      <div class="slider-row">
+        <div class="slabel"><span>Thrust noise</span><span class="sval" id="val-noise">0.0 N</span></div>
+        <input type="range" id="sld-noise" min="0" max="4" step="0.2" value="0">
+      </div>
+
+      <button class="reset-btn" id="btn-reset-sandbox" type="button">RESET DRONE POSITION</button>
+      <div class="credits" style="margin-top:8px;">This is a standalone toy physics world, not your tuned ArduPilot/Gazebo model. It's for feeling out an idea fast, not for anything you'd trust a real number from.</div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <button class="dock-btn" data-panel="panel-skills" type="button"><span class="plus">+</span>Skill Tree</button>
+    <button class="dock-btn" data-panel="panel-training" type="button"><span class="plus">+</span>Training Lab</button>
+    <button class="dock-btn" data-panel="panel-registry" type="button"><span class="plus">+</span>Registry</button>
+    <button class="dock-btn" data-panel="panel-testbench" type="button"><span class="plus">+</span>Test Bench</button>
+    <button class="dock-btn" data-panel="panel-telemetry" type="button"><span class="plus">+</span>Telemetry</button>
+    <button class="dock-btn" data-panel="panel-log" type="button"><span class="plus">+</span>Mission Log</button>
+    <button class="dock-btn" data-panel="panel-settings" type="button"><span class="plus">+</span>World Settings</button>
+    <span class="dock-divider"></span>
+    <button class="dock-btn primary-action" id="btn-train" type="button">TRAIN SHADOW</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  try{
+    var titleEl = document.getElementById('title');
+    var stageEl = document.getElementById('stage');
+    var hudEl = document.getElementById('stagehud');
+    var canvas = document.getElementById('gl');
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    var selectedWorld = {world:'shadow_runway', label:'SHADOW_RUNWAY.SDF', hue:27};
+
+    // ---- world select UI ----
+    var worldBtn = document.getElementById('btn-world');
+    var worldPane = document.getElementById('worldselect');
+    worldBtn.addEventListener('click', function(){
+      var open = worldPane.classList.toggle('open');
+      worldBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.world-opt'), function(opt){
+      opt.addEventListener('click', function(){
+        if(opt.getAttribute('aria-disabled') === 'true') return;
+        Array.prototype.forEach.call(document.querySelectorAll('.world-opt'), function(o){ o.classList.remove('sel'); });
+        opt.classList.add('sel');
+        selectedWorld = { world: opt.dataset.world, label: opt.dataset.label, hue: parseFloat(opt.dataset.hue) };
+      });
+    });
+
+    // ---- three.js scene (built once, lazily started) ----
+    var renderer, scene, camera, grid, ring, accentLight, fpvCamera;
+    var ROOM_HALF = 16, ROOM_WALL_H = 7;
+    var sph = { radius: 11, theta: 1.05, phi: 0.0 }; // theta=polar from Y, phi=azimuth
+    var camTarget = new THREE.Vector3(0, 0.55, 0); // orbit center - eases toward the drone so it can't drift out of frame
+    var autoSpin = true, lastInteract = 0;
+    var dragging = false, lastX = 0, lastY = 0;
+
+    // ---- real physics (cannon.js) backing both the Training Lab and Test Bench ----
+    var world, droneBody, physicsReady = false;
+    var sandbox = { mass: 0.85, wind: 0, noise: 0 };
+    var sandboxMode = false, manualHold = false;
+    var liveTraining = false;
+    var policyBest = { w1: 1.0, w2: 0.6, bias: 8.5 }, bestReward = -1;
+    var episodeHistory = [];
+
+    // ---- live telemetry: polls zero-command-system's /shadow/telemetry
+    // route (nodes/telemetry_publisher.py, four real MAVROS topics) and
+    // drives the drone's real pose, per-rotor spin, and a real sensor-
+    // noise readout. Separate from sandboxMode/liveTraining - this is
+    // real data, not a toy physics model. ----
+    var live = {
+      enabled: false,
+      available: false,
+      stale: true,
+      timer: null,
+      prev: null, // {pos: THREE.Vector3, quat: THREE.Quaternion, channels: [...]|null, receivedAt: ms}
+      curr: null,
+      pollMs: 50  // matches telemetry_publisher.py's own ~20Hz write rate
+    };
+
+    // ROS (/mavros/local_position/odom is ENU: x=east, y=north, z=up) ->
+    // three.js (x, y=up, z) basis swap. This exact conversion was
+    // numerically verified against three.js's own Quaternion/Vector3 math
+    // (2000 random trials, max error ~1e-15) before being wired in here -
+    // not trusted by eye, since a wrong frame here would look like real
+    // jitter instead of an obvious bug, same trap flagged (and ruled out,
+    // for MAVROS's own imu topics) during the Flask route work.
+    var ROS_TO_THREE_Q = new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2); // Rx(-90deg)
+    var ROS_TO_THREE_Q_CONJ = ROS_TO_THREE_Q.clone().conjugate();
+    function rosVecToThree(v){ return new THREE.Vector3(v.x, v.z, -v.y); }
+    function rosQuatToThree(q){
+      var out = ROS_TO_THREE_Q.clone();
+      out.multiply(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+      out.multiply(ROS_TO_THREE_Q_CONJ);
+      return out;
+    }
+
+    function vecMag3(x, y, z){ return Math.sqrt(x*x + y*y + z*z); }
+
+    function setLiveStatus(text, ok){
+      var el = document.getElementById('tele-live-status');
+      if(!el) return;
+      el.textContent = text;
+      el.classList.toggle('armed', !!ok);
+    }
+
+    function onLiveSample(data){
+      live.available = !!data.available;
+      live.stale = !!data.stale;
+
+      if(!data.available){
+        setLiveStatus('NO DATA', false);
+        document.getElementById('tele-note').textContent = "Live link connected, but the simulation/publisher isn't running yet.";
+        return;
+      }
+      setLiveStatus(data.stale ? 'STALE' : 'LIVE', !data.stale);
+      document.getElementById('tele-note').textContent = data.stale
+        ? 'Link reached the file, but it has not been written in a while - the sim or the publisher likely stopped.'
+        : 'Live from the real sim via /shadow/telemetry.';
+      setTele(data.mode || '-', !!data.armed, data.odometry ? data.odometry.position.z : 0);
+
+      if(data.imu_raw && data.imu_filtered){
+        var gyroGap = vecMag3(
+          data.imu_raw.angular_velocity.x - data.imu_filtered.angular_velocity.x,
+          data.imu_raw.angular_velocity.y - data.imu_filtered.angular_velocity.y,
+          data.imu_raw.angular_velocity.z - data.imu_filtered.angular_velocity.z
+        );
+        var accelGap = vecMag3(
+          data.imu_raw.linear_acceleration.x - data.imu_filtered.linear_acceleration.x,
+          data.imu_raw.linear_acceleration.y - data.imu_filtered.linear_acceleration.y,
+          data.imu_raw.linear_acceleration.z - data.imu_filtered.linear_acceleration.z
+        );
+        var noiseEl = document.getElementById('tele-noise');
+        if(noiseEl) noiseEl.textContent = gyroGap.toFixed(4) + ' rad/s, ' + accelGap.toFixed(3) + ' m/s²';
+      }
+
+      var sample = {
+        receivedAt: performance.now(),
+        // channels is a plain index-for-index read of rc_out, same as
+        // telemetry_publisher.py writes it - that script's own comment
+        // already flags its channel order as "matches the SDF's motor
+        // mapping, not yet cross-checked," and this inherits that same
+        // unverified assumption rather than pretending otherwise.
+        channels: (data.rc_out && data.rc_out.channels) ? data.rc_out.channels.slice(0, 4) : null
+      };
+      if(data.odometry){
+        sample.pos = rosVecToThree(data.odometry.position);
+        sample.quat = rosQuatToThree(data.odometry.orientation);
+      } else if(live.curr){
+        sample.pos = live.curr.pos; sample.quat = live.curr.quat;
+      } else {
+        sample.pos = drone.position.clone(); sample.quat = drone.quaternion.clone();
+      }
+
+      live.prev = live.curr || sample;
+      live.curr = sample;
+    }
+
+    function liveTick(){
+      var urlEl = document.getElementById('live-url');
+      var url = urlEl ? urlEl.value.replace(/\/+$/, '') : '';
+      if(!url) return;
+      fetch(url + '/shadow/telemetry', { cache: 'no-store' })
+        .then(function(r){ return r.json(); })
+        .then(onLiveSample)
+        .catch(function(){
+          live.available = false;
+          setLiveStatus('UNREACHABLE', false);
+        });
+    }
+
+    function setLiveMode(on){
+      live.enabled = on;
+      var btn = document.getElementById('btn-live-toggle');
+      if(on){
+        if(sandboxMode) closeTestBench(); // same shared-body rule as training
+        live.prev = null; live.curr = null;
+        if(btn){ btn.textContent = 'STOP LIVE'; btn.classList.add('holding'); }
+        setLiveStatus('CONNECTING...', false);
+        liveTick();
+        live.timer = setInterval(liveTick, live.pollMs);
+      } else {
+        if(btn){ btn.textContent = 'GO LIVE'; btn.classList.remove('holding'); }
+        setLiveStatus('OFFLINE', false);
+        if(live.timer){ clearInterval(live.timer); live.timer = null; }
+        rotorsSpinning = false;
+      }
+    }
+
+    // PWM (idle ~1000, full ~2000) -> a visible spin rate. Honest framing,
+    // matching telemetry_publisher.py's own docstring: this is "what
+    // ArduPilot commanded," the real control signal, not a measured RPM -
+    // SITL has no tachometer. Below ~1050 counts as off, matching real
+    // idle PWM rather than a guessed cutoff.
+    function pwmToSpin(pwm){
+      if(typeof pwm !== 'number' || pwm < 1050) return 0;
+      return ((pwm - 1000) / 1000) * 2.2;
+    }
+
+    // Eases the mesh toward the latest polled sample every render frame
+    // (lerp position, slerp orientation) rather than snapping to it only
+    // when a new sample arrives - without this, a ~20Hz feed rendered at
+    // 60fps would visibly stutter/teleport, decided explicitly during the
+    // telemetry bridge design (see the roadmap doc).
+    function updateLiveFrame(){
+      if(!drone || !live.curr || !live.prev) return;
+      var t = Math.min((performance.now() - live.curr.receivedAt) / live.pollMs, 1);
+      drone.position.copy(live.prev.pos).lerp(live.curr.pos, t);
+      drone.quaternion.copy(live.prev.quat).slerp(live.curr.quat, t);
+
+      if(live.curr.channels){
+        rotorsSpinning = true;
+        for(var i = 0; i < drone.rotorDiscs.length && i < live.curr.channels.length; i++){
+          drone.rotorDiscs[i].rotation.y += pwmToSpin(live.curr.channels[i]);
+        }
+      } else {
+        rotorsSpinning = false;
+      }
+    }
+
+    function initPhysics(){
+      if(typeof CANNON === 'undefined') return; // CDN failed to load - sandbox/training simply stay inert
+      world = new CANNON.World();
+      world.gravity.set(0, -9.82, 0);
+      var ground = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(ROOM_HALF, 0.1, ROOM_HALF)) });
+      ground.position.set(0, -0.1, 0);
+      world.addBody(ground);
+      droneBody = new CANNON.Body({
+        mass: sandbox.mass,
+        shape: new CANNON.Box(new CANNON.Vec3(0.16, 0.05, 0.16)),
+        linearDamping: 0.25,
+        fixedRotation: true
+      });
+      droneBody.position.set(0, restY, 0);
+      world.addBody(droneBody);
+      physicsReady = true;
+    }
+
+    function thrustFromPolicy(p, altErr, vel){
+      var t = p.bias + p.w1 * altErr - p.w2 * vel;
+      var maxT = sandbox.mass * 9.82 * 2.2;
+      return Math.max(0, Math.min(t, maxT));
+    }
+
+    function drawLiveChart(){
+      if(!episodeHistory.length) return;
+      var n = episodeHistory.length;
+      var pts = episodeHistory.map(function(e, i){
+        var x = 10 + (n > 1 ? (i / (n - 1)) * 240 : 0);
+        var y = 80 - Math.max(0, Math.min(1, e.reward)) * 70;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      });
+      document.getElementById('chart-line').setAttribute('points', pts.join(' '));
+      document.getElementById('chart-area').setAttribute('d', 'M' + pts[0] + ' L' + pts.join(' L') + ' L250,80 Z');
+      var last = episodeHistory[n - 1];
+      var lastXY = pts[n - 1].split(',');
+      var dot = document.getElementById('chart-dot-last');
+      dot.setAttribute('cx', lastXY[0]); dot.setAttribute('cy', lastXY[1]);
+      dot.style.display = '';
+      document.getElementById('chart-pct').textContent = Math.round(Math.max(0, Math.min(1, last.reward)) * 100) + '%';
+      document.getElementById('train-episode-count').textContent = n;
+    }
+
+    function updateRegistryIfTrained(){
+      if(bestReward <= 0.5) return;
+      var chip = document.getElementById('reg-v1-chip');
+      var note = document.getElementById('reg-v1-note');
+      if(chip){ chip.textContent = 'SANDBOX-TRAINED'; chip.className = 'chip chip-ok'; }
+      if(note){ note.textContent = 'Learned via the Training Lab\'s live evolution-strategy search - not yet Shadow\'s real ArduPilot/Gazebo policy from the spec doc.'; }
+    }
+
+    function runEpisode(testPolicy, targetAlt, onDone){
+      droneBody.position.set(0, restY, 0);
+      droneBody.velocity.set(0, 0, 0);
+      var dur = 6.0, dt = 1/60, stepsPerFrame = 6, t = 0, totalErr = 0, steps = 0, crashed = false;
+      function tick(){
+        for(var i = 0; i < stepsPerFrame && t < dur && !crashed; i++){
+          var altErr = targetAlt - droneBody.position.y;
+          var thrust = thrustFromPolicy(testPolicy, altErr, droneBody.velocity.y);
+          if(sandbox.noise > 0) thrust += (Math.random() * 2 - 1) * sandbox.noise;
+          droneBody.applyForce(new CANNON.Vec3(
+            (Math.random() * 2 - 1) * sandbox.wind,
+            thrust,
+            (Math.random() * 2 - 1) * sandbox.wind
+          ), droneBody.position);
+          world.step(dt);
+          t += dt; steps++;
+          totalErr += Math.abs(targetAlt - droneBody.position.y);
+          if(droneBody.position.y < 0.02 && t > 0.3) crashed = true;
+          if(droneBody.position.y > 6) crashed = true;
+        }
+        drone.position.copy(droneBody.position);
+        if(t < dur && !crashed){
+          requestAnimationFrame(tick);
+        } else {
+          var avgErr = totalErr / Math.max(steps, 1);
+          var reward = crashed ? 0 : Math.max(0, 1 - avgErr / targetAlt);
+          onDone(reward, crashed);
+        }
+      }
+      tick();
+    }
+
+    function runTrainingBatch(n){
+      if(liveTraining || sandboxMode || !physicsReady) return;
+      liveTraining = true;
+      var btn = document.getElementById('btn-live-train');
+      btn.setAttribute('disabled', 'true');
+      var tbDock = document.querySelector('.dock-btn[data-panel="panel-testbench"]');
+      if(tbDock) tbDock.setAttribute('disabled', 'true');
+      rotorsSpinning = true;
+      var i = 0;
+      function next(){
+        if(i >= n){
+          liveTraining = false;
+          rotorsSpinning = false;
+          btn.removeAttribute('disabled');
+          if(tbDock) tbDock.removeAttribute('disabled');
+          btn.textContent = 'RUN LIVE TRAINING';
+          document.getElementById('train-live-note').textContent =
+            episodeHistory.length + ' real episodes run. Best hover accuracy so far: ' + Math.round(Math.max(0,bestReward) * 100) + '%. Click again to keep searching.';
+          updateRegistryIfTrained();
+          return;
+        }
+        btn.textContent = 'TRAINING… (' + (i + 1) + '/' + n + ')';
+        var candidate = {
+          w1: policyBest.w1 + (Math.random() * 2 - 1) * 0.4,
+          w2: policyBest.w2 + (Math.random() * 2 - 1) * 0.2,
+          bias: policyBest.bias + (Math.random() * 2 - 1) * 0.6
+        };
+        runEpisode(candidate, 2.0, function(reward, crashed){
+          if(reward > bestReward){ policyBest = candidate; bestReward = reward; }
+          episodeHistory.push({ reward: reward, crashed: crashed });
+          drawLiveChart();
+          i++;
+          next();
+        });
+      }
+      next();
+    }
+
+    function hueColor(h, s, l){ var c = new THREE.Color(); c.setHSL(h/360, s, l); return c; }
+
+    // ---- skill tree: real data only, never invented ----
+    // Pulled from shadow_drone's own progress.json via Zero Command's
+    // /shadow/progress route (same shape as the live telemetry read:
+    // service function on the Flask side, polled here). Deliberately
+    // NOT per-viewer localStorage and NOT faked by the scripted
+    // trainShadow() demo below - this project's standing rule has been
+    // to never let a demo's numbers bleed into something presented as
+    // real (Test Bench vs. Shadow's real sim, scripted Gate-2 playback
+    // vs. real training), and a skill tree showing invented progress
+    // would be exactly that mistake.
+    var skillProgress = {}; // {name: {streak, unlocked}}, empty until a real fetch succeeds
+    var skillsTimer = null;
+    var SKILLS_POLL_MS = 4000; // progress.json only changes per training run, not per frame - no need to poll like telemetry
+
+    function renderSkillTree(){
+      Array.prototype.forEach.call(document.querySelectorAll('.skill[data-skill]'), function(row){
+        var key = row.dataset.skill;
+        var entry = skillProgress[key];
+        var n = entry ? Math.min(3, entry.streak || 0) : 0;
+        var pips = row.querySelectorAll('[data-pips] .pip');
+        Array.prototype.forEach.call(pips, function(p, i){ p.classList.toggle('on', i < n); });
+        row.classList.toggle('unlocked', !!(entry && entry.unlocked));
+        var countEl = row.querySelector('[data-pips] .skill-count');
+        if(countEl) countEl.textContent = entry ? String(entry.streak || 0) : '';
+      });
+    }
+
+    function onSkillProgress(data){
+      var sourceEl = document.getElementById('skills-source');
+      if(!data || !data.available){
+        if(sourceEl) sourceEl.textContent = 'LOCAL DEMO';
+        skillProgress = {};
+      } else {
+        if(sourceEl) sourceEl.textContent = 'LIVE · progress.json';
+        skillProgress = data.skills || {};
+      }
+      renderSkillTree();
+    }
+
+    function skillsTick(){
+      var urlEl = document.getElementById('live-url');
+      var url = urlEl ? urlEl.value.replace(/\/+$/, '') : '';
+      if(!url) return;
+      fetch(url + '/shadow/progress', { cache: 'no-store' })
+        .then(function(r){ return r.json(); })
+        .then(onSkillProgress)
+        .catch(function(){
+          var sourceEl = document.getElementById('skills-source');
+          if(sourceEl) sourceEl.textContent = 'UNREACHABLE';
+          skillProgress = {};
+          renderSkillTree();
+        });
+    }
+
+    function startSkillsPolling(){
+      if(skillsTimer) return;
+      skillsTick();
+      skillsTimer = setInterval(skillsTick, SKILLS_POLL_MS);
+    }
+    function stopSkillsPolling(){
+      if(skillsTimer){ clearInterval(skillsTimer); skillsTimer = null; }
+    }
+
+    // ---- Lab Hub HUD: whole-R&D-lab status, shown on this title/home
+    // screen before you've even chosen to enter the simulation. Pulls
+    // /research-development/api/status - the same real SQLite/repo-scan
+    // service that used to only feed the old flat dashboard, now reused
+    // here instead of duplicated. Starts polling immediately on load
+    // (unlike the skill tree, which only starts once you enter) because
+    // this *is* the home screen's own status, not flight telemetry.
+    var labHubTimer = null;
+    var LAB_HUB_POLL_MS = 8000; // lab-wide status changes far slower than flight telemetry
+
+    function setLabHudLight(key, cls){
+      var el = document.querySelector('.lab-hud-light[data-light="' + key + '"]');
+      if(!el) return;
+      el.classList.remove('ok', 'off');
+      if(cls) el.classList.add(cls);
+    }
+    function setLabHudVal(key, value){
+      var el = document.querySelector('#lab-hud [data-val="' + key + '"]');
+      if(el) el.textContent = String(value);
+    }
+
+    function renderLabHub(data){
+      var sourceEl = document.getElementById('lab-hud-source');
+      if(!data){
+        if(sourceEl) sourceEl.textContent = 'UNREACHABLE';
+        setLabHudLight('db', 'off'); setLabHudLight('repo', 'off'); setLabHudLight('shadow', 'off');
+        return;
+      }
+      if(sourceEl){
+        sourceEl.textContent = data.integration_error ? ('DEGRADED · ' + data.integration_error) : 'LIVE · R&D lab';
+      }
+      var research = data.research || {};
+      var repository = data.repository || {};
+      var shadow = data.shadow || {};
+      setLabHudLight('db', research.database_online ? 'ok' : 'off');
+      setLabHudLight('repo', repository.repo_online ? 'ok' : 'off');
+      setLabHudLight('shadow', shadow.database_online ? 'ok' : 'off');
+      setLabHudVal('repo', Math.round(repository.health_score || 0));
+      setLabHudVal('shadow', (shadow.vehicle && shadow.vehicle.status) ? String(shadow.vehicle.status).toUpperCase() : 'UNAVAILABLE');
+      setLabHudVal('projects', (data.projects || []).length);
+      setLabHudVal('experiments', (research.experiment_summary || {}).total || 0);
+      setLabHudVal('tests', (research.tests || {}).total || 0);
+      setLabHudVal('success', (research.tests || {}).success_rate || 0);
+      setLabHudVal('simruns', (research.simulation || {}).runs || 0);
+    }
+
+    function labHubTick(){
+      var saved = null;
+      try{ saved = localStorage.getItem('shadow_live_url'); }catch(e){}
+      var url = (saved || 'http://127.0.0.1:5000').replace(/\/+$/, '');
+      fetch(url + '/research-development/api/status', { cache: 'no-store' })
+        .then(function(r){ return r.json(); })
+        .then(renderLabHub)
+        .catch(function(){ renderLabHub(null); });
+    }
+
+    function startLabHubPolling(){
+      if(labHubTimer) return;
+      labHubTick();
+      labHubTimer = setInterval(labHubTick, LAB_HUB_POLL_MS);
+    }
+
+    startLabHubPolling(); // runs immediately - this is the home screen's own HUD, on from first paint
+
+    renderSkillTree(); // paints the zeroed/locked state immediately, before any fetch
+
+    // scene renders immediately on load - the room is always there,
+    // visible and draggable, behind the menu card from the first frame.
+    initScene();
+
+    // ---- drone mesh (built once scene exists) ----
+    var drone, restY = 0.05, flyY = 2.3;
+    function buildDrone(){
+      drone = new THREE.Group();
+      var bodyMat = new THREE.MeshStandardMaterial({ color:0x2a2824, roughness:0.55, metalness:0.25 });
+      var body = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.26), bodyMat);
+      drone.add(body);
+      var armMat = new THREE.MeshStandardMaterial({ color:0x2a2824, roughness:0.5 });
+      var rotorMat = new THREE.MeshStandardMaterial({ color:0xc9793d, emissive:0x2a1708, roughness:0.4 });
+      var armPositions = [[0.2,0.2],[-0.2,0.2],[0.2,-0.2],[-0.2,-0.2]];
+      drone.rotorDiscs = [];
+      armPositions.forEach(function(p){
+        var x = p[0], z = p[1];
+        var length = Math.sqrt(x*x + z*z);
+        var theta = Math.atan2(z, x);
+        var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, length, 8), armMat);
+        arm.rotateZ(Math.PI/2);
+        arm.rotateY(-theta);
+        arm.position.set(x/2, 0, z/2);
+        drone.add(arm);
+        var disc = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.012, 20), rotorMat);
+        disc.position.set(x, 0.045, z);
+        drone.add(disc);
+        drone.rotorDiscs.push(disc);
+      });
+      // Shadow's real front camera, mounted on the nose, facing forward -
+      // matches the 640x480@30Hz ~80deg FOV spec from the real model.
+      fpvCamera = new THREE.PerspectiveCamera(80, 1, 0.05, 50);
+      fpvCamera.position.set(0, 0.035, 0.16);
+      fpvCamera.rotation.y = Math.PI;
+      drone.add(fpvCamera);
+      drone.position.set(0, restY, 0);
+      scene.add(drone);
+    }
+
+    // four-wall white room - this is the "go inside, it's a white box" room,
+    // not a sphere. Walls are large enough the camera never reaches them.
+    function buildRoom(){
+      var floorMat = new THREE.MeshStandardMaterial({ color:0xf8f5ef, roughness:0.96, metalness:0 });
+      var floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_HALF*2, ROOM_HALF*2), floorMat);
+      floor.rotation.x = -Math.PI/2; floor.position.y = -0.006;
+      scene.add(floor);
+
+      var wallMat = new THREE.MeshStandardMaterial({ color:0xede7d9, roughness:0.98, metalness:0, side:THREE.DoubleSide });
+      var wallDefs = [
+        { pos:[0, ROOM_WALL_H/2, -ROOM_HALF], rot:[0, 0, 0] },
+        { pos:[0, ROOM_WALL_H/2, ROOM_HALF], rot:[0, Math.PI, 0] },
+        { pos:[-ROOM_HALF, ROOM_WALL_H/2, 0], rot:[0, Math.PI/2, 0] },
+        { pos:[ROOM_HALF, ROOM_WALL_H/2, 0], rot:[0, -Math.PI/2, 0] }
+      ];
+      wallDefs.forEach(function(w){
+        var wall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_HALF*2, ROOM_WALL_H), wallMat);
+        wall.position.set(w.pos[0], w.pos[1], w.pos[2]);
+        wall.rotation.set(w.rot[0], w.rot[1], w.rot[2]);
+        scene.add(wall);
+      });
+    }
+
+    function initScene(){
+      if(renderer) return;
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha:false });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xf2efe8);
+      scene.fog = new THREE.FogExp2(0xf2efe8, 0.026);
+
+      camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xe7e0d0, 1.15));
+      scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+      accentLight = new THREE.PointLight(0xc9793d, 1.1, 40, 2);
+      accentLight.position.set(0, 6, 0);
+      scene.add(accentLight);
+      var rim = new THREE.PointLight(0xffffff, 0.5, 50, 2);
+      rim.position.set(-10, 5, -8);
+      scene.add(rim);
+
+      buildRoom();
+
+      grid = new THREE.GridHelper(ROOM_HALF*2, ROOM_HALF*2, 0xc9bfa9, 0xe3ddce);
+      grid.material.opacity = 0.65; grid.material.transparent = true;
+      scene.add(grid);
+
+      var platGeo = new THREE.CircleGeometry(2.6, 48);
+      var platMat = new THREE.MeshBasicMaterial({ color:0xc9793d, transparent:true, opacity:0.1 });
+      var plat = new THREE.Mesh(platGeo, platMat);
+      plat.rotation.x = -Math.PI/2; plat.position.y = 0.015;
+      scene.add(plat);
+
+      var ringGeo = new THREE.TorusGeometry(1.15, 0.025, 16, 64);
+      var ringMat = new THREE.MeshBasicMaterial({ color:0xa9602a });
+      ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI/2; ring.position.y = 0.03;
+      scene.add(ring);
+
+      var innerGeo = new THREE.TorusGeometry(0.55, 0.012, 16, 48);
+      var inner = new THREE.Mesh(innerGeo, new THREE.MeshBasicMaterial({ color:0xcfc8b8 }));
+      inner.rotation.x = -Math.PI/2; inner.position.y = 0.03;
+      scene.add(inner);
+
+      buildDrone();
+      initPhysics();
+
+      resize();
+      window.addEventListener('resize', resize);
+
+      canvas.addEventListener('pointerdown', function(e){ dragging = true; lastX = e.clientX; lastY = e.clientY; lastInteract = Date.now(); });
+      window.addEventListener('pointerup', function(){ dragging = false; });
+      window.addEventListener('pointermove', function(e){
+        if(!dragging) return;
+        var dx = e.clientX - lastX, dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        sph.phi -= dx * 0.0045;
+        sph.theta = Math.min(Math.max(sph.theta - dy * 0.0045, 0.35), 1.45);
+        lastInteract = Date.now();
+      });
+      canvas.addEventListener('wheel', function(e){
+        e.preventDefault();
+        sph.radius = Math.min(Math.max(sph.radius + e.deltaY * 0.01, 4), 14);
+        lastInteract = Date.now();
+      }, { passive:false });
+
+      if(!reduce) animate();
+      else { updateCamera(); renderScene(); }
+    }
+
+    function resize(){
+      if(!renderer) return;
+      var w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w/h; camera.updateProjectionMatrix();
+    }
+
+    function updateCamera(){
+      if(drone && isFinite(drone.position.x) && isFinite(drone.position.y) && isFinite(drone.position.z)){
+        camTarget.x += (drone.position.x - camTarget.x) * 0.06;
+        camTarget.y += ((drone.position.y + 0.5) - camTarget.y) * 0.06;
+        camTarget.z += (drone.position.z - camTarget.z) * 0.06;
+      }
+      // Self-healing: if camTarget is ever pushed to a non-finite value (a physics
+      // blow-up in the sandbox, say), snap it back to the room's center instead of
+      // feeding NaN into the camera matrix, which renders nothing at all.
+      if(!isFinite(camTarget.x) || !isFinite(camTarget.y) || !isFinite(camTarget.z)){
+        camTarget.set(0, 0.55, 0);
+      }
+      var x = sph.radius * Math.sin(sph.theta) * Math.sin(sph.phi);
+      var y = sph.radius * Math.cos(sph.theta);
+      var z = sph.radius * Math.sin(sph.theta) * Math.cos(sph.phi);
+      // Same relative framing as before this camera tracked anything: the camera
+      // sits 0.05 above whatever point it's looking at.
+      camera.position.set(camTarget.x + x, camTarget.y + y + 0.05, camTarget.z + z);
+      camera.lookAt(camTarget.x, camTarget.y, camTarget.z);
+    }
+
+    // smooth dolly in/out - used for "stepping into" and "stepping out of"
+    // the simulation, instead of a hard camera cut.
+    function tweenCamera(toRadius, toTheta, ms){
+      var fromRadius = sph.radius, fromTheta = sph.theta;
+      var start = null;
+      function step(ts){
+        if(!start) start = ts;
+        var t = Math.min((ts - start) / ms, 1);
+        var eased = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+        sph.radius = fromRadius + (toRadius - fromRadius) * eased;
+        sph.theta = fromTheta + (toTheta - fromTheta) * eased;
+        if(t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    var rotorsSpinning = false;
+    function animate(){
+      requestAnimationFrame(animate);
+      if(ring) ring.rotation.z += 0.0025;
+
+      if(live.enabled){
+        // Pose and per-rotor spin both come from real telemetry here -
+        // the generic fixed-rate spin below is for the scripted
+        // demo/sandbox only, so it's skipped entirely in this branch.
+        updateLiveFrame();
+      } else if(sandboxMode && physicsReady){
+        if(drone && rotorsSpinning){ drone.rotorDiscs.forEach(function(d){ d.rotation.y += 1.1; }); }
+        var fx = (Math.random() * 2 - 1) * sandbox.wind;
+        var fz = (Math.random() * 2 - 1) * sandbox.wind;
+        var fy = manualHold ? sandbox.mass * 9.82 * 1.8 : 0;
+        droneBody.applyForce(new CANNON.Vec3(fx, fy, fz), droneBody.position);
+        world.step(1/60);
+        if(droneBody.position.y < 0.02){ droneBody.position.y = 0.02; droneBody.velocity.y = Math.max(0, droneBody.velocity.y); }
+        drone.position.copy(droneBody.position);
+      } else {
+        if(drone && rotorsSpinning){ drone.rotorDiscs.forEach(function(d){ d.rotation.y += 1.1; }); }
+        if(drone && !rotorsSpinning && !liveTraining){
+          drone.position.y = restY + Math.sin(Date.now() * 0.0012) * 0.05;
+        }
+      }
+      updateCamera();
+      renderScene();
+    }
+
+    // ---- training playback (scripted demo of tonight's real Gate 2 sequence) ----
+    var training = false;
+    function setTele(mode, armed, alt){
+      document.getElementById('tele-mode').textContent = mode;
+      var armedEl = document.getElementById('tele-armed');
+      armedEl.textContent = armed ? 'YES' : 'NO';
+      armedEl.classList.toggle('armed', armed);
+      document.getElementById('tele-alt').textContent = alt.toFixed(1) + ' m';
+    }
+    function openPanel(id){
+      var p = document.getElementById(id);
+      p.classList.add('open');
+      var b = document.querySelector('.dock-btn[data-panel="'+id+'"]');
+      if(b) b.classList.add('active');
+    }
+    function tweenDroneY(from, to, ms, done){
+      var start = null;
+      function step(ts){
+        if(!start) start = ts;
+        var t = Math.min((ts - start) / ms, 1);
+        var eased = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+        drone.position.y = from + (to - from) * eased;
+        if(t < 1) requestAnimationFrame(step); else if(done) done();
+      }
+      requestAnimationFrame(step);
+    }
+    function trainShadow(){
+      if(training || !entered) return;
+      training = true;
+      var btn = document.getElementById('btn-train');
+      btn.setAttribute('disabled', 'true');
+      btn.textContent = 'TRAINING...';
+      openPanel('panel-telemetry');
+      document.getElementById('tele-note').textContent = 'Playing back: arm → takeoff 5m → hover → land (tonight’s real Gate 2 sequence).';
+
+      setTele('GUIDED', false, 0);
+      setTimeout(function(){
+        setTele('GUIDED', true, 0);
+        rotorsSpinning = true;
+        setTimeout(function(){
+          setTele('TAKEOFF', true, 0);
+          var t0 = Date.now();
+          var climbMs = 2600;
+          (function climbTick(){
+            var p = Math.min((Date.now()-t0)/climbMs, 1);
+            setTele('TAKEOFF', true, 5 * p);
+            if(p < 1) requestAnimationFrame(climbTick);
+          })();
+          tweenDroneY(restY, flyY, climbMs, function(){
+            setTele('GUIDED', true, 5.0);
+            setTimeout(function(){
+              setTele('LAND', true, 5.0);
+              var t1 = Date.now();
+              var descMs = 2200;
+              (function descTick(){
+                var p = Math.min((Date.now()-t1)/descMs, 1);
+                setTele('LAND', true, 5 - 5*p);
+                if(p < 1) requestAnimationFrame(descTick);
+              })();
+              tweenDroneY(flyY, restY, descMs, function(){
+                setTele('LAND', false, 0);
+                rotorsSpinning = false;
+                // Deliberately does NOT touch the Skill Tree panel - this is
+                // a scripted playback of tonight's real Gate 2 sequence, not
+                // a real training run, and the Skill Tree only ever shows
+                // real progress.json data (see skillProgress above).
+                document.getElementById('tele-note').textContent =
+                  'Playback complete. This replayed tonight’s real Gate 2 flight - it doesn’t run a real training pass itself, so it won’t change the Skill Tree. That only moves from actual run_skill.py passes on your machine.';
+                btn.removeAttribute('disabled');
+                btn.textContent = 'TRAIN SHADOW';
+                training = false;
+              });
+            }, 1400);
+          });
+        }, 650);
+      }, 700);
+    }
+
+    // ---- digitize transition: the room doesn't just fade, it "renders in" ----
+    function runDigitize(cb){
+      var el = document.getElementById('digitize');
+      var lines = Array.prototype.slice.call(document.querySelectorAll('.d-line'));
+      lines.forEach(function(l){ l.classList.remove('show', 'done'); });
+      el.classList.add('show');
+      var delays = [0, 420, 820, 1220];
+      lines.forEach(function(l, i){
+        setTimeout(function(){
+          l.classList.add('show');
+          if(i === lines.length - 1) l.classList.add('done');
+        }, delays[i]);
+      });
+      setTimeout(function(){
+        el.classList.remove('show');
+        if(cb) cb();
+      }, 1750);
+    }
+
+    // ---- enter / exit ----
+    var entered = false;
+    document.getElementById('btn-enter').addEventListener('click', function(){
+      if(entered) return;
+      document.getElementById('roomname').textContent = selectedWorld.label;
+      if(grid) grid.material.color = hueColor(selectedWorld.hue, 0.55, 0.42);
+      titleEl.classList.add('leaving');
+      runDigitize(function(){
+        hudEl.classList.add('live');
+        entered = true;
+        tweenCamera(6.5, 1.15, 1100);
+        var hint = document.getElementById('draghint');
+        hint.style.opacity = '1';
+        setTimeout(function(){ hint.style.opacity = '0'; }, 4200);
+        var toast = document.getElementById('hint-toast');
+        setTimeout(function(){ toast.classList.add('show'); }, 900);
+        setTimeout(function(){ toast.classList.remove('show'); }, 5200);
+        startSkillsPolling(); // independent of GO LIVE - skill-tree state isn't flight telemetry
+      });
+    });
+
+    document.getElementById('exitbtn').addEventListener('click', function(){
+      hudEl.classList.remove('live');
+      titleEl.classList.remove('leaving');
+      entered = false;
+      tweenCamera(11, 1.05, 900);
+      Array.prototype.forEach.call(document.querySelectorAll('.flpanel'), function(p){ p.classList.remove('open'); });
+      Array.prototype.forEach.call(document.querySelectorAll('.dock-btn'), function(b){ b.classList.remove('active'); });
+      if(live.enabled) setLiveMode(false); // stop polling once back at the menu
+      stopSkillsPolling();
+    });
+
+    // ---- live telemetry: URL persistence (per-viewer only) + toggle ----
+    (function(){
+      var urlEl = document.getElementById('live-url');
+      if(!urlEl) return;
+      try{
+        var saved = localStorage.getItem('shadow_live_url');
+        if(saved) urlEl.value = saved;
+      }catch(e){}
+      urlEl.addEventListener('change', function(e){
+        try{ localStorage.setItem('shadow_live_url', e.target.value); }catch(e2){}
+      });
+    })();
+    var liveToggleBtn = document.getElementById('btn-live-toggle');
+    if(liveToggleBtn){
+      liveToggleBtn.addEventListener('click', function(){
+        if(!entered) return;
+        setLiveMode(!live.enabled);
+      });
+    }
+
+    // ---- dock panel toggles ----
+    function setSandboxMode(on){
+      sandboxMode = on;
+      if(physicsReady){
+        droneBody.position.set(0, restY, 0);
+        droneBody.velocity.set(0, 0, 0);
+      }
+      if(!on) manualHold = false;
+    }
+    // Test Bench and the Training Lab's live run both drive the one shared droneBody -
+    // they can't run at the same time. Closing one is how the other gets the body back.
+    function closeTestBench(){
+      var panel = document.getElementById('panel-testbench');
+      panel.classList.remove('open');
+      var dockBtn = document.querySelector('.dock-btn[data-panel="panel-testbench"]');
+      if(dockBtn) dockBtn.classList.remove('active');
+      setSandboxMode(false);
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.dock-btn[data-panel]'), function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.dataset.panel;
+        if(id === 'panel-testbench' && liveTraining) return; // body is busy training right now
+        var panel = document.getElementById(id);
+        var willOpen = !panel.classList.contains('open');
+        panel.classList.toggle('open', willOpen);
+        btn.classList.toggle('active', willOpen);
+        if(id === 'panel-testbench') setSandboxMode(willOpen);
+      });
+    });
+    document.getElementById('btn-train').addEventListener('click', trainShadow);
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-close]'), function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.dataset.close;
+        document.getElementById(id).classList.remove('open');
+        var dockBtn = document.querySelector('.dock-btn[data-panel="'+id+'"]');
+        if(dockBtn) dockBtn.classList.remove('active');
+        if(id === 'panel-testbench') setSandboxMode(false);
+      });
+    });
+
+    // ---- Training Lab: live training button ----
+    document.getElementById('btn-live-train').addEventListener('click', function(){
+      if(sandboxMode) closeTestBench(); // hand the shared drone body back before training claims it
+      runTrainingBatch(25);
+    });
+
+    // ---- Test Bench: sliders + hold-to-thrust + reset ----
+    var holdBtn = document.getElementById('btn-hold-thrust');
+    function setHold(on){
+      if(liveTraining) return;
+      manualHold = on;
+      rotorsSpinning = on;
+      holdBtn.classList.toggle('holding', on);
+    }
+    holdBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); setHold(true); });
+    window.addEventListener('pointerup', function(){ setHold(false); });
+    holdBtn.addEventListener('pointerleave', function(){ /* keep holding until pointerup, matches a real hold-to-fly control */ });
+
+    // Mass/Wind/Noise live only on the Test Bench panel now (World Settings dropped
+    // its editable copies - Shadow's real tuned values don't need a live-tweak twin).
+    function setSandboxMass(v){
+      sandbox.mass = v;
+      document.getElementById('sld-mass').value = v;
+      document.getElementById('val-mass').textContent = v.toFixed(2) + ' kg';
+      if(physicsReady){ droneBody.mass = sandbox.mass; droneBody.updateMassProperties(); }
+    }
+    function setSandboxWind(v){
+      sandbox.wind = v;
+      document.getElementById('sld-wind').value = v;
+      document.getElementById('val-wind').textContent = v.toFixed(1) + ' N';
+    }
+    function setSandboxNoise(v){
+      sandbox.noise = v;
+      document.getElementById('sld-noise').value = v;
+      document.getElementById('val-noise').textContent = v.toFixed(1) + ' N';
+    }
+    document.getElementById('sld-mass').addEventListener('input', function(e){ setSandboxMass(parseFloat(e.target.value)); });
+    document.getElementById('sld-wind').addEventListener('input', function(e){ setSandboxWind(parseFloat(e.target.value)); });
+    document.getElementById('sld-noise').addEventListener('input', function(e){ setSandboxNoise(parseFloat(e.target.value)); });
+    document.getElementById('btn-reset-sandbox').addEventListener('click', function(){
+      if(!physicsReady) return;
+      droneBody.position.set(0, restY, 0);
+      droneBody.velocity.set(0, 0, 0);
+    });
+
+    // ---- draggable panels: grab any panel by its header, move it anywhere ----
+    function makeDraggable(panel){
+      var head = panel.querySelector('.flpanel-head');
+      if(!head) return;
+      var active = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+      head.addEventListener('pointerdown', function(e){
+        if(e.target.closest('.flpanel-close')) return;
+        var rect = panel.getBoundingClientRect();
+        var parent = panel.offsetParent;
+        var parentRect = parent ? parent.getBoundingClientRect() : { left:0, top:0 };
+        startLeft = rect.left - parentRect.left;
+        startTop = rect.top - parentRect.top;
+        startX = e.clientX; startY = e.clientY;
+        // first grab: freeze the panel's current on-screen spot as plain left/top,
+        // replacing whatever centering transform or right-anchor it used before.
+        panel.style.transform = 'none';
+        panel.style.right = 'auto';
+        panel.style.left = startLeft + 'px';
+        panel.style.top = startTop + 'px';
+        active = true;
+        head.setPointerCapture(e.pointerId);
+      });
+      head.addEventListener('pointermove', function(e){
+        if(!active) return;
+        var dx = e.clientX - startX, dy = e.clientY - startY;
+        var newLeft = Math.max(-panel.offsetWidth + 60, Math.min(startLeft + dx, window.innerWidth - 60));
+        var newTop = Math.max(0, Math.min(startTop + dy, window.innerHeight - 50));
+        panel.style.left = newLeft + 'px';
+        panel.style.top = newTop + 'px';
+      });
+      function release(e){ active = false; }
+      head.addEventListener('pointerup', release);
+      head.addEventListener('pointercancel', release);
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.flpanel'), makeDraggable);
+
+    // ---- FPV camera: a second camera mounted on Shadow's nose, toggle which one is big ----
+    var fpvPrimary = false;
+    var FPV_PIP_W = 356, FPV_PIP_H = 244, FPV_PIP_MARGIN = 16;
+    function updatePipLabel(){
+      var label = document.getElementById('pip-label');
+      if(label) label.textContent = fpvPrimary ? 'WORLD' : 'FPV';
+    }
+    var reportedRenderError = false;
+    function safeRender(cam, label){
+      try{
+        renderer.render(scene, cam);
+      }catch(e){
+        // One camera's render failing shouldn't silently blank the whole canvas -
+        // log it once so it's actually diagnosable instead of just "seeing nothing."
+        if(!reportedRenderError){ reportedRenderError = true; console.error('[Simulation Bay] render failed for ' + label + ':', e); }
+      }
+    }
+    function renderScene(){
+      var w = renderer.domElement.width, h = renderer.domElement.height;
+      if(!w || !h) return;
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, w, h);
+      var bigCam = fpvPrimary ? fpvCamera : camera;
+      var miniCam = fpvPrimary ? camera : fpvCamera;
+      bigCam.aspect = w / h;
+      bigCam.updateProjectionMatrix();
+      safeRender(bigCam, fpvPrimary ? 'fpvCamera (big)' : 'camera (big)');
+
+      var ratio = renderer.getPixelRatio();
+      var pipW = FPV_PIP_W * ratio, pipH = FPV_PIP_H * ratio;
+      var pipX = w - pipW - FPV_PIP_MARGIN * ratio;
+      var pipY = h - pipH - FPV_PIP_MARGIN * ratio;
+      miniCam.aspect = FPV_PIP_W / FPV_PIP_H;
+      miniCam.updateProjectionMatrix();
+      renderer.setScissorTest(true);
+      renderer.setScissor(pipX, pipY, pipW, pipH);
+      renderer.setViewport(pipX, pipY, pipW, pipH);
+      safeRender(miniCam, fpvPrimary ? 'camera (mini)' : 'fpvCamera (mini)');
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, w, h);
+    }
+    var fpvToggleBtn = document.getElementById('btn-fpv-toggle');
+    if(fpvToggleBtn){
+      fpvToggleBtn.addEventListener('click', function(){
+        fpvPrimary = !fpvPrimary;
+        updatePipLabel();
+      });
+    }
+    updatePipLabel();
+  }catch(e){
+    var t = document.getElementById('title');
+    if(t){
+      var n = document.createElement('div');
+      n.style.cssText = 'margin-top:20px;font-family:monospace;font-size:11px;color:#dba349;';
+      n.textContent = '3D stage failed to load in this viewer — menu still works.';
+      t.appendChild(n);
+    }
+  }
+})();
+</script>
+
+</body></html>

@@ -4,6 +4,232 @@
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/research_development.css') }}">
+<style>
+/* Simulation Bay redesign (Oct 17) - full-bleed Gazebo/noVNC view with a
+   floating telemetry HUD and an FPV corner panel, replacing the old
+   side-by-side two-pane layout. Scoped locally (bay- prefix) and written
+   against var(--lab-muted, ...) fallbacks since research_development.css
+   itself wasn't on hand to read while writing this - if the real
+   --lab-muted/etc tokens exist they'll be picked up, otherwise the
+   fallback values apply. Worth a visual check once this is live. */
+.bay-render{
+    position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 420px;
+    border-radius: 12px; overflow: hidden; background: #060809;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.bay-iframe{ position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+.bay-hud{
+    position: absolute; top: 16px; left: 16px; z-index: 2; max-width: 200px;
+    background: rgba(10,15,16,0.72); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+    padding: 12px 14px; color: #d9e6e4;
+}
+.bay-hud-title{
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--lab-muted, #6f8582); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+    cursor: grab; touch-action: none; user-select: none;
+}
+.bay-hud-title:active{ cursor: grabbing; }
+.bay-hud.bay-dragging{ transition: none !important; }
+.bay-fpv.bay-dragging{ transition: none !important; }
+.bay-dot{ width: 6px; height: 6px; border-radius: 50%; background: #49f2c2; box-shadow: 0 0 6px #49f2c2; display: inline-block; }
+.bay-dot.off{ background: #ff5d6c; box-shadow: 0 0 6px #ff5d6c; }
+.bay-hud-row{ display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; font-size: 12px; }
+.bay-hud-row span{ color: var(--lab-muted, #6f8582); font-size: 11px; }
+.bay-hud-row strong{ font-weight: 600; }
+.bay-hud-pending{ color: var(--lab-muted, #6f8582); font-style: italic; font-size: 11px; }
+.bay-fpv{
+    /* Oct 17 (later): Zer0 asked for ~2x after seeing it live - 260px
+       was too small to actually read the feed. Drag bounds/placement JS
+       below reads panel.el.offsetWidth/offsetHeight at runtime, so this
+       needed no other change - the clamp math already adapts to whatever
+       size the panel actually is. */
+    position: absolute; top: 16px; right: 16px; z-index: 2;
+    width: 520px; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden;
+    background: #030404; border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+.bay-fpv-header{
+    position: absolute; top: 0; left: 0; right: 0; z-index: 1;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--lab-muted, #6f8582); background: linear-gradient(to bottom, rgba(0,0,0,.6), transparent);
+    cursor: grab; touch-action: none; user-select: none;
+}
+.bay-fpv-header:active{ cursor: grabbing; }
+.bay-fpv-live{ display: flex; align-items: center; gap: 5px; color: #ff5d6c; }
+.bay-fpv-live .bay-dot{ background: #ff5d6c; box-shadow: 0 0 6px #ff5d6c; }
+.bay-fpv-img{ width: 100%; height: 100%; object-fit: cover; }
+.bay-fpv-empty{
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 0 18px; font-size: 11px; line-height: 1.5;
+    color: var(--lab-muted, #6f8582);
+}
+/* Mission Control floating panel (Oct 25) - Zer0 asked for the button
+   row to stop being "stuck on top" of a full-bleed, scroll-past-it-to-
+   reach view and instead behave like bay-hud/bay-fpv: a movable panel
+   living inside the render stage itself, with its own collapse toggle
+   so it can be tucked away entirely once a mission is already running
+   and nothing needs clicking for a while. Reuses the exact same
+   place()/makeDraggable() drag code as the other two panels (third
+   entry in the `panels` array below) rather than writing new drag
+   logic - only the collapse behaviour is new. Internals of
+   .hero-actions (button/select IDs, click-handler wiring) are
+   untouched; this only changes where that block visually lives. */
+.bay-controls{
+    position: absolute; left: 3%; top: 70%; z-index: 2; width: 360px; max-width: 90%;
+    background: rgba(10,15,16,0.82); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+    color: #d9e6e4; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+.bay-controls-header{
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--lab-muted, #6f8582);
+    cursor: grab; touch-action: none; user-select: none;
+}
+.bay-controls-header:active{ cursor: grabbing; }
+.bay-controls.bay-dragging{ transition: none !important; }
+.bay-controls-toggle{
+    appearance: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+    background: rgba(255,255,255,0.06); color: #d9e6e4; width: 22px; height: 22px;
+    font-size: 13px; line-height: 1; cursor: pointer; flex-shrink: 0;
+}
+.bay-controls-toggle:hover{ background: rgba(255,255,255,0.14); }
+.bay-controls-body{
+    padding: 4px 12px 12px; max-height: 60vh; overflow-y: auto;
+}
+.bay-controls-body .hero-actions{ margin-bottom: 0 !important; }
+.bay-controls.collapsed .bay-controls-body{ display: none; }
+/* Mind decision-log panel (Oct 17, later) - a plain scrolling transcript
+   under the Gazebo view, polling /simulation/mind-log. Deliberately NOT
+   another floating bay-* overlay panel - this one wants to be readable
+   at a glance during a demo, not fought over drag space with the HUD/FPV. */
+.mind-panel{
+    margin-top: 12px; border-radius: 12px; overflow: hidden;
+    background: rgba(10,15,16,0.55); border: 1px solid rgba(255,255,255,0.08);
+}
+.mind-panel-header{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--lab-muted, #6f8582); border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.mind-panel-status{ color: #49f2c2; }
+.mind-panel-body{
+    max-height: 180px; overflow-y: auto; padding: 8px 14px; font-size: 12px;
+    display: flex; flex-direction: column; gap: 4px;
+}
+.mind-panel-empty{ color: var(--lab-muted, #6f8582); font-style: italic; font-size: 11px; margin: 4px 0; }
+.mind-event{ display: flex; gap: 10px; line-height: 1.4; }
+.mind-event-time{ color: var(--lab-muted, #6f8582); font-size: 10px; white-space: nowrap; padding-top: 2px; }
+.mind-event-error .mind-event-summary{ color: #ff5d6c; }
+.mind-event-decision .mind-event-summary{ color: #d9e6e4; }
+.mind-event-result .mind-event-summary{ color: #49f2c2; }
+/* Drone Attributes scoring sheet (Oct 25, 2026) - the gamified "ability
+   attribute" sheet Zer0 asked for, same card idiom as .mind-panel above
+   rather than another bay-* overlay (this is meant to be read, not
+   fought over drag space during a live mission). Polls
+   /simulation/attributes - see simulation_control.py's attributes()
+   route for what each score actually measures and where its number
+   comes from (real on-disk sources, not hand-set). */
+.attr-panel{
+    margin-top: 12px; border-radius: 12px; overflow: hidden;
+    background: rgba(10,15,16,0.55); border: 1px solid rgba(255,255,255,0.08);
+}
+.attr-panel-header{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--lab-muted, #6f8582); border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.attr-panel-body{ padding: 12px 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+/* Drone Attributes radar chart (Oct 25, 2026, even later) - replaces
+   the vertical bar-row list above with an RPG-style ability-score
+   polygon, one axis per attribute, per Zer0's own ask. Deliberately a
+   single-series chart (Shadow's own current scores - there's only one
+   drone on this sheet), so no legend box or categorical palette is
+   needed; the panel title already says what this is, and the one
+   series uses the dashboard's existing accent color throughout rather
+   than introducing a second hue with no identity question to answer.
+   Text (names/scores/detail) stays in the existing text tokens, never
+   the series color, so it still reads correctly if the accent ever
+   changes. See the attribute-panel JS below for how the SVG itself
+   gets built - genuinely dynamic (axis count/order/scores), not a
+   static drawing. */
+.attr-radar-wrap{ width: 100%; max-width: 280px; }
+.attr-radar-wrap svg{ width: 100%; height: auto; display: block; overflow: visible; }
+.attr-legend{ width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+.attr-legend-row{ display: flex; flex-direction: column; gap: 3px; }
+.attr-legend-top{ display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
+.attr-legend-name{ letter-spacing: .06em; text-transform: uppercase; font-size: 10.5px; color: #d9e6e4; }
+.attr-legend-score{ font-weight: 600; color: #49f2c2; }
+.attr-legend-row.unwired .attr-legend-score{ color: var(--lab-muted, #6f8582); }
+.attr-legend-row.unwired .attr-legend-name{ color: var(--lab-muted, #6f8582); }
+.attr-legend-detail{ font-size: 10.5px; color: var(--lab-muted, #6f8582); line-height: 1.4; }
+/* Training panel, now floating (Oct 25, 2026, even later) - Zer0 asked
+   for it to behave "just like Mission Control": movable AND
+   collapsible, living inside the render stage rather than as a static
+   card in the page flow below it. Reuses the exact same
+   place()/makeDraggable() drag code as the other three overlay panels
+   (fourth entry in the `panels` array below) and a near-identical
+   collapse-toggle pattern to initBayControlsToggle() - its own
+   function and localStorage key, rather than generalizing that one, so
+   the already-working Mission Control toggle is never touched by this
+   change. The task-card content itself (.training-task and friends
+   below) and the JS that renders it are completely unchanged - only
+   where this panel visually lives moved. */
+.bay-training{
+    position: absolute; left: 36%; top: 68%; z-index: 2; width: 400px; max-width: 92%;
+    background: rgba(10,15,16,0.82); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+    color: #d9e6e4; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+.bay-training-header{
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--lab-muted, #6f8582);
+    cursor: grab; touch-action: none; user-select: none;
+}
+.bay-training-header:active{ cursor: grabbing; }
+.bay-training.bay-dragging{ transition: none !important; }
+.bay-training-header-right{ display: flex; align-items: center; gap: 8px; }
+.bay-training-toggle{
+    appearance: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+    background: rgba(255,255,255,0.06); color: #d9e6e4; width: 22px; height: 22px;
+    font-size: 13px; line-height: 1; cursor: pointer; flex-shrink: 0;
+}
+.bay-training-toggle:hover{ background: rgba(255,255,255,0.14); }
+.bay-training.collapsed .training-panel-body{ display: none; }
+.training-panel-body{ padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; max-height: 56vh; overflow-y: auto; }
+.training-task{
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.training-task-top{ display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.training-task-name{ font-size: 12.5px; font-weight: 600; color: #d9e6e4; }
+.training-task-tags{ display: flex; gap: 5px; flex-wrap: wrap; }
+.training-task-tag{
+    font-size: 9px; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 10px; background: rgba(73,242,194,0.12); color: #49f2c2;
+}
+.training-task-desc{ font-size: 10.5px; color: var(--lab-muted, #6f8582); line-height: 1.4; }
+.training-task-stats{ display: flex; align-items: center; gap: 8px; font-size: 10.5px; }
+.training-task-stat-pct{ font-weight: 600; color: #49f2c2; }
+.training-task-stat-pct.untrained{ color: var(--lab-muted, #6f8582); }
+.training-task-detail{ font-size: 10px; color: var(--lab-muted, #6f8582); }
+.training-task-bottom{ display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.training-task-start{
+    padding: 6px 12px; font-size: 11px; border-radius: 6px; cursor: pointer;
+    background: #1c3b36; color: #49f2c2; border: 1px solid rgba(73,242,194,0.3);
+}
+.training-task-start:disabled{ opacity: 0.5; cursor: default; }
+.training-task-badge{
+    font-size: 9.5px; padding: 2px 6px; border-radius: 10px;
+    background: rgba(255,255,255,0.08); color: var(--lab-muted, #6f8582);
+}
+.training-task-badge.trained{ background: rgba(73,242,194,0.12); color: #49f2c2; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -229,46 +455,117 @@
                     <span class="bay-state">{{ "READY" if rnd.repository.simulation_files >= 0 else "OFFLINE" }}</span>
                 </div>
 
-                <div class="hero-actions" style="margin-bottom: 14px;">
-                    <button type="button" id="sim-start-btn">Start Simulation</button>
-                    <select id="sim-mission-select" style="padding: 8px;"></select>
-                    <button type="button" id="sim-mission-btn">Run Mission</button>
-                    <button type="button" id="sim-stop-btn">Stop Simulation</button>
-                    <span id="sim-action-status" style="align-self: center; color: var(--lab-muted); font-size: .8rem;"></span>
-                </div>
+                <section class="bay-render">
+                    <iframe src="http://localhost:6080/vnc.html?autoconnect=true&resize=scale"
+                            class="bay-iframe" title="Gazebo live view"></iframe>
 
-                <section class="simulation-console" style="grid-template-columns: 2fr 1fr;">
-                    <article class="simulation-viewport">
-                        <div class="viewport-toolbar"><span>GAZEBO WORLD VIEW</span><span>LIVE DESKTOP</span></div>
-                        <div class="viewport-body" style="min-height: 550px;">
-                            <iframe src="http://localhost:6080/vnc.html?autoconnect=true&resize=scale"
-                                    style="width: 100%; height: 550px; border: none;"
-                                    title="Gazebo live view"></iframe>
+                    <div class="bay-training" id="bay-training">
+                        <div class="bay-training-header">
+                            <span>Training</span>
+                            <div class="bay-training-header-right">
+                                <span id="training-panel-status" style="color: var(--lab-muted, #6f8582); font-size: 10px;">loading…</span>
+                                <button type="button" class="bay-training-toggle" id="bay-training-toggle" title="Collapse/expand">&#8211;</button>
+                            </div>
                         </div>
-                    </article>
-                    <article class="simulation-viewport">
-                        <div class="viewport-toolbar"><span>SIMULATION VIEWPORT</span><span>ROS / GAZEBO</span></div>
-                        <div class="viewport-body">
-                            {% if live_sim %}
-                            <img src="{{ camera_stream_url }}" alt="Shadow live camera feed"
-                                 style="position: relative; z-index: 2; max-width: 100%; max-height: 100%;">
-                            {% else %}
-                            <div class="sim-grid"></div><div class="sim-object">◇</div>
-                            <div class="viewport-message"><strong>Simulation feed slot</strong><span>Connect the ROS/Gazebo bridge here.</span></div>
-                            {% endif %}
+                        <div class="training-panel-body" id="training-panel-body">
+                            <p class="mind-panel-empty">Loading…</p>
                         </div>
-                    </article>
-                    <aside class="simulation-stats">
-                        <div><span>Total runs</span><strong>{{ rnd.research.simulation.runs }}</strong></div>
-                        <div><span>Completed</span><strong>{{ rnd.research.simulation.completed_runs }}</strong></div>
-                        <div><span>Telemetry samples</span><strong>{{ rnd.research.simulation.telemetry_samples }}</strong></div>
-                        <div><span>Repository files</span><strong>{{ rnd.repository.simulation_files }}</strong></div>
+                    </div>
+
+                    <div class="bay-controls" id="bay-controls">
+                        <div class="bay-controls-header">
+                            <span>Mission Control</span>
+                            <button type="button" class="bay-controls-toggle" id="bay-controls-toggle" title="Collapse/expand">&#8211;</button>
+                        </div>
+                        <div class="bay-controls-body" id="bay-controls-body">
+                        <div class="hero-actions" style="margin-bottom: 0;">
+                            <select id="sim-world-select" style="padding: 8px;" title="shadow_runway is the only world ported to the new ArduPilot/Gazebo Harmonic stack so far.">
+                                <option value="shadow_runway">World: Shadow Runway</option>
+                            </select>
+                            <button type="button" id="sim-start-btn">Start Simulation</button>
+                            <select id="sim-mission-select" style="padding: 8px;" title="Pick which mission the Run Mission button launches.">
+                                <option value="flight_smoke">Mission: Flight Skills Smoke Test</option>
+                                <option value="deliver_payload">Mission: Deliver Payload (search &amp; pickup)</option>
+                                <option value="learned_flight">Mission: Learned Flight (trained policy)</option>
+                            </select>
+                            <button type="button" id="sim-mission-btn" title="Flight Skills Smoke Test runs the proven arm/takeoff/go_to/land sequence through run_skill.py. Deliver Payload runs the real search-and-deliver mission (shadow/skills/deliver_payload.py) - true visual search over shadow_runway's 5 payload props, lock-on, pickup (despawn), fly to the delivery pad, drop-off (respawn), land. Learned Flight (shadow/skills/learned_flight.py) is flown by a trained PPO checkpoint's own forward pass instead of hand-coded control math - takes off, then races the same six-point waypoint circuit agility training uses, with the same geofence/altitude safety net every other mission flies under. Needs a completed training run's checkpoint to exist first. Either way: needs a live SITL+Gazebo session already running (Start Simulation first).">Run Mission</button>
+                            <label style="display:inline-flex;align-items:center;gap:4px;font-size:.78rem;color:var(--lab-muted,#6f8582);" title="Logs what the Mind would choose without actually running the skill. Try this first.">
+                                <input type="checkbox" id="sim-mind-dryrun" checked> dry run
+                            </label>
+                            <button type="button" id="sim-mind-btn" title="The Mind - a bounded LLM decision loop that picks among Shadow's already-proven skills (arm, takeoff, go_to, land - hover is excluded, it isn't proven yet) and runs them for real through run_skill.py. Needs ANTHROPIC_API_KEY set on the machine and a live SITL+Gazebo session for anything beyond dry run to do something meaningful.">Run Mind</button>
+                            <button type="button" id="sim-autotune-btn" title="Not yet fixed for the ArduPilot/Harmonic migration - still targets the retired PX4-era autotune_hover.py. Clicking this won't do anything useful right now.">Run PID Autotune</button>
+                            <button type="button" id="sim-restart-view-btn" title="Not yet fixed for the ArduPilot/Harmonic migration - still targets Gazebo Classic's gzserver/gzclient split. Clicking this won't do anything useful right now; use Stop + Start Simulation instead.">Restart World View</button>
+                            <button type="button" id="sim-stop-btn">Stop Simulation</button>
+                            <span id="sim-action-status" style="align-self: center; color: var(--lab-muted); font-size: .8rem;"></span>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="bay-hud" id="bay-hud">
+                        <div class="bay-hud-title">
+                            <span class="bay-dot {{ '' if rnd.shadow.database_online else 'off' }}" id="bay-hud-dot"></span>
+                            SHADOW / TELEMETRY
+                        </div>
+                        <div class="bay-hud-row"><span>LINK</span><strong id="bay-hud-link">{{ rnd.shadow.vehicle.status|upper }}</strong></div>
+                        <div id="bay-hud-dynamic">
                         {% if live_sim %}
-                        <div><span>Live flight mode</span><strong>{{ live_sim.flight_mode }}</strong></div>
-                        <div><span>Live battery</span><strong>{{ "%.0f"|format(live_sim.battery_percentage or 0) }}%</strong></div>
-                        <div><span>Live altitude</span><strong>{{ "%.2f"|format(live_sim.altitude or 0) }} m</strong></div>
+                        <!-- Oct 24 (later): these three rows match telemetry_publisher.py's
+                             REAL output schema (connected/armed/mode, odometry when MAVROS
+                             has started publishing it) - the old MODE/ALT/BATT rows referenced
+                             live_sim.flight_mode/altitude/battery_percentage, none of which
+                             that script has ever written (battery isn't even subscribed to
+                             yet - no /mavros/battery topic wired up). Those fields silently
+                             evaluated to nothing/0 the one time get_shadow() was fixed to
+                             actually return live data, instead of visibly working. -->
+                        <div class="bay-hud-row"><span>MODE</span><strong>{{ live_sim.mode }}</strong></div>
+                        <div class="bay-hud-row"><span>ARMED</span><strong>{{ "YES" if live_sim.armed else "NO" }}</strong></div>
+                        <div class="bay-hud-row"><span>ALT</span><strong>{{ "%.2f m"|format(live_sim.odometry.position.z) if live_sim.odometry else "—" }}</strong></div>
+                        {% else %}
+                        <div class="bay-hud-pending">Awaiting live telemetry</div>
                         {% endif %}
-                    </aside>
+                        </div>
+                    </div>
+
+                    <div class="bay-fpv">
+                        <div class="bay-fpv-header">
+                            <span>FPV / front cam</span>
+                            <span class="bay-fpv-live" id="bay-fpv-live-badge" {{ '' if live_sim else 'style="display:none;"' }}><span class="bay-dot"></span> live</span>
+                        </div>
+                        <div id="bay-fpv-body">
+                        {% if live_sim %}
+                        <img src="{{ camera_stream_url }}" alt="Shadow live camera feed" class="bay-fpv-img">
+                        {% else %}
+                        <div class="bay-fpv-empty">No feed yet — camera topic isn't publishing</div>
+                        {% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="mind-panel" id="mind-panel">
+                    <div class="mind-panel-header">
+                        <span>Mind — decision log</span>
+                        <span id="mind-panel-status" class="mind-panel-status"></span>
+                    </div>
+                    <div class="mind-panel-body" id="mind-panel-body">
+                        <p class="mind-panel-empty">No Mind run yet. Click "Run Mind" above — dry run is checked by default, so it's safe to try first (it logs what it would choose without actually commanding the drone).</p>
+                    </div>
+                </section>
+
+                <section class="attr-panel" id="attr-panel">
+                    <div class="attr-panel-header">
+                        <span>Drone Attributes — Shadow MK1</span>
+                        <span id="attr-panel-status" style="color: var(--lab-muted, #6f8582); font-size: 10px;">loading…</span>
+                    </div>
+                    <div class="attr-panel-body" id="attr-panel-body">
+                        <p class="mind-panel-empty">Loading…</p>
+                    </div>
+                </section>
+
+                <section class="metric-grid compact">
+                    <article><span>Total runs</span><strong>{{ rnd.research.simulation.runs }}</strong></article>
+                    <article><span>Completed</span><strong>{{ rnd.research.simulation.completed_runs }}</strong></article>
+                    <article><span>Telemetry samples</span><strong>{{ rnd.research.simulation.telemetry_samples }}</strong></article>
+                    <article><span>Repository files</span><strong>{{ rnd.repository.simulation_files }}</strong></article>
                 </section>
 
                 <section class="room-grid three-column">
@@ -344,11 +641,16 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/research_development.js') }}"></script>
 <script>
-function simAction(button, url, label) {
+function simAction(button, url, label, body) {
     const statusEl = document.getElementById('sim-action-status');
     button.disabled = true;
     statusEl.textContent = label + '...';
-    fetch(url, { method: 'POST' })
+    const opts = { method: 'POST' };
+    if (body) {
+        opts.headers = { 'Content-Type': 'application/json' };
+        opts.body = JSON.stringify(body);
+    }
+    fetch(url, opts)
         .then(r => r.json())
         .then(data => {
             statusEl.textContent = data.ok ? label + ' triggered.' : ('Error: ' + data.error);
@@ -357,13 +659,669 @@ function simAction(button, url, label) {
         .finally(() => { button.disabled = false; });
 }
 document.getElementById('sim-start-btn').addEventListener('click', function () {
-    simAction(this, '/simulation/start', 'Starting simulation');
+    const world = document.getElementById('sim-world-select').value;
+    simAction(this, '/simulation/start', 'Starting simulation (' + world + ')', { world: world });
 });
 document.getElementById('sim-mission-btn').addEventListener('click', function () {
-    simAction(this, '/simulation/run-mission', 'Running mission');
+    const mission = document.getElementById('sim-mission-select').value;
+    const missionLabels = {
+        deliver_payload: 'Running Deliver Payload mission (check shadow_sim_runtime/logs/deliver_payload.log)',
+        learned_flight: 'Running Learned Flight mission (check shadow_sim_runtime/logs/learned_flight.log)',
+    };
+    const label = missionLabels[mission] || 'Running flight-skills smoke test';
+    simAction(this, '/simulation/run-mission', label, { mission: mission });
+});
+document.getElementById('sim-mind-btn').addEventListener('click', function () {
+    const dryRun = document.getElementById('sim-mind-dryrun').checked;
+    simAction(this, '/simulation/run-mind', dryRun ? 'Running Mind (dry run)' : 'Running Mind',
+        { dry_run: dryRun, max_steps: 5 });
+});
+document.getElementById('sim-autotune-btn').addEventListener('click', function () {
+    simAction(this, '/simulation/run-autotune', 'Running PID autotune');
+});
+document.getElementById('sim-restart-view-btn').addEventListener('click', function () {
+    simAction(this, '/simulation/restart-world-view', 'Restarting World View');
 });
 document.getElementById('sim-stop-btn').addEventListener('click', function () {
     simAction(this, '/simulation/stop', 'Stopping simulation');
 });
+</script>
+<script>
+// Simulation Bay panel dragging (telemetry HUD + FPV corner panel) -
+// freely movable, position remembered per-browser via localStorage.
+// Positions are stored as fractions of the bay-render box, not raw px,
+// so a saved spot still makes sense if the window/panel is ever resized.
+// Initialization is deferred to a ResizeObserver on .bay-render rather
+// than firing on page load, because the Simulation Bay room starts
+// hidden (display:none) behind whichever room is active - measuring it
+// at load time would see a zero-size box. The observer fires again the
+// moment the room is switched to and actually gets laid out.
+(function () {
+    function initBayPanels() {
+        const stage = document.querySelector('.bay-render');
+        if (!stage) return;
+
+        const panels = [
+            {
+                el: document.querySelector('.bay-hud'),
+                handle: document.querySelector('.bay-hud-title'),
+                storageKey: 'bayPanelPos:hud',
+                defaultPct: { left: 0.03, top: 0.05 },
+            },
+            {
+                el: document.querySelector('.bay-fpv'),
+                handle: document.querySelector('.bay-fpv-header'),
+                storageKey: 'bayPanelPos:fpv',
+                defaultPct: { left: 0.68, top: 0.05 },
+            },
+            {
+                el: document.querySelector('.bay-controls'),
+                handle: document.querySelector('.bay-controls-header'),
+                storageKey: 'bayPanelPos:controls',
+                defaultPct: { left: 0.03, top: 0.70 },
+            },
+            {
+                el: document.querySelector('.bay-training'),
+                handle: document.querySelector('.bay-training-header'),
+                storageKey: 'bayPanelPos:training',
+                defaultPct: { left: 0.36, top: 0.68 },
+            },
+        ].filter(p => p.el && p.handle);
+
+        let initialized = false;
+
+        function readSaved(key) {
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (typeof parsed.left === 'number' && typeof parsed.top === 'number') return parsed;
+            } catch (e) { /* ignore - fall back to default */ }
+            return null;
+        }
+
+        function place(panel, rect) {
+            const pct = readSaved(panel.storageKey) || panel.defaultPct;
+            const maxLeft = Math.max(0, rect.width - panel.el.offsetWidth);
+            const maxTop = Math.max(0, rect.height - panel.el.offsetHeight);
+            const left = Math.min(pct.left * rect.width, maxLeft);
+            const top = Math.min(pct.top * rect.height, maxTop);
+            panel.el.style.right = '';
+            panel.el.style.bottom = '';
+            panel.el.style.left = Math.max(0, left) + 'px';
+            panel.el.style.top = Math.max(0, top) + 'px';
+        }
+
+        function makeDraggable(panel) {
+            let dragging = false;
+            let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+            panel.handle.addEventListener('pointerdown', function (e) {
+                dragging = true;
+                panel.el.classList.add('bay-dragging');
+                const stageRect = stage.getBoundingClientRect();
+                const elRect = panel.el.getBoundingClientRect();
+                startLeft = elRect.left - stageRect.left;
+                startTop = elRect.top - stageRect.top;
+                startX = e.clientX;
+                startY = e.clientY;
+                panel.handle.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            });
+
+            panel.handle.addEventListener('pointermove', function (e) {
+                if (!dragging) return;
+                const stageRect = stage.getBoundingClientRect();
+                let newLeft = startLeft + (e.clientX - startX);
+                let newTop = startTop + (e.clientY - startY);
+                newLeft = Math.max(0, Math.min(newLeft, stageRect.width - panel.el.offsetWidth));
+                newTop = Math.max(0, Math.min(newTop, stageRect.height - panel.el.offsetHeight));
+                panel.el.style.left = newLeft + 'px';
+                panel.el.style.top = newTop + 'px';
+            });
+
+            function endDrag(e) {
+                if (!dragging) return;
+                dragging = false;
+                panel.el.classList.remove('bay-dragging');
+                const stageRect = stage.getBoundingClientRect();
+                const pct = {
+                    left: parseFloat(panel.el.style.left) / stageRect.width,
+                    top: parseFloat(panel.el.style.top) / stageRect.height,
+                };
+                try { localStorage.setItem(panel.storageKey, JSON.stringify(pct)); } catch (err) { /* best effort */ }
+            }
+            panel.handle.addEventListener('pointerup', endDrag);
+            panel.handle.addEventListener('pointercancel', endDrag);
+        }
+
+        const ro = new ResizeObserver(function (entries) {
+            for (const entry of entries) {
+                const rect = entry.contentRect;
+                if (rect.width > 0 && rect.height > 0) {
+                    panels.forEach(p => place(p, rect));
+                    if (!initialized) {
+                        panels.forEach(makeDraggable);
+                        initialized = true;
+                    }
+                }
+            }
+        });
+        ro.observe(stage);
+    }
+
+    // Mission Control collapse/expand toggle - deliberately separate from
+    // the drag/placement logic above: it doesn't need stage sizing at all,
+    // just the button + body + a localStorage flag, so it's wired once,
+    // directly, rather than waiting on the ResizeObserver. stopPropagation
+    // on pointerdown keeps a click on the toggle from also being picked up
+    // as the start of a drag on the header it sits inside.
+    function initBayControlsToggle() {
+        const panel = document.querySelector('.bay-controls');
+        const toggle = document.getElementById('bay-controls-toggle');
+        if (!panel || !toggle) return;
+
+        const STORAGE_KEY = 'bayControlsCollapsed';
+        let collapsed = false;
+        try { collapsed = localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { /* ignore */ }
+
+        function apply() {
+            panel.classList.toggle('collapsed', collapsed);
+            toggle.innerHTML = collapsed ? '&#43;' : '&#8211;';
+            toggle.title = collapsed ? 'Expand' : 'Collapse';
+        }
+        apply();
+
+        toggle.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+        toggle.addEventListener('click', function () {
+            collapsed = !collapsed;
+            apply();
+            try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch (e) { /* best effort */ }
+        });
+    }
+
+    // Training panel's own collapse/expand toggle (Oct 25, 2026, even
+    // later) - identical pattern to initBayControlsToggle() above, own
+    // function and own localStorage key rather than generalizing that
+    // one, so Mission Control's already-working toggle is never at risk
+    // from this change.
+    function initBayTrainingToggle() {
+        const panel = document.querySelector('.bay-training');
+        const toggle = document.getElementById('bay-training-toggle');
+        if (!panel || !toggle) return;
+
+        const STORAGE_KEY = 'bayTrainingCollapsed';
+        let collapsed = false;
+        try { collapsed = localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { /* ignore */ }
+
+        function apply() {
+            panel.classList.toggle('collapsed', collapsed);
+            toggle.innerHTML = collapsed ? '&#43;' : '&#8211;';
+            toggle.title = collapsed ? 'Expand' : 'Collapse';
+        }
+        apply();
+
+        toggle.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+        toggle.addEventListener('click', function () {
+            collapsed = !collapsed;
+            apply();
+            try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch (e) { /* best effort */ }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            initBayPanels();
+            initBayControlsToggle();
+            initBayTrainingToggle();
+        });
+    } else {
+        initBayPanels();
+        initBayControlsToggle();
+        initBayTrainingToggle();
+    }
+})();
+</script>
+<script>
+// Mind transcript panel (Oct 17, later) - polls /simulation/mind-log and
+// renders it as a plain scrolling list. Deliberately simple (no
+// websocket, just a 2.5s poll) since this only needs to look live during
+// a short demo run, not stay open for hours - same "simplest thing that
+// is still real" judgment call as the rest of tonight's work.
+(function () {
+    const bodyEl = document.getElementById('mind-panel-body');
+    const statusEl = document.getElementById('mind-panel-status');
+    if (!bodyEl || !statusEl) return;
+
+    let lastCount = -1;
+
+    function renderEvents(events) {
+        if (!events.length || events.length === lastCount) return;
+        lastCount = events.length;
+
+        bodyEl.innerHTML = '';
+        events.forEach(function (ev) {
+            const row = document.createElement('div');
+            row.className = 'mind-event mind-event-' + (ev.type || 'event');
+
+            const time = document.createElement('span');
+            time.className = 'mind-event-time';
+            time.textContent = ev.timestamp
+                ? new Date(ev.timestamp * 1000).toLocaleTimeString()
+                : '';
+
+            const summary = document.createElement('span');
+            summary.className = 'mind-event-summary';
+            summary.textContent = ev.summary || JSON.stringify(ev);
+
+            row.appendChild(time);
+            row.appendChild(summary);
+            bodyEl.appendChild(row);
+        });
+        bodyEl.scrollTop = bodyEl.scrollHeight;
+
+        const last = events[events.length - 1];
+        const finished = ['end', 'stop', 'error'].includes(last.type);
+        statusEl.textContent = finished ? 'idle' : 'running…';
+    }
+
+    function poll() {
+        fetch('/simulation/mind-log')
+            .then(r => r.json())
+            .then(data => { if (data.ok) renderEvents(data.events); })
+            .catch(function () { /* quiet - just skip this tick */ });
+    }
+
+    poll();
+    setInterval(poll, 2500);
+})();
+</script>
+<script>
+// Drone Attributes scoring sheet (Oct 25, 2026, even later) - polls
+// /simulation/attributes (simulation_control.py) and renders the real
+// scores as an RPG-style ability-score radar/polygon, one axis per
+// attribute, replacing the old vertical bar-row list below it (kept as
+// a compact text legend instead, so the honest per-attribute "why"
+// detail string isn't lost, just moved under the chart). 5s poll,
+// unchanged from before - these numbers only change meaningfully
+// between training/mission runs, not multiple times a second.
+//
+// Honest about the shape: Shadow genuinely has 4 wired attributes
+// right now (agility, core_flight, precision, stability), so this
+// draws a 4-axis radar - a kite/diamond, not literally a 6-sided
+// hexagon. Padding it with invented axes just to force a hexagon
+// outline would be exactly the kind of fabricated number this whole
+// panel exists to avoid (see simulation_control.py's attributes()
+// docstring) - the shape grows a side honestly, the day a 5th real
+// attribute gets wired, not before.
+(function () {
+    const bodyEl = document.getElementById('attr-panel-body');
+    const statusEl = document.getElementById('attr-panel-status');
+    if (!bodyEl || !statusEl) return;
+
+    // Fixed order so the chart's axes don't jump around between polls
+    // just because a JS object's key order happens to differ - any
+    // future attribute key this doesn't know about yet still gets an
+    // axis, just appended after the known ones rather than dropped.
+    const ORDER = ['agility', 'core_flight', 'precision', 'stability'];
+    const LABELS = {
+        agility: 'Agility',
+        core_flight: 'Core Flight',
+        precision: 'Precision',
+        stability: 'Stability',
+    };
+
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const CX = 130, CY = 116, RADIUS = 78, LABEL_RADIUS = 98;
+
+    function axisPoint(index, count, r) {
+        // index 0 points straight up; axes proceed clockwise from there.
+        const angle = (index / count) * 2 * Math.PI - Math.PI / 2;
+        return [CX + r * Math.cos(angle), CY + r * Math.sin(angle)];
+    }
+
+    function svgEl(tag, attrs) {
+        const node = document.createElementNS(SVG_NS, tag);
+        Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+        return node;
+    }
+
+    function buildRadar(keys, attrs) {
+        const n = keys.length;
+        const svg = svgEl('svg', { viewBox: '-40 0 340 232', 'aria-hidden': 'true' });
+
+        // Recessive background grid (25/50/75/100% rings + spokes) -
+        // never competing with the one real data series drawn on top.
+        [0.25, 0.5, 0.75, 1.0].forEach(function (frac) {
+            const pts = [];
+            for (let i = 0; i < n; i++) pts.push(axisPoint(i, n, RADIUS * frac).join(','));
+            svg.appendChild(svgEl('polygon', {
+                points: pts.join(' '), fill: 'none',
+                stroke: 'rgba(255,255,255,0.10)', 'stroke-width': frac === 1.0 ? 1.2 : 0.75,
+            }));
+        });
+        for (let i = 0; i < n; i++) {
+            const p = axisPoint(i, n, RADIUS);
+            svg.appendChild(svgEl('line', {
+                x1: CX, y1: CY, x2: p[0], y2: p[1],
+                stroke: 'rgba(255,255,255,0.10)', 'stroke-width': 0.75,
+            }));
+        }
+
+        // The data polygon - a single series (Shadow's own current
+        // scores), so one accent color throughout; text labels stay in
+        // the existing text tokens rather than the series color.
+        const dataPts = [];
+        const vertices = [];
+        keys.forEach(function (key, i) {
+            const attr = attrs[key];
+            const wired = !!attr && typeof attr.score === 'number';
+            const score = wired ? attr.score : 0;
+            const p = axisPoint(i, n, RADIUS * (score / 100));
+            dataPts.push(p.join(','));
+            vertices.push({ x: p[0], y: p[1], wired: wired, key: key, score: wired ? score : null });
+        });
+        svg.appendChild(svgEl('polygon', {
+            points: dataPts.join(' '), fill: 'rgba(73,242,194,0.18)',
+            stroke: '#49f2c2', 'stroke-width': 2,
+        }));
+        vertices.forEach(function (v) {
+            const dot = svgEl('circle', {
+                cx: v.x, cy: v.y, r: v.wired ? 3.2 : 3,
+                fill: v.wired ? '#49f2c2' : 'rgba(255,255,255,0.15)',
+                stroke: v.wired ? '#0a1514' : 'rgba(255,255,255,0.4)', 'stroke-width': 1,
+            });
+            // Native hover tooltip - a lightweight hover layer without
+            // a custom tooltip widget, enough for "hover a vertex, see
+            // its real number" during a demo.
+            const title = svgEl('title', {});
+            title.textContent = (LABELS[v.key] || v.key) + ': ' + (v.wired ? v.score + ' / 100' : 'not wired yet');
+            dot.appendChild(title);
+            svg.appendChild(dot);
+        });
+
+        // Axis labels just outside the outer ring.
+        keys.forEach(function (key, i) {
+            const p = axisPoint(i, n, LABEL_RADIUS);
+            const anchor = Math.abs(p[0] - CX) < 4 ? 'middle' : (p[0] > CX ? 'start' : 'end');
+            const wired = !!attrs[key] && typeof attrs[key].score === 'number';
+            const label = svgEl('text', {
+                x: p[0], y: p[1] + 4, 'text-anchor': anchor,
+                'font-size': '9.5', 'letter-spacing': '.04em',
+                fill: wired ? '#9fb3b0' : 'rgba(159,179,176,0.5)',
+            });
+            label.textContent = (LABELS[key] || key).toUpperCase();
+            svg.appendChild(label);
+        });
+
+        return svg;
+    }
+
+    function legendRow(key, attr) {
+        const wired = !!attr && typeof attr.score === 'number';
+        const row = document.createElement('div');
+        row.className = 'attr-legend-row' + (wired ? '' : ' unwired');
+
+        const top = document.createElement('div');
+        top.className = 'attr-legend-top';
+        const name = document.createElement('span');
+        name.className = 'attr-legend-name';
+        name.textContent = LABELS[key] || key;
+        const score = document.createElement('span');
+        score.className = 'attr-legend-score';
+        score.textContent = wired ? attr.score + ' / 100' : 'not wired yet';
+        top.appendChild(name);
+        top.appendChild(score);
+
+        const detail = document.createElement('div');
+        detail.className = 'attr-legend-detail';
+        detail.textContent = (attr && attr.detail) || '';
+
+        row.appendChild(top);
+        row.appendChild(detail);
+        return row;
+    }
+
+    function render(data) {
+        bodyEl.innerHTML = '';
+        const attrs = data.attributes || {};
+        const keys = ORDER.filter(function (k) { return attrs.hasOwnProperty(k); });
+        Object.keys(attrs).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); });
+        (data.not_yet_wired || []).forEach(function (k) {
+            if (keys.indexOf(k) === -1) keys.push(k);
+            if (!(k in attrs)) attrs[k] = null;
+        });
+
+        if (keys.length < 3) {
+            // A radar needs >= 3 axes to read as a shape at all - fall
+            // back to the plain legend list rather than drawing a
+            // degenerate line and calling it a chart.
+            keys.forEach(function (k) { bodyEl.appendChild(legendRow(k, attrs[k])); });
+            statusEl.textContent = 'live';
+            return;
+        }
+
+        const wrap = document.createElement('div');
+        wrap.className = 'attr-radar-wrap';
+        wrap.appendChild(buildRadar(keys, attrs));
+        bodyEl.appendChild(wrap);
+
+        const legend = document.createElement('div');
+        legend.className = 'attr-legend';
+        keys.forEach(function (k) { legend.appendChild(legendRow(k, attrs[k])); });
+        bodyEl.appendChild(legend);
+
+        statusEl.textContent = 'live';
+    }
+
+    function poll() {
+        fetch('/simulation/attributes')
+            .then(r => r.json())
+            .then(function (data) { if (data.ok) render(data); })
+            .catch(function () { statusEl.textContent = 'unreachable'; });
+    }
+
+    poll();
+    setInterval(poll, 5000);
+})();
+</script>
+<script>
+// Training panel (Oct 25, 2026, later) - registry-driven replacement
+// for the two flat training buttons that used to live in Mission
+// Control. Polls /simulation/training-tasks (simulation_control.py's
+// TRAINING_TASKS list) and renders one card per task, each with its
+// own Start button - POSTs to /simulation/run-training-task with
+// {task: <key>}, the same single route every task launches through
+// now. Same 5s poll cadence as the attribute panel above, same
+// reasoning (these numbers only change meaningfully between runs).
+(function () {
+    const bodyEl = document.getElementById('training-panel-body');
+    const statusEl = document.getElementById('training-panel-status');
+    const actionStatusEl = document.getElementById('sim-action-status');
+    if (!bodyEl || !statusEl) return;
+
+    const ATTRIBUTE_LABELS = { agility: 'Agility', core_flight: 'Core Flight', precision: 'Precision', stability: 'Stability' };
+
+    function startTask(key, button) {
+        button.disabled = true;
+        const prevLabel = button.textContent;
+        button.textContent = 'Starting…';
+        if (actionStatusEl) actionStatusEl.textContent = 'Starting training task: ' + key + '…';
+        fetch('/simulation/run-training-task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task: key, total_timesteps: 5000 }),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (actionStatusEl) {
+                    actionStatusEl.textContent = data.ok
+                        ? 'Training task "' + key + '" started.'
+                        : 'Error: ' + data.error;
+                }
+            })
+            .catch(err => { if (actionStatusEl) actionStatusEl.textContent = 'Error: ' + err; })
+            .finally(() => { button.disabled = false; button.textContent = prevLabel; });
+    }
+
+    function taskCard(task) {
+        const card = document.createElement('div');
+        card.className = 'training-task';
+
+        const top = document.createElement('div');
+        top.className = 'training-task-top';
+        const name = document.createElement('span');
+        name.className = 'training-task-name';
+        name.textContent = task.name;
+        const badge = document.createElement('span');
+        badge.className = 'training-task-badge' + (task.checkpoint_exists ? ' trained' : '');
+        badge.textContent = task.checkpoint_exists ? 'checkpoint saved' : 'not trained yet';
+        top.appendChild(name);
+        top.appendChild(badge);
+
+        const tags = document.createElement('div');
+        tags.className = 'training-task-tags';
+        (task.feeds_attributes || []).forEach(function (attr) {
+            const tag = document.createElement('span');
+            tag.className = 'training-task-tag';
+            tag.textContent = 'feeds ' + (ATTRIBUTE_LABELS[attr] || attr);
+            tags.appendChild(tag);
+        });
+
+        const desc = document.createElement('div');
+        desc.className = 'training-task-desc';
+        desc.textContent = task.description;
+
+        const stats = document.createElement('div');
+        stats.className = 'training-task-stats';
+        const pct = document.createElement('span');
+        const hasPct = task.has_run && typeof task.crash_free_pct === 'number';
+        pct.className = 'training-task-stat-pct' + (hasPct ? '' : ' untrained');
+        pct.textContent = hasPct ? task.crash_free_pct + '% crash-free' : (task.has_run ? '—' : 'no runs yet');
+        stats.appendChild(pct);
+        if (task.has_run && task.resumed_from_checkpoint === true) {
+            const resumedTag = document.createElement('span');
+            resumedTag.className = 'training-task-badge trained';
+            resumedTag.textContent = 'resumed';
+            stats.appendChild(resumedTag);
+        }
+
+        const detail = document.createElement('div');
+        detail.className = 'training-task-detail';
+        detail.textContent = task.detail || '';
+
+        const bottom = document.createElement('div');
+        bottom.className = 'training-task-bottom';
+        const startBtn = document.createElement('button');
+        startBtn.type = 'button';
+        startBtn.className = 'training-task-start';
+        startBtn.textContent = 'Start';
+        startBtn.addEventListener('click', function () { startTask(task.key, startBtn); });
+        bottom.appendChild(startBtn);
+
+        card.appendChild(top);
+        card.appendChild(tags);
+        card.appendChild(desc);
+        card.appendChild(stats);
+        card.appendChild(detail);
+        card.appendChild(bottom);
+        return card;
+    }
+
+    function render(data) {
+        bodyEl.innerHTML = '';
+        (data.tasks || []).forEach(function (task) { bodyEl.appendChild(taskCard(task)); });
+        statusEl.textContent = 'live';
+    }
+
+    function poll() {
+        fetch('/simulation/training-tasks')
+            .then(r => r.json())
+            .then(function (data) { if (data.ok) render(data); })
+            .catch(function () { statusEl.textContent = 'unreachable'; });
+    }
+
+    poll();
+    setInterval(poll, 5000);
+})();
+</script>
+<script>
+// Simulation Bay telemetry HUD + FPV panel live poll (Oct 24) - the HUD/
+// camera markup above only reflected live_sim/camera_stream_url at the
+// moment the page was first rendered (server-side Jinja, no client poll),
+// so once Start Simulation was clicked AFTER the page loaded, the HUD
+// stayed stuck on "Awaiting live telemetry" and the FPV panel stayed
+// stuck on "No feed yet" forever, even once telemetry/camera were really
+// flowing - a full page reload was the only way to see it update. This
+// closes that gap the same way the Mind panel above already does: poll
+// the pre-existing /research-development/api/status JSON endpoint (same
+// get_workspace_data() the page itself was rendered from) and patch the
+// DOM in place. Camera stream URL is a fixed constant on the backend
+// (sim_camera_stream.py's own :5002/video), so it's safe to bake in here
+// via Jinja rather than needing the API to echo it back.
+(function () {
+    const dotEl = document.getElementById('bay-hud-dot');
+    const linkEl = document.getElementById('bay-hud-link');
+    const dynamicEl = document.getElementById('bay-hud-dynamic');
+    const fpvBadgeEl = document.getElementById('bay-fpv-live-badge');
+    const fpvBodyEl = document.getElementById('bay-fpv-body');
+    if (!dotEl || !linkEl || !dynamicEl || !fpvBodyEl) return;
+
+    const CAMERA_STREAM_URL = {{ camera_stream_url|tojson }};
+    let lastLiveState = null; // null = unknown yet, so the first poll always applies
+
+    function renderStatus(rnd) {
+        const shadow = rnd.shadow || {};
+        const live = shadow.telemetry && shadow.telemetry.latest;
+
+        dotEl.classList.toggle('off', !shadow.database_online);
+        linkEl.textContent = ((shadow.vehicle && shadow.vehicle.status) || 'UNAVAILABLE').toUpperCase();
+
+        // Only touch the HUD/FPV inner markup when the live/not-live state
+        // actually flips - avoids re-rendering the MODE/ALT/BATT numbers
+        // from scratch every 2.5s for no visual reason (the dot/link above
+        // are cheap enough to just always refresh).
+        const isLive = !!live;
+        if (isLive === lastLiveState) {
+            if (isLive) {
+                const mode = dynamicEl.querySelector('[data-field="mode"]');
+                const armed = dynamicEl.querySelector('[data-field="armed"]');
+                const alt = dynamicEl.querySelector('[data-field="alt"]');
+                if (mode) mode.textContent = live.mode || '—';
+                if (armed) armed.textContent = live.armed ? 'YES' : 'NO';
+                if (alt) alt.textContent = live.odometry ? Number(live.odometry.position.z).toFixed(2) + ' m' : '—';
+            }
+            return;
+        }
+        lastLiveState = isLive;
+
+        if (isLive) {
+            // Field names match telemetry_publisher.py's real output
+            // (connected/armed/mode, odometry when MAVROS has it) - see
+            // the matching comment on the Jinja block above for why this
+            // isn't flight_mode/altitude/battery_percentage.
+            dynamicEl.innerHTML =
+                '<div class="bay-hud-row"><span>MODE</span><strong data-field="mode">' + (live.mode || '—') + '</strong></div>' +
+                '<div class="bay-hud-row"><span>ARMED</span><strong data-field="armed">' + (live.armed ? 'YES' : 'NO') + '</strong></div>' +
+                '<div class="bay-hud-row"><span>ALT</span><strong data-field="alt">' + (live.odometry ? Number(live.odometry.position.z).toFixed(2) + ' m' : '—') + '</strong></div>';
+            if (fpvBadgeEl) fpvBadgeEl.style.display = '';
+            fpvBodyEl.innerHTML = '<img src="' + CAMERA_STREAM_URL + '" alt="Shadow live camera feed" class="bay-fpv-img">';
+        } else {
+            dynamicEl.innerHTML = '<div class="bay-hud-pending">Awaiting live telemetry</div>';
+            if (fpvBadgeEl) fpvBadgeEl.style.display = 'none';
+            fpvBodyEl.innerHTML = '<div class="bay-fpv-empty">No feed yet — camera topic isn\'t publishing</div>';
+        }
+    }
+
+    function poll() {
+        fetch('/research-development/api/status')
+            .then(r => r.json())
+            .then(renderStatus)
+            .catch(function () { /* quiet - just skip this tick, same as the Mind panel poll */ });
+    }
+
+    poll();
+    setInterval(poll, 2500);
+})();
 </script>
 {% endblock %}

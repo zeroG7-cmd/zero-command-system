@@ -38,6 +38,7 @@ from modules.operator_journal import operator_journal_bp
 from modules.operator_analytics import operator_analytics_bp
 from modules.operator_achievements import operator_achievements_bp
 from modules.operator_challenges import bp as operator_challenges_bp
+from modules.shadow import shadow_bp
 from flask import redirect, url_for
 
 
@@ -77,6 +78,7 @@ app.register_blueprint(operator_journal_bp)
 app.register_blueprint(operator_analytics_bp)
 app.register_blueprint(operator_achievements_bp)
 app.register_blueprint(operator_challenges_bp)
+app.register_blueprint(shadow_bp)
 
 @app.route("/")
 def home():
