@@ -176,18 +176,14 @@ def get_operator_dashboard_data() -> dict[str, Any]:
 
 @operator_bp.route("/")
 def dashboard():
-    try:
-        return render_template(
-            "workspaces/operator/dashboard.html",
-            dashboard=get_operator_dashboard_data(),
-            operator_error=None,
-        )
-    except (FileNotFoundError, ValueError, OSError) as error:
-        return render_template(
-            "workspaces/operator/dashboard.html",
-            dashboard=None,
-            operator_error=str(error),
-        ), 200
+    # Serves the sci-fi HUD shell (approved mockup, see project docs:
+    # "Operator Workspace HUD Mockup: Handoff"). The shell itself is static -
+    # all real data comes from GET /operator/hud/data (modules/operator_hud.py),
+    # fetched client-side on load, so one hub's data failing can't blank the
+    # whole page the way the old dashboard=None/operator_error path could.
+    # The old dashboard.html stays on disk, untouched, as a fallback if this
+    # ever needs to be reverted.
+    return render_template("workspaces/operator/hud.html")
 
 
 @operator_bp.route("/room")
@@ -287,6 +283,55 @@ def _track_cards_for_capability(capability_id: str) -> list[dict[str, Any]]:
     return sorted(cards, key=lambda item: item["title"].lower())
 
 
+def _tier_concepts(concepts: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Assigns each concept a 0-indexed tier by topological depth through
+    its prerequisites (tier 0 = no prerequisites = foundations), and
+    resolves each prerequisite id to its display name for the "suggested
+    after" hint. Prerequisites are informational only - nothing in this
+    system gates XP on them - so a dangling id is simply dropped, and a
+    prerequisite edge that would complete a cycle is ignored for that one
+    edge (standard longest-path-with-cycle-removal) rather than recursing
+    forever; real cycles aren't expected in the data, this just guarantees
+    termination if one ever sneaks in.
+
+    Mutates each concept dict in place (adds "tier"/"prerequisite_names")
+    and also returns a "tiers" list of {index, label, concepts} groups,
+    sorted and ready for the template to iterate directly."""
+    by_id = {concept["id"]: concept for concept in concepts}
+    tier_cache: dict[str, int] = {}
+
+    def tier_of(concept_id: str, on_path: frozenset[str]) -> int:
+        if concept_id in tier_cache:
+            return tier_cache[concept_id]
+        concept = by_id.get(concept_id)
+        prereq_ids = [pid for pid in (concept.get("prerequisites") or []) if pid in by_id] if concept else []
+        on_path = on_path | {concept_id}
+        usable_ids = [pid for pid in prereq_ids if pid not in on_path]
+        result = 1 + max((tier_of(pid, on_path) for pid in usable_ids), default=-1)
+        tier_cache[concept_id] = result
+        return result
+
+    for concept in concepts:
+        concept["tier"] = tier_of(concept["id"], frozenset())
+        concept["prerequisite_names"] = [
+            by_id[pid]["name"] for pid in (concept.get("prerequisites") or []) if pid in by_id
+        ]
+
+    max_tier = max((concept["tier"] for concept in concepts), default=-1)
+    tiers = [
+        {
+            "index": index,
+            "label": "FOUNDATIONS" if index == 0 else f"TIER {index + 1}",
+            "concepts": sorted(
+                (concept for concept in concepts if concept["tier"] == index),
+                key=lambda concept: concept["name"].lower(),
+            ),
+        }
+        for index in range(max_tier + 1)
+    ]
+    return concepts, tiers
+
+
 def get_capability_data(slug: str) -> dict[str, Any]:
     graph = _capability_graph()
     capability = next(
@@ -313,6 +358,7 @@ def get_capability_data(slug: str) -> dict[str, Any]:
             "mapping_confidence": progress.get("last_mapping_confidence", "unmapped"),
         })
     started = sum(1 for concept in concepts if concept["xp"] > 0 or concept["status"] != "Not Started")
+    concepts, tiers = _tier_concepts(concepts)
     return {
         "id": capability_id,
         "name": capability.get("name", slug.title()),
@@ -321,7 +367,9 @@ def get_capability_data(slug: str) -> dict[str, Any]:
         "xp": int(record.get("xp", 0)),
         "level": int(record.get("level", 0)),
         "coverage": round((started / len(concepts)) * 100, 1) if concepts else 0.0,
+        "started_count": started,
         "concepts": concepts,
+        "tiers": tiers,
         "relationships": capability.get("relationships", []),
         "tracks": _track_cards_for_capability(capability_id),
     }
@@ -335,3 +383,18 @@ def capability(slug: str):
         abort(404)
     except (FileNotFoundError, ValueError, OSError) as error:
         return render_template("workspaces/operator/capability.html", capability=None, operator_error=str(error)), 200
+
+
+@operator_bp.route("/capabilities/<slug>/data")
+def capability_data(slug: str):
+    """Thin JSON sibling of capability() above - same get_capability_data(),
+    just jsonify()'d instead of rendered. Added so the HUD's in-shell skill
+    page (operator_hud.js's renderSkillPage(), reached via #skill/<slug>)
+    can fetch the already-correct tiered concept data on demand, without a
+    second, hand-maintained copy of the tiering logic in JavaScript."""
+    try:
+        return jsonify(get_capability_data(slug))
+    except KeyError:
+        return jsonify({"error": "Capability not found."}), 404
+    except (FileNotFoundError, ValueError, OSError) as error:
+        return jsonify({"error": str(error)}), 200

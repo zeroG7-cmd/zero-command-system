@@ -456,8 +456,9 @@ def _create_goal(tree: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any
     }
 
 
-@bp.get("/")
-def dashboard():
+def get_challenges_dashboard_data(error: str | None = None) -> dict[str, Any]:
+    """Same context dashboard() renders with - pulled out so the HUD shell's
+    live-data aggregator (modules/operator_hud.py) can reuse it exactly."""
     root = _rnd_root()
     tree = _skill_tree()
     goals = _load_goals()
@@ -477,17 +478,24 @@ def dashboard():
 
     suggestions = _suggested_challenges(_learning_stats(), goals)
 
+    return {
+        "active_goals": active,
+        "completed_goals": completed[:10],
+        "expired_goals": expired[:10],
+        "suggestions": suggestions,
+        "catalog": _catalog(tree),
+        "main_stats": MAIN_STATS,
+        "durations": DEFAULT_DURATIONS,
+        "bonus_xp": BONUS_XP,
+        "error": error,
+    }
+
+
+@bp.get("/")
+def dashboard():
     return render_template(
         "workspaces/operator/challenges.html",
-        active_goals=active,
-        completed_goals=completed[:10],
-        expired_goals=expired[:10],
-        suggestions=suggestions,
-        catalog=_catalog(tree),
-        main_stats=MAIN_STATS,
-        durations=DEFAULT_DURATIONS,
-        bonus_xp=BONUS_XP,
-        error=request.args.get("error"),
+        **get_challenges_dashboard_data(error=request.args.get("error")),
     )
 
 

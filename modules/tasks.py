@@ -287,9 +287,9 @@ def _resolve_competency_id(day: dict[str, Any], stat: str, category: str, subcat
     return str(leaf.get("competency_id", "")) or None
 
 
-@bp.get("/")
-def dashboard():
-    day_key = request.args.get("day", "mon")
+def get_tasks_dashboard_data(day_key: str = "mon", error: str | None = None, logged: str | None = None) -> dict[str, Any]:
+    """Same context dashboard() renders with - pulled out so the HUD shell's
+    live-data aggregator (modules/operator_hud.py) can reuse it exactly."""
     day = DAY_BY_KEY.get(day_key, DAYS[0])
 
     tree = _skill_tree()
@@ -303,15 +303,23 @@ def dashboard():
     day_log = [entry for entry in log if entry.get("day_key") == day["key"]]
     day_log.sort(key=lambda entry: entry.get("created_at", ""), reverse=True)
 
+    return {
+        "days": DAYS,
+        "active_day": day,
+        "catalog": catalog,
+        "stats_panel": stats_panel,
+        "day_log": day_log[:15],
+        "error": error,
+        "logged": logged,
+    }
+
+
+@bp.get("/")
+def dashboard():
+    day_key = request.args.get("day", "mon")
     return render_template(
         "workspaces/operator/tasks.html",
-        days=DAYS,
-        active_day=day,
-        catalog=catalog,
-        stats_panel=stats_panel,
-        day_log=day_log[:15],
-        error=request.args.get("error"),
-        logged=request.args.get("logged"),
+        **get_tasks_dashboard_data(day_key, error=request.args.get("error"), logged=request.args.get("logged")),
     )
 
 
@@ -327,7 +335,12 @@ def log_session():
     hours_raw = form.get("hours", "").strip()
 
     def back(error: str | None = None, logged: str | None = None):
-        return redirect(url_for("operator_tasks.dashboard", day=day_key or "mon", error=error, logged=logged))
+        # Redirects into the HUD shell (modules/operator_hud.py) rather than
+        # this hub's own standalone page, so a real <form> POST from the HUD's
+        # Tasks view lands back inside the SPA instead of kicking the user
+        # out to a separately-styled page. operator_tasks.dashboard still
+        # works fine on its own for direct/legacy links.
+        return redirect(url_for("operator.dashboard", hud_view="tasks", day=day_key or "mon", error=error, logged=logged))
 
     if not day:
         return back(error="Unknown day.")

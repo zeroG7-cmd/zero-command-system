@@ -119,25 +119,39 @@ def _type_catalog() -> dict[str, dict[str, Any]]:
     return catalog
 
 
-@operator_journal_bp.get("/")
-def dashboard():
+def get_journal_dashboard_data(created_id: str | None = None, error: str | None = None) -> dict[str, Any]:
+    """Same context dashboard() renders with - pulled out so the HUD shell's
+    live-data aggregator (modules/operator_hud.py) can reuse it exactly."""
     models, service, xp_defaults = _journal_module()
     journal_service = service.JournalService()
     entries = journal_service.list_entries()[:20]
 
-    just_created = None
-    created_id = request.args.get("created")
-    if created_id:
-        just_created = journal_service.get(created_id)
+    just_created = journal_service.get(created_id) if created_id else None
 
+    return {
+        "type_catalog": _type_catalog(),
+        "allowed_types": list(TYPE_LABELS.keys()),
+        "entries": entries,
+        "just_created": just_created,
+        "error": error,
+    }
+
+
+@operator_journal_bp.get("/")
+def dashboard():
     return render_template(
         "workspaces/operator/journal.html",
-        type_catalog=_type_catalog(),
-        allowed_types=list(TYPE_LABELS.keys()),
-        entries=entries,
-        just_created=just_created,
-        error=request.args.get("error"),
+        **get_journal_dashboard_data(created_id=request.args.get("created"), error=request.args.get("error")),
     )
+
+
+def _back(**params: Any):
+    # Redirects into the HUD shell (modules/operator_hud.py) rather than
+    # this hub's own standalone page, so a real <form> POST from the HUD's
+    # Journal view lands back inside the SPA instead of kicking the user
+    # out to a separately-styled page. operator_journal.dashboard still
+    # works fine on its own for direct/legacy links.
+    return redirect(url_for("operator.dashboard", hud_view="journal", **params))
 
 
 @operator_journal_bp.post("/create")
@@ -168,22 +182,16 @@ def create():
             custom_xp = 0
         if custom_xp > 0:
             if not evidence_note:
-                return redirect(
-                    url_for(
-                        "operator_journal.dashboard",
-                        error="A manual XP amount needs a proof note - that's the whole point of the guardrail.",
-                    )
+                return _back(
+                    error="A manual XP amount needs a proof note - that's the whole point of the guardrail.",
                 )
             # Reuse the same type-driven split the automatic path uses -
             # the user only raises/lowers the total, never touches a
             # competency ID or a weight themselves.
             _, default_targets = xp_defaults.resolve_default_xp(entry_types)
             if not default_targets:
-                return redirect(
-                    url_for(
-                        "operator_journal.dashboard",
-                        error="Pick at least one entry type before setting a manual XP amount.",
-                    )
+                return _back(
+                    error="Pick at least one entry type before setting a manual XP amount.",
                 )
             base_xp = custom_xp
             xp_targets = tuple(default_targets)
@@ -211,6 +219,6 @@ def create():
         )
         manifest = journal_service.create(request_obj)
     except ValueError as error:
-        return redirect(url_for("operator_journal.dashboard", error=str(error)))
+        return _back(error=str(error))
 
-    return redirect(url_for("operator_journal.dashboard", created=manifest.entry_id))
+    return _back(created=manifest.entry_id)

@@ -250,6 +250,27 @@ def _reward_preview(metadata: dict[str, Any], unit: dict[str, Any]) -> dict[str,
     return {"total_xp": total_xp, "items": items}
 
 
+def _unit_rows(units: list[dict[str, Any]], progress: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every unit in a track, with completion state - the raw list the HUD
+    needs to let the operator open or complete ANY unit, not just whichever
+    one progress.json currently calls "current". Out-of-order completion
+    doesn't move anything here out of its authored order; it only changes
+    which rows show as done.
+    """
+    completed_ids = set(progress.get("completed_units", []))
+    current_index = max(0, min(int(progress.get("current_unit_index", 0)), len(units) - 1)) if units else 0
+    return [
+        {
+            "id": unit.get("id"),
+            "title": unit.get("title", unit.get("id", "Unit")),
+            "source_type": unit.get("source_type", "manual"),
+            "completed": str(unit.get("id")) in completed_ids,
+            "is_current": index == current_index,
+        }
+        for index, unit in enumerate(units)
+    ]
+
+
 def _card(track: Path) -> dict[str, Any]:
     metadata = _load_json(track / "metadata.json")
     progress = _load_json(track / "progress.json")
@@ -293,6 +314,7 @@ def _card(track: Path) -> dict[str, Any]:
             if current_unit
             else None
         ),
+        "units": _unit_rows(units, progress),
     }
 
 
@@ -386,13 +408,21 @@ def _track_by_id(track_id: str) -> Path:
     raise ValueError(f"Learning track not found: {track_id}")
 
 
-def _current_unit_context(track: Path) -> dict[str, Any]:
-    """Resolve the track's current unit to real paths, for the notebook API.
+def _resolve_unit_context(track: Path, unit_id: str | None = None) -> dict[str, Any]:
+    """Resolve one of the track's units to real paths, for the notebook API.
 
-    Mirrors _evidence()'s current_unit selection so the notebook always
-    edits the same unit the hub page itself considers "current" - never a
-    client-supplied index, which would let a stale page write to the wrong
-    unit after someone else (or a Complete Current Unit click) advances it.
+    unit_id=None keeps the original behavior exactly: resolve whatever
+    progress.json currently calls "current" - every legacy caller (and any
+    stale client that doesn't send a unit_id) still edits that same unit.
+
+    Passing an explicit unit_id resolves THAT unit instead, by id, from
+    anywhere in the track - this is what lets the HUD open the notebook
+    for any chapter/day, not just the sequentially "current" one, now that
+    out-of-order completion is unlocked. It's safe to let the client pick
+    here because every write this enables (notebook text, evidence upload,
+    completion) is scoped to the unit_path THIS function resolves, never
+    to progress['current_unit_index'] implicitly - a stale page can only
+    ever act on the unit it explicitly named.
     """
     metadata = _load_json(track / "metadata.json")
     progress = _load_json(track / "progress.json")
@@ -400,7 +430,17 @@ def _current_unit_context(track: Path) -> dict[str, Any]:
     if not units:
         raise ValueError("This track has no units yet.")
 
-    index = max(0, min(int(progress.get("current_unit_index", 0)), len(units) - 1))
+    current_index = max(0, min(int(progress.get("current_unit_index", 0)), len(units) - 1))
+    if unit_id is None:
+        index = current_index
+    else:
+        index = next(
+            (position for position, candidate in enumerate(units) if str(candidate.get("id")) == unit_id),
+            None,
+        )
+        if index is None:
+            raise ValueError(f"Unit not found in this track: {unit_id}")
+
     unit = units[index]
     unit_relative = str(unit.get("path", "")).strip()
     if not unit_relative:
@@ -411,6 +451,7 @@ def _current_unit_context(track: Path) -> dict[str, Any]:
     if track_resolved not in unit_path.parents and unit_path != track_resolved:
         raise ValueError("Refusing to resolve a unit path outside its track.")
 
+    completed_ids = set(progress.get("completed_units", []))
     return {
         "track": track,
         "metadata": metadata,
@@ -418,6 +459,8 @@ def _current_unit_context(track: Path) -> dict[str, Any]:
         "unit": unit,
         "unit_index": index,
         "unit_path": unit_path,
+        "is_current": index == current_index,
+        "is_completed": str(unit.get("id")) in completed_ids,
     }
 
 
@@ -455,7 +498,7 @@ def _read_text(path: Path | None) -> str:
 def notebook(track_id: str):
     try:
         track = _track_by_id(track_id)
-        context = _current_unit_context(track)
+        context = _resolve_unit_context(track, request.args.get("unit_id") or None)
         metadata, unit, unit_path = context["metadata"], context["unit"], context["unit_path"]
         targets = _notebook_targets(metadata)
 
@@ -471,9 +514,12 @@ def notebook(track_id: str):
             {
                 "track_id": track_id,
                 "track_title": metadata.get("title", track.name),
+                "unit_id": unit.get("id"),
                 "unit_title": unit.get("title", ""),
                 "unit_index": context["unit_index"],
                 "unit_count": len(metadata.get("units", [])),
+                "is_current": context["is_current"],
+                "is_completed": context["is_completed"],
                 "notes": _read_text(unit_path / targets["notes"]) if targets["notes"] else None,
                 "reflection": _read_text(unit_path / targets["reflection"]) if targets["reflection"] else None,
                 "evidence_text": _read_text(evidence_text_path) if evidence_text_path else None,
@@ -489,10 +535,10 @@ def notebook(track_id: str):
 def save_notebook(track_id: str):
     try:
         track = _track_by_id(track_id)
-        context = _current_unit_context(track)
+        payload = request.get_json(force=True, silent=True) or {}
+        context = _resolve_unit_context(track, payload.get("unit_id") or None)
         metadata, unit_path = context["metadata"], context["unit_path"]
         targets = _notebook_targets(metadata)
-        payload = request.get_json(force=True, silent=True) or {}
 
         saved = []
         if targets["notes"] and "notes" in payload:
@@ -516,7 +562,7 @@ def save_notebook(track_id: str):
 def upload_evidence(track_id: str):
     try:
         track = _track_by_id(track_id)
-        context = _current_unit_context(track)
+        context = _resolve_unit_context(track, request.form.get("unit_id") or None)
         unit_path = context["unit_path"]
 
         uploaded = request.files.get("file")
@@ -537,7 +583,7 @@ def upload_evidence(track_id: str):
 @operator_learning_bp.get("/tracks/<track_id>/evidence/<path:filename>")
 def serve_evidence(track_id: str, filename: str):
     track = _track_by_id(track_id)
-    context = _current_unit_context(track)
+    context = _resolve_unit_context(track, request.args.get("unit_id") or None)
     evidence_dir = (context["unit_path"] / "evidence").resolve()
     target = (evidence_dir / filename).resolve()
     if evidence_dir not in target.parents or not target.is_file():
@@ -686,6 +732,18 @@ def _write_completion_receipt(
     (receipts_dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _back(**params: Any):
+    # Redirects into the HUD shell (modules/operator_hud.py) rather than
+    # this hub's own standalone page, so a real <form> POST from the HUD's
+    # Learning view (Import Course, Reconcile Boot.dev, Progress Import)
+    # lands back inside the SPA instead of kicking the user out to a
+    # separately-styled page. operator_learning.dashboard still works fine
+    # on its own for direct/legacy links. The notebook drawer's own actions
+    # (notebook save, evidence upload, mark-complete) are fetch()-driven
+    # and the HUD calls them directly, so they don't need this helper.
+    return redirect(url_for("operator.dashboard", hud_view="learning", **params))
+
+
 @operator_learning_bp.route("/")
 def dashboard():
     try:
@@ -706,22 +764,33 @@ def dashboard():
 
 @operator_learning_bp.post("/tracks/<track_id>/complete")
 def complete_current_unit(track_id: str):
+    # unit_id lets the HUD complete ANY unit in the track, not just
+    # whichever one progress.json calls "current" - omitting it keeps the
+    # original "Complete Current Unit" behavior for any caller that
+    # doesn't send one.
+    requested_unit_id = (request.form.get("unit_id") or "").strip() or None
+
     # Best-effort pre-capture of what's about to be completed, so a receipt
     # can be written afterward - failures here must never block the actual
     # completion below, so they're swallowed rather than surfaced.
-    track = metadata = completed_unit = reward = context = None
-    before_progress: dict[str, Any] = {}
+    track = metadata = completed_unit = reward = None
+    unit_id = requested_unit_id
+    was_already_completed = False
     try:
         track = _track_by_id(track_id)
-        before_progress = _load_json(track / "progress.json")
-        context = _current_unit_context(track)
+        context = _resolve_unit_context(track, requested_unit_id)
         metadata, completed_unit = context["metadata"], context["unit"]
+        unit_id = str(completed_unit.get("id"))
+        was_already_completed = bool(context["is_completed"])
         reward = _reward_preview(metadata, completed_unit)
     except Exception:
         pass
 
     try:
-        result = _run("tracker.py", f"{_selection(track_id)}\n")
+        args = [track_id]
+        if unit_id:
+            args += ["--unit-id", unit_id]
+        result = _run("complete_unit.py", args=args)
         output = (result.stdout + "\n" + result.stderr).strip()
     except Exception as error:
         output = f"LEARNING ENGINE ERROR\n{error}"
@@ -729,17 +798,16 @@ def complete_current_unit(track_id: str):
     if track is not None and completed_unit is not None and reward is not None:
         try:
             after_progress = _load_json(track / "progress.json")
-            advanced = int(after_progress.get("total_xp", 0)) > int(
-                before_progress.get("total_xp", 0)
-            ) or len(after_progress.get("completed_units", [])) > len(
-                before_progress.get("completed_units", [])
+            just_completed = (
+                not was_already_completed
+                and str(completed_unit.get("id")) in after_progress.get("completed_units", [])
             )
-            if advanced:
+            if just_completed:
                 units = metadata.get("units", [])
                 new_index = max(0, min(int(after_progress.get("current_unit_index", 0)), len(units) - 1))
                 next_unit_title = (
                     units[new_index].get("title")
-                    if units and new_index != context["unit_index"]
+                    if units and after_progress.get("status") != "Complete"
                     else None
                 )
                 _write_completion_receipt(track_id, metadata, completed_unit, reward, next_unit_title)
@@ -753,18 +821,13 @@ def complete_current_unit(track_id: str):
 def import_manifest():
     manifest = request.form.get("manifest_path", "").strip()
     if not manifest:
-        return redirect(
-            url_for(
-                "operator_learning.dashboard",
-                output="IMPORT ERROR\nEnter a manifest file or resource directory.",
-            )
-        )
+        return _back(output="IMPORT ERROR\nEnter a manifest file or resource directory.")
     try:
         result = _run("import_manifest.py", f"{manifest}\ny\ny\n")
         output = (result.stdout + "\n" + result.stderr).strip()
     except Exception as error:
         output = f"IMPORT ERROR\n{error}"
-    return redirect(url_for("operator_learning.dashboard", output=output[-5000:]))
+    return _back(output=output[-5000:])
 
 
 @operator_learning_bp.post("/providers/bootdev/reconcile")
@@ -778,9 +841,7 @@ def reconcile_bootdev():
         output = (result.stdout + "\n" + result.stderr).strip()
     except Exception as error:
         output = f"BOOT.DEV RECONCILIATION ERROR\n{error}"
-    return redirect(
-        url_for("operator_learning.dashboard", output=output[-5000:])
-    )
+    return _back(output=output[-5000:])
 
 
 @operator_learning_bp.post("/provider-progress")
@@ -788,7 +849,7 @@ def import_provider_progress():
     snapshot = request.form.get("snapshot_path", "").strip()
     dry_run = request.form.get("dry_run") == "on"
     if not snapshot:
-        return redirect(url_for("operator_learning.dashboard", output="PROVIDER IMPORT ERROR\nEnter a progress snapshot path."))
+        return _back(output="PROVIDER IMPORT ERROR\nEnter a progress snapshot path.")
     args = [snapshot]
     if dry_run:
         args.append("--dry-run")
@@ -797,4 +858,4 @@ def import_provider_progress():
         output = (result.stdout + "\n" + result.stderr).strip()
     except Exception as error:
         output = f"PROVIDER IMPORT ERROR\n{error}"
-    return redirect(url_for("operator_learning.dashboard", output=output[-5000:]))
+    return _back(output=output[-5000:])

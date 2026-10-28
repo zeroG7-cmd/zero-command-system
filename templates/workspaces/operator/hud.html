@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Operator Development | Zero Command</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/operator_hud.css') }}">
+<script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+</head>
+<body>
+<div class="screen" id="root" data-view="overview">
+  <div class="watermark">OPERATOR</div>
+  <div class="loading" id="loading">LOADING ZERO</div>
+  <model-viewer id="mv" alt="Zero, digital twin" src="{{ url_for('static', filename='models/zero.glb') }}" auto-rotate rotation-per-second="14deg" camera-controls disable-zoom interaction-prompt="none" shadow-intensity="0" exposure="1.1" camera-orbit="0deg 82deg auto" field-of-view="26deg"></model-viewer>
+
+  <div class="crumb" id="crumb"></div>
+  <a class="brand" href="#overview" aria-label="Operator overview"><span id="minicore"></span><div><h1>ZERO</h1><small id="minisub"></small></div></a>
+  <nav class="ring" id="ring" aria-label="Operator sections"></nav>
+  <div class="status"><i></i>KNOWLEDGE GRAPH ONLINE</div>
+  <a class="lvbadge" href="#overview" aria-label="Operator level"><span>LV</span><strong id="badgelv"></strong><span id="badgetitle"></span></a>
+
+  <div class="ovw">
+    <section class="left" aria-label="Operator attributes">
+      <div class="name"><span id="bigcore"></span><div><h1>ZERO</h1><span class="chip" id="chip"></span><div class="note" style="margin-top:8px;letter-spacing:.14em">OVERALL RATING</div></div></div>
+      <div>
+        <div class="bar-head"><span>ATTRIBUTES</span><span>OVR</span></div>
+        <div class="frame"><div class="grid7" id="stats"></div><div class="trio" id="trio"></div></div>
+      </div>
+      <div class="skillbox">
+        <div class="bar-head"><span>SIGNATURE SKILLS</span><span>LEVEL</span></div>
+        <div class="frame"><div class="skills" id="skills"></div></div>
+      </div>
+    </section>
+    <aside class="detail" id="detail" aria-live="polite"></aside>
+    <section class="right" aria-label="Level and actions">
+      <div class="lvl"><strong id="lv"></strong><span>OPERATOR<br>LEVEL</span></div>
+      <p class="rtitle" id="rtitle"></p>
+      <div class="xp" id="xp"></div>
+      <div class="ladder" id="ladder"></div>
+      <div class="btns">
+        <a class="btn main" href="#learning"><span>LEARNING HUB</span><small>Continue</small></a>
+        <a class="btn" href="#execution"><span>EXECUTION HUB</span></a>
+        <a class="btn" href="#tree"><span>SKILL TREE</span><small>7 stats</small></a>
+      </div>
+    </section>
+  </div>
+
+  <div class="page" id="page"></div>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+<script defer src="{{ url_for('static', filename='js/operator_hud.js') }}"></script>
+</body>
+</html>

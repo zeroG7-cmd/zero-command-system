@@ -283,7 +283,11 @@ def log_day():
         except Exception as error:
             output = f"FITNESS ENGINE ERROR\n{error}"
 
-    return redirect(url_for("operator_fitness.dashboard", output=output[-4000:]))
+    # Redirects into the HUD shell (modules/operator_hud.py) rather than this
+    # hub's own standalone page, so a real <form> POST from the HUD's Fitness
+    # view lands back inside the SPA. operator_fitness.dashboard still works
+    # fine on its own for direct/legacy links.
+    return redirect(url_for("operator.dashboard", hud_view="fitness", output=output[-4000:]))
 
 
 @operator_fitness_bp.post("/log-gym-day")
@@ -299,4 +303,4 @@ def log_gym_day():
     except Exception as error:
         output = f"FITNESS ENGINE ERROR\n{error}"
 
-    return redirect(url_for("operator_fitness.dashboard", output=output[-4000:]))
+    return redirect(url_for("operator.dashboard", hud_view="fitness", output=output[-4000:]))

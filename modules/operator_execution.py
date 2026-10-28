@@ -168,21 +168,27 @@ def _resolve_capability(stat: str, category: str, subcategory: str, capability: 
     return str(leaf.get("competency_id", "")) or None
 
 
-@bp.get("/")
-def dashboard():
+def get_execution_dashboard_data() -> dict[str, Any]:
+    """Same context dashboard() renders with - pulled out so the HUD shell's
+    live-data aggregator (modules/operator_hud.py) can reuse it exactly,
+    rather than re-deriving execution data a second way."""
     xp_engine, stats_engine, get_level_progress, execution_service = _engine_modules()
     tree = _skill_tree()
     registry = _competency_registry()
     competency_names = {cid: str(rec.get("name", cid)) for cid, rec in registry.items()}
-    return render_template(
-        "workspaces/operator/execution.html",
-        catalog=_catalog(tree, registry, get_level_progress),
-        xp_by_scope=EXECUTION_XP_BY_SCOPE,
-        summary=execution_service.execution_summary(),
-        records=execution_service.list_executions(30),
-        competency_names=competency_names,
-        error=None,
-    )
+    return {
+        "catalog": _catalog(tree, registry, get_level_progress),
+        "xp_by_scope": EXECUTION_XP_BY_SCOPE,
+        "summary": execution_service.execution_summary(),
+        "records": execution_service.list_executions(30),
+        "competency_names": competency_names,
+        "error": None,
+    }
+
+
+@bp.get("/")
+def dashboard():
+    return render_template("workspaces/operator/execution.html", **get_execution_dashboard_data())
 
 
 @bp.post("/api")

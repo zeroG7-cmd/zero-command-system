@@ -222,8 +222,49 @@ def _evidence_relpath(kind: str, aircraft: str, filename: str) -> str:
     return f"Flights/{kind_folder}/{aircraft}/raw/{filename}"
 
 
-@bp.get("/")
-def dashboard():
+def _platform_breakdown(records: list[dict[str, Any]], aircraft_options: dict[str, list[str]]) -> dict[str, list[dict[str, Any]]]:
+    """Per-aircraft real/sim rollup for the Flights hub's Platforms view -
+    walks the same Flights/<Real|Simulated>/<aircraft>/raw folders
+    _aircraft_options() already scans, cross-referenced against logged
+    flight records so each platform shows how many raw clips are still
+    sitting there un-logged ("waiting") versus already attached as
+    evidence to a flight. Additive and read-only: doesn't touch anything
+    create()/persist_flight() does.
+    """
+    by_kind_aircraft: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for record in records:
+        key = (str(record.get("kind", "")), str(record.get("aircraft", "")))
+        by_kind_aircraft.setdefault(key, []).append(record)
+
+    result: dict[str, list[dict[str, Any]]] = {"real": [], "simulated": []}
+    for kind in ("real", "simulated"):
+        for aircraft in aircraft_options.get(kind, []):
+            aircraft_records = by_kind_aircraft.get((kind, aircraft), [])
+            raw_files = set(_existing_evidence_files(kind, aircraft))
+            logged_files = {
+                Path(path).name
+                for record in aircraft_records
+                for path in record.get("evidence", [])
+            }
+            minutes = sum(float(record.get("duration_minutes", 0)) for record in aircraft_records)
+            xp = sum(int(record.get("xp_total", 0)) for record in aircraft_records)
+            last_date = max((record.get("date", "") for record in aircraft_records), default=None)
+            result[kind].append({
+                "name": aircraft,
+                "kind": kind,
+                "flights": len(aircraft_records),
+                "minutes": round(minutes, 1),
+                "xp": xp,
+                "clips_total": len(raw_files),
+                "clips_waiting": len(raw_files - logged_files),
+                "last_date": last_date or None,
+            })
+    return result
+
+
+def get_flights_dashboard_data() -> dict[str, Any]:
+    """Same context dashboard() renders with - pulled out so the HUD shell's
+    live-data aggregator (modules/operator_hud.py) can reuse it exactly."""
     xp_engine, stats_engine, get_level_progress, flight_service = _engine_modules()
     tree = _skill_tree()
     registry = _competency_registry()
@@ -243,17 +284,22 @@ def dashboard():
             for path in record.get("evidence", [])
         ]
 
-    return render_template(
-        "workspaces/operator/flights.html",
-        catalog=_aviation_catalog(tree, registry, get_level_progress),
-        aircraft=aircraft,
-        hourly_xp_rate=xp_engine.HOURLY_XP_RATE,
-        summary=flight_service.flight_summary(),
-        records=records,
-        competency_names=competency_names,
-        today=date.today().isoformat(),
-        error=None,
-    )
+    return {
+        "catalog": _aviation_catalog(tree, registry, get_level_progress),
+        "aircraft": aircraft,
+        "hourly_xp_rate": xp_engine.HOURLY_XP_RATE,
+        "summary": flight_service.flight_summary(),
+        "records": records,
+        "platforms": _platform_breakdown(flight_service.list_flights(10_000), aircraft),
+        "competency_names": competency_names,
+        "today": date.today().isoformat(),
+        "error": None,
+    }
+
+
+@bp.get("/")
+def dashboard():
+    return render_template("workspaces/operator/flights.html", **get_flights_dashboard_data())
 
 
 @bp.get("/evidence-files")

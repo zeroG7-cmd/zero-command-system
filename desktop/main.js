@@ -45,8 +45,48 @@ const WORKSPACE_ROOT = path.join(__dirname, '..', '..');
 let backendProcess = null;
 let mainWindow = null;
 
+// Defense in depth against the zombie-process failure mode: if a previous
+// launch's Flask process somehow survived (e.g. the app was killed instead
+// of quit normally, or quit before killBackend()'s taskkill finished - see
+// killBackend() below, which now waits on that instead of firing-and-
+// forgetting it), it stays bound to port 5000. The NEW backend we're about
+// to spawn then either fails to bind or (depending on OS socket behaviour)
+// silently coexists, and waitForServer() below has no way to tell "the
+// zombie answered" apart from "my new process answered" - it just checks
+// that *something* is on port 5000. So: sweep the port clear first, every
+// launch, before spawning anything.
+function killStaleBackendOnPort5000() {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') { resolve(); return; }
+    // No shell: true here, so this one string goes to cmd.exe's own parser
+    // exactly once - a bare "|" is correct; a caret-escaped "^|" would be
+    // wrong here (that escaping is only needed when a pipe command gets
+    // re-parsed through an extra layer, e.g. nested inside another cmd /c
+    // or a FOR /F loop, which isn't happening here).
+    const netstat = spawn('cmd', ['/c', 'netstat -ano -p tcp | findstr :5000']);
+    let out = '';
+    netstat.stdout.on('data', (d) => { out += d; });
+    netstat.on('close', () => {
+      const pids = new Set();
+      out.split('\n').forEach((line) => {
+        const m = line.trim().match(/\s(\d+)\s*$/);
+        if (m) pids.add(m[1]);
+      });
+      if (!pids.size) { resolve(); return; }
+      console.log(`Port 5000 already has a listener (pid ${[...pids].join(', ')}) - clearing it before starting a fresh backend.`);
+      let remaining = pids.size;
+      pids.forEach((pid) => {
+        const killer = spawn('taskkill', ['/pid', pid, '/f', '/t']);
+        killer.on('exit', () => { if (--remaining <= 0) setTimeout(resolve, 300); });
+        killer.on('error', () => { if (--remaining <= 0) setTimeout(resolve, 300); });
+      });
+    });
+    netstat.on('error', () => resolve());
+  });
+}
+
 function startBackend() {
-  return new Promise((resolve, reject) => {
+  return killStaleBackendOnPort5000().then(() => new Promise((resolve, reject) => {
     backendProcess = spawn(BACKEND_EXE, [], {
       cwd: path.dirname(BACKEND_EXE),
       env: {
@@ -71,7 +111,7 @@ function startBackend() {
     });
 
     waitForServer(resolve, reject);
-  });
+  }));
 }
 
 // Spawning the process doesn't mean Flask is ready yet — poll until it
@@ -122,27 +162,45 @@ app.whenReady().then(async () => {
   });
 });
 
+// Returns a promise so callers can wait for the kill to actually finish
+// before letting Electron quit. This used to fire-and-forget the taskkill
+// spawn() and return immediately - on Windows that let app.quit() tear the
+// whole process down (Electron included) before taskkill had finished
+// walking the tree, which is almost certainly how a Flask process has
+// survived past app close before, held port 5000, and made the next
+// launch's "nothing changed" (waitForServer() above happily answered by the
+// zombie, not the new process). Safe to call more than once: once
+// backendProcess is cleared, later calls are a no-op that resolves
+// immediately, which matters because window-all-closed and before-quit can
+// both fire for the same shutdown.
 function killBackend() {
-  if (!backendProcess) return;
-
-  if (process.platform === 'win32') {
-    // On Windows, backendProcess.kill() only signals the immediate PID.
-    // PyInstaller's bootloader can leave the real Flask process as a
-    // child of that PID, which survives the kill and keeps port 5000
-    // held open. taskkill /T kills the whole process tree.
-    spawn('taskkill', ['/pid', backendProcess.pid, '/f', '/t']);
-  } else {
-    backendProcess.kill();
-  }
+  if (!backendProcess) return Promise.resolve();
+  const proc = backendProcess;
   backendProcess = null;
+
+  if (process.platform !== 'win32') {
+    proc.kill();
+    return Promise.resolve();
+  }
+
+  // On Windows, proc.kill() only signals the immediate PID. PyInstaller's
+  // bootloader can leave the real Flask process as a child of that PID,
+  // which survives the kill and keeps port 5000 held open. taskkill /T
+  // kills the whole process tree instead.
+  return new Promise((resolve) => {
+    const killer = spawn('taskkill', ['/pid', proc.pid, '/f', '/t']);
+    killer.on('exit', () => resolve());
+    killer.on('error', () => resolve());
+  });
 }
 
 // On Windows/Linux, closing the last window should quit the app.
 // On macOS, apps conventionally stay running in the dock until Cmd+Q —
 // either way, the backend must not outlive the window.
 app.on('window-all-closed', () => {
-  killBackend();
-  if (process.platform !== 'darwin') app.quit();
+  killBackend().then(() => {
+    if (process.platform !== 'darwin') app.quit();
+  });
 });
 
-app.on('before-quit', killBackend);
+app.on('before-quit', () => { killBackend(); });
