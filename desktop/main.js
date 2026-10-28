@@ -14,10 +14,17 @@
 // child process — Flask never keeps running in the background after you
 // close the app.
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
+
+// Linux + NVIDIA proprietary driver commonly fails Electron's GPU
+// sandbox checks and silently falls back to software rendering
+// (SwiftShader) - correct geometry but broken lighting and much
+// slower frame rates. Force real GPU usage instead.
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
 
 const FLASK_URL = 'http://127.0.0.1:5000';
 
@@ -137,6 +144,20 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // The R&D nav link and the home screen's R&D tile now open the Digital
+  // Lab - a separate claude.ai artifact, not part of this app - via
+  // target="_blank". Electron denies that kind of navigation by default,
+  // so without this handler the click would just silently do nothing.
+  // Anything targeting this app's own Flask origin still opens normally
+  // inside the app window; anything else opens in the user's real default
+  // browser instead, where their claude.ai login already exists (this
+  // Electron window has no session of its own there).
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith(FLASK_URL)) return { action: 'allow' };
+    shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   mainWindow.loadURL(FLASK_URL);
