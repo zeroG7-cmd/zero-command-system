@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from config import SHADOW_DB, SHADOW_PROGRESS_JSON, SHADOW_TELEMETRY_JSON
 
@@ -236,6 +236,335 @@ def get_skill_progress() -> dict[str, Any] | None:
         return None
 
 
+# ---- Training Log (Oct 26, 2026) - reports + manual log, inside Digital
+# Twin -----------------------------------------------------------------------
+#
+# Zer0's ask: a screen inside Digital Twin, same list->detail shape as
+# his Learning Hub entries, except the entries write themselves - one
+# auto-generated report per simulation run, pulling together the three
+# things that used to have no idea about each other (the run itself,
+# which skill(s) were attempted during it - skill_attempts, wired up
+# Oct 25 night - and a telemetry summary), plus a second, manual side
+# (his own notes/log) replacing Test_Logger.py's intent properly:
+# structured into the database instead of an interactive terminal
+# script writing loose .txt files nobody ever read back (checked
+# directly - it produced exactly one file, ever, six months ago).
+
+MAX_CHART_POINTS = 300
+
+
+def _connect_rnd() -> sqlite3.Connection:
+    from config import ZERO_GRAVITY_RND_DB
+
+    connection = sqlite3.connect(ZERO_GRAVITY_RND_DB)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _ensure_skill_attempts_table(connection: sqlite3.Connection) -> None:
+    # Mirrors nodes/run_skill.py's own _ensure_skill_attempts_table()
+    # exactly - duplicated rather than imported, since this Flask app
+    # and run_skill.py are two separate Python environments (this
+    # app's venv vs. the ROS2-sourced one run_skill.py runs under)
+    # with no shared module path between them. Idempotent either way,
+    # so it's safe to call even once run_skill.py has already created
+    # the real table.
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS skill_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            simulation_run_id INTEGER NOT NULL,
+            skill_name TEXT NOT NULL,
+            result TEXT NOT NULL,
+            reason TEXT,
+            streak_after INTEGER,
+            attempted_at TEXT NOT NULL
+        )
+        """
+    )
+
+
+def _ensure_mission_events_table(connection: sqlite3.Connection) -> None:
+    # Oct 26, 2026 (later still) - Zer0's call: missions don't get a
+    # separate log/report system of their own. They tag into the same
+    # simulation_runs row and the same Training Log Reports/Events
+    # view skill_attempts already uses, not a parallel one. Mirrors
+    # simulation_control.py's own _ensure_mission_events_table() exactly,
+    # same reasoning _ensure_skill_attempts_table() above already
+    # documents for why this is duplicated rather than imported (two
+    # separate Python environments, no shared module path). Idempotent
+    # either way.
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS mission_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            simulation_run_id INTEGER NOT NULL,
+            mission_key TEXT NOT NULL,
+            mission_name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            detail TEXT,
+            started_at TEXT NOT NULL,
+            completed_at TEXT
+        )
+        """
+    )
+
+
+def _ensure_manual_test_logs_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS manual_test_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_name TEXT NOT NULL,
+            component TEXT,
+            result TEXT NOT NULL,
+            notes TEXT,
+            simulation_run_id INTEGER,
+            logged_at TEXT NOT NULL
+        )
+        """
+    )
+
+
+def _decimate(rows: list, max_points: int = MAX_CHART_POINTS) -> list:
+    """Evenly-spaced downsampling, not just the first N rows - a long
+    run's telemetry (potentially thousands of 1Hz samples) stays a
+    reasonably small chart payload without losing the overall shape a
+    short run's chart would otherwise show at full resolution."""
+    n = len(rows)
+    if n <= max_points:
+        return rows
+    step = n / max_points
+    return [rows[int(i * step)] for i in range(max_points)]
+
+
+def list_simulation_run_reports(limit: int = 50) -> list[dict[str, Any]]:
+    """Generated reports - one per simulation_runs row, most recent
+    first, for the Training Log's Reports tab list view."""
+    try:
+        with _connect_rnd() as connection:
+            _ensure_skill_attempts_table(connection)
+            _ensure_mission_events_table(connection)
+            runs = connection.execute(
+                """
+                SELECT id, scenario_name, vehicle_model, status, started_at, completed_at
+                FROM simulation_runs ORDER BY id DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+            reports = []
+            for run in runs:
+                run_id = run["id"]
+                skills = connection.execute(
+                    """
+                    SELECT skill_name, result, streak_after FROM skill_attempts
+                    WHERE simulation_run_id = ? ORDER BY attempted_at ASC
+                    """,
+                    (run_id,),
+                ).fetchall()
+                missions = connection.execute(
+                    """
+                    SELECT mission_key, mission_name, status FROM mission_events
+                    WHERE simulation_run_id = ? ORDER BY started_at ASC
+                    """,
+                    (run_id,),
+                ).fetchall()
+                summary = connection.execute(
+                    """
+                    SELECT COUNT(*) AS sample_count,
+                           MIN(altitude) AS altitude_min, MAX(altitude) AS altitude_max,
+                           MIN(battery_percentage) AS battery_min, MAX(battery_percentage) AS battery_max
+                    FROM simulated_telemetry WHERE simulation_run_id = ?
+                    """,
+                    (run_id,),
+                ).fetchone()
+                reports.append({
+                    "id": run_id,
+                    "scenario_name": run["scenario_name"],
+                    "vehicle_model": run["vehicle_model"],
+                    "status": run["status"],
+                    "started_at": run["started_at"],
+                    "completed_at": run["completed_at"],
+                    "skills": [dict(s) for s in skills],
+                    "missions": [dict(m) for m in missions],
+                    "telemetry_sample_count": summary["sample_count"] or 0,
+                    "altitude_min": summary["altitude_min"],
+                    "altitude_max": summary["altitude_max"],
+                    "battery_min": summary["battery_min"],
+                    "battery_max": summary["battery_max"],
+                })
+            return reports
+    except (sqlite3.Error, OSError):
+        return []
+
+
+def get_simulation_run_report(run_id: int) -> dict[str, Any] | None:
+    """Full detail for ONE simulation run - the generated report Zer0
+    opens from the Training Log's list, same list->detail shape as his
+    Learning Hub entries. The telemetry series is decimated (see
+    _decimate() above) so the chart payload stays small."""
+    try:
+        with _connect_rnd() as connection:
+            run = connection.execute(
+                """
+                SELECT id, scenario_name, vehicle_model, status, started_at, completed_at
+                FROM simulation_runs WHERE id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+            if run is None:
+                return None
+
+            _ensure_skill_attempts_table(connection)
+            skills = connection.execute(
+                """
+                SELECT skill_name, result, reason, streak_after, attempted_at
+                FROM skill_attempts WHERE simulation_run_id = ? ORDER BY attempted_at ASC
+                """,
+                (run_id,),
+            ).fetchall()
+
+            _ensure_mission_events_table(connection)
+            missions = connection.execute(
+                """
+                SELECT mission_key, mission_name, status, detail, started_at, completed_at
+                FROM mission_events WHERE simulation_run_id = ? ORDER BY started_at ASC
+                """,
+                (run_id,),
+            ).fetchall()
+
+            telemetry = connection.execute(
+                """
+                SELECT timestamp, altitude, battery_percentage, flight_mode
+                FROM simulated_telemetry WHERE simulation_run_id = ? ORDER BY id ASC
+                """,
+                (run_id,),
+            ).fetchall()
+
+        telemetry_rows = [dict(t) for t in telemetry]
+        mission_rows = [dict(m) for m in missions]
+
+        # Oct 26, 2026 (later still) - the merged "bigger picture" view
+        # Zer0 asked for: one chronological timeline across whatever
+        # actually happened in this run, not separate chip rows per
+        # source. Missions tag in here the same way skills already do -
+        # by timestamp, into the same list - rather than getting their
+        # own parallel log/report. Each entry gets a 'kind' so the
+        # frontend can style skill vs. mission rows differently without
+        # needing two separate fetches. A mission's own start AND end
+        # both become entries (end only once record_mission_result.py -
+        # called by the mission script itself on exit - has actually
+        # reported back; a mission still 'started' with no end yet just
+        # means it's still flying or the script never got a chance to
+        # report, same honest "no data yet" handling as everything else
+        # here rather than guessing an outcome).
+        # "key" (Oct 26, 2026, even later still) - added alongside the
+        # existing display fields so the new in-depth-report feature has
+        # something to hand back to /simulation/event-log-context: for a
+        # skill it's just skill_name (label already was this), for a
+        # mission it's mission_key (flight_smoke/deliver_payload/
+        # learned_flight - "label" is the human-readable mission_name,
+        # not reliably matchable against the lowercase key log lines
+        # actually use).
+        events = []
+        for s in skills:
+            events.append({
+                "kind": "skill",
+                "key": s["skill_name"],
+                "label": s["skill_name"],
+                "status": s["result"],
+                "detail": s["reason"],
+                "timestamp": s["attempted_at"],
+            })
+        for m in mission_rows:
+            events.append({
+                "kind": "mission",
+                "key": m["mission_key"],
+                "label": m["mission_name"],
+                "status": "started",
+                "detail": None,
+                "timestamp": m["started_at"],
+            })
+            if m["completed_at"]:
+                events.append({
+                    "kind": "mission",
+                    "key": m["mission_key"],
+                    "label": m["mission_name"],
+                    "status": m["status"],
+                    "detail": m["detail"],
+                    "timestamp": m["completed_at"],
+                })
+        events.sort(key=lambda e: e["timestamp"] or "")
+
+        return {
+            "id": run["id"],
+            "scenario_name": run["scenario_name"],
+            "vehicle_model": run["vehicle_model"],
+            "status": run["status"],
+            "started_at": run["started_at"],
+            "completed_at": run["completed_at"],
+            "skills": [dict(s) for s in skills],
+            "missions": mission_rows,
+            "events": events,
+            "telemetry_sample_count": len(telemetry_rows),
+            "telemetry_series": _decimate(telemetry_rows),
+        }
+    except (sqlite3.Error, OSError):
+        return None
+
+
+def list_manual_test_logs(limit: int = 50) -> list[dict[str, Any]]:
+    try:
+        with _connect_rnd() as connection:
+            _ensure_manual_test_logs_table(connection)
+            rows = connection.execute(
+                """
+                SELECT id, test_name, component, result, notes, simulation_run_id, logged_at
+                FROM manual_test_logs ORDER BY id DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+    except (sqlite3.Error, OSError):
+        return []
+
+
+def create_manual_test_log(test_name: str, component: str, result: str, notes: str) -> dict[str, Any]:
+    """Zer0's own old Test_Logger.py's intent, done properly: a
+    structured, database-backed manual log entry instead of an
+    interactive terminal script writing loose .txt files. Auto-links
+    to whichever simulation_runs row is currently 'running', if any -
+    same lookup nodes/run_skill.py's own _record_skill_attempt()
+    already uses - so a note taken during a live sim session is tied
+    to that session automatically."""
+    from datetime import datetime, timezone
+
+    with _connect_rnd() as connection:
+        _ensure_manual_test_logs_table(connection)
+        active_run = connection.execute(
+            "SELECT id FROM simulation_runs WHERE status = 'running' ORDER BY started_at DESC LIMIT 1"
+        ).fetchone()
+        run_id = active_run["id"] if active_run else None
+
+        cursor = connection.execute(
+            """
+            INSERT INTO manual_test_logs (test_name, component, result, notes, simulation_run_id, logged_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (test_name, component, result, notes, run_id, datetime.now(timezone.utc).isoformat()),
+        )
+        connection.commit()
+        return {
+            "id": cursor.lastrowid,
+            "test_name": test_name,
+            "component": component,
+            "result": result,
+            "notes": notes,
+            "simulation_run_id": run_id,
+        }
+
+
 shadow_bp = Blueprint("shadow", __name__, url_prefix="/shadow")
 
 
@@ -290,3 +619,46 @@ def progress():
     """
     skills = get_skill_progress()
     return jsonify({"available": skills is not None, "skills": skills or {}})
+
+
+@shadow_bp.get("/reports")
+def reports():
+    """JSON API for the Digital Twin's Training Log - Reports tab list
+    view. Always 200; an empty list just means no sim run has happened
+    yet, a normal state, not an error."""
+    return jsonify({"ok": True, "reports": list_simulation_run_reports()})
+
+
+@shadow_bp.get("/reports/<int:run_id>")
+def report_detail(run_id: int):
+    """JSON API for one report's detail view, including the decimated
+    telemetry series the Training Log's charts are built from."""
+    report = get_simulation_run_report(run_id)
+    if report is None:
+        return jsonify({"ok": False, "error": f"No simulation run with id {run_id}"}), 404
+    return jsonify({"ok": True, "report": report})
+
+
+@shadow_bp.get("/manual-logs")
+def manual_logs():
+    """JSON API for the Training Log's My Log tab list view."""
+    return jsonify({"ok": True, "logs": list_manual_test_logs()})
+
+
+@shadow_bp.post("/manual-logs")
+def create_manual_log():
+    """Creates one manual log entry - the My Log tab's own form, the
+    structured replacement for Test_Logger.py's interactive terminal
+    prompts (test name, component, result, notes - same fields, now a
+    web form writing to the database instead of a loose .txt file)."""
+    body = request.get_json(silent=True) or {}
+    test_name = (body.get("test_name") or "").strip()
+    if not test_name:
+        return jsonify({"ok": False, "error": "test_name is required"}), 400
+    entry = create_manual_test_log(
+        test_name=test_name,
+        component=(body.get("component") or "").strip(),
+        result=(body.get("result") or "note").strip(),
+        notes=(body.get("notes") or "").strip(),
+    )
+    return jsonify({"ok": True, "log": entry})

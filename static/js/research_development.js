@@ -9,12 +9,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const sidebarToggle = document.querySelector(".sidebar-toggle");
 
     const validRooms = new Set(panels.map((panel) => panel.dataset.roomPanel));
+    const crumbRoomEl = document.getElementById("lab-crumb-room");
 
     function openRoom(room, options = {}) {
         if (!validRooms.has(room)) room = shell.dataset.defaultRoom || "hub";
 
         links.forEach((link) => link.classList.toggle("active", link.dataset.room === room));
         panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.roomPanel === room));
+
+        // Mockup's own crumb reads "DIGITAL LAB / <ROOM NAME>" and updates
+        // on every room change - reusing each room-link's own title
+        // attribute as the room name rather than a second hardcoded list.
+        if (crumbRoomEl) {
+            const activeLink = links.find((link) => link.dataset.room === room);
+            crumbRoomEl.textContent = (activeLink ? activeLink.title : room).toUpperCase();
+        }
 
         if (options.updateHash !== false) {
             history.replaceState(null, "", `#${room}`);
