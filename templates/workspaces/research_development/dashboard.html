@@ -1,10 +1,10 @@
 {# Digital Lab - ported from the standalone sign-off mockup (Zer0 approved, v9) on Oct 29 2026. #}
 {# This replaces the old flat room-switcher wholesale, per Zer0's explicit instruction. Deliberately #}
 {# does NOT extend base.html - this room owns the whole screen immersively, same as the mockup. #}
-{# Known tradeoff, explicitly accepted by Zer0: the real live Gazebo/noVNC feed, real telemetry, Mind #}
-{# Log, training-log/eval charts and payload-mass budget calculator that the prior version of this file #}
-{# had wired in are NOT in this version - this is the mockup's own EX/placeholder data as-is. Rewiring #}
-{# those back in against this new layout is tracked as explicit follow-up work, not done here. #}
+{# Rewiring in progress, room by room (started Oct 29 2026, later same day): Projects/Experiments/ #}
+{# Hardware/Data/Archive now read real data via the RND object injected below. Still on the mockup's #}
+{# own EX/placeholder data: Lab Hub stats, Attributes, Skill Tree, Missions, Digital Twin's payload #}
+{# calc + training log, and all of Simulation Bay (live Gazebo/noVNC, real telemetry, Mind Log). #}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,6 +12,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 </head>
 <body>
+<script>
+// Live data from Flask (research_development.py's dashboard() route) - the
+// same rnd/live_sim/camera_stream_url this template used before the port.
+// Rooms rewired to use it read from here instead of their own hardcoded
+// EX arrays; rooms not yet rewired are untouched and still show EX data.
+const RND = {{ rnd|tojson }};
+const LIVE_SIM = {{ (live_sim or none)|tojson }};
+const CAMERA_STREAM_URL = {{ camera_stream_url|tojson }};
+</script>
 <meta name="claude:viewport-fit-sides" content="cover">
 <title>Digital Lab</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -57,6 +66,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 /* top */
 .crumb{position:absolute;z-index:6;left:var(--gutter-l);top:16px;font:600 12px var(--display);letter-spacing:.16em;color:var(--muted);white-space:nowrap}
 .crumb b{color:var(--accent)}
+.crumb-home{color:var(--muted);text-decoration:none;border-bottom:1px solid transparent}
+.crumb-home:hover{color:var(--accent);border-bottom-color:var(--accent)}
 .ring{position:absolute;z-index:7;left:50%;top:8px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;max-width:calc(100vw - 2*var(--gutter-l));flex-wrap:wrap;justify-content:center}
 .hub{width:42px;height:42px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--muted);display:grid;place-items:center;font:600 7px var(--display);letter-spacing:.02em;position:relative;cursor:pointer}
 .hub:hover{color:var(--text);border-color:var(--line-strong)}
@@ -170,10 +181,26 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 [data-view=sim] .page,[data-view=twin] .page{display:none!important}
 .stage3d{position:absolute;inset:0;width:100%;height:100%;display:none;
   background:radial-gradient(ellipse 55% 60% at 50% 55%,rgba(112,255,180,.08),transparent 72%),var(--bg)}
-[data-view=sim] #sim-gl{display:block}
+/* Preview <-> live (wired Oct 30 2026, round 2): #sim-gl (the fake
+   three.js flight preview) and #sim-gazebo (the real noVNC iframe) are
+   both always in the DOM; root.dataset.simMode - set by renderSimRoom()
+   below - decides which one is actually visible, instead of #sim-gazebo
+   always winning like the first wiring pass did. */
+[data-view=sim][data-sim-mode=preview] #sim-gl{display:block}
+[data-view=sim][data-sim-mode=live] #sim-gazebo{display:block}
+#sim-fullwindow-btn{display:none}
+[data-view=sim][data-sim-mode=live] #sim-fullwindow-btn{display:block}
+body.sim-fullwindow #sim-gazebo{position:fixed;inset:0;z-index:2000;width:100vw;height:100vh}
+body.sim-fullwindow .sim-hud.ov{display:none!important}
+/* !important needed here: the button's own inline style sets
+   position/z-index directly, which otherwise beats any non-!important
+   stylesheet rule regardless of selector specificity - confirmed via a
+   Playwright click test that the toggle-off click was landing on the
+   iframe underneath, not this button, without this. */
+body.sim-fullwindow #sim-fullwindow-btn{position:fixed!important;z-index:2001!important}
 [data-view=twin] #twin-gl{display:block}
 .stage-loading{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:500 12px var(--mono);color:var(--muted);letter-spacing:.2em;z-index:2}
-[data-view=sim] #sim-loading{display:block}
+[data-view=sim][data-sim-mode=preview] #sim-loading{display:block}
 [data-view=twin] #twin-loading{display:block}
 /* Positioning/sizing only - the actual panel chrome (bar-head + bordered
    frame) comes from the same .pn/.frame the grid-based rooms use, via
@@ -185,7 +212,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .ov-tl{left:var(--gutter-l);top:66px;width:min(270px,25vw);min-width:230px}
 .ov-tr{right:var(--gutter-r);top:66px;width:min(300px,28vw);min-width:252px}
 .ov-bl{left:var(--gutter-l);bottom:28px;width:min(230px,22vw);min-width:196px}
-.ov-br{right:var(--gutter-r);bottom:28px;width:min(210px,21vw);min-width:184px}
+.ov-br{right:var(--gutter-r);bottom:28px;width:min(440px,38vw);min-width:340px}
 /* Twin room only: PARTS (top-left) is a real 24-row list and MASS CHECK
    (bottom-left) sits right underneath it in the same screen column - both
    use the generic .ov-tl/.ov-bl max-height (nearly full screen height,
@@ -194,6 +221,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
    within its own box instead of painting over the other. */
 [data-view=twin] #twin-ov-parts{max-height:min(calc(100% - 94px),44vh)}
 [data-view=twin] #twin-ov-mass{max-height:30vh}
+[data-view=twin] #twin-ov-payload{max-height:30vh}
 .ov-bc{left:50%;bottom:28px;transform:translateX(-50%);width:min(560px,calc(100% - 2*var(--gutter-l)));max-height:none}
 .fpv{position:relative;width:100%;aspect-ratio:4/3;border:1px solid var(--line-strong);background:#000;overflow:hidden}
 .fpv canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -261,6 +289,50 @@ table.t td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
 .phase span{font:600 9px var(--mono);letter-spacing:.06em;border:1px solid var(--line);color:var(--muted);padding:3px 6px}
 .phase span.on{background:var(--accent);color:var(--ink);border-color:var(--accent)}
 .phase span.done{color:var(--accent);border-color:var(--accent)}
+.phase span.bad{color:var(--bad);border-color:var(--bad)}
+.phase span.warn{background:var(--warm);color:var(--ink);border-color:var(--warm)}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin:2px 0 6px}
+.modes .mg{font:600 8px var(--mono);letter-spacing:.12em;color:var(--muted);grid-column:1/-1;margin-top:3px}
+.modes span{font:600 9px var(--mono);letter-spacing:.04em;text-align:center;border:1px solid var(--line);color:var(--muted);padding:3px 2px;opacity:.6}
+.modes span.on{background:var(--accent);color:var(--ink);border-color:var(--accent);opacity:1;box-shadow:0 0 8px var(--accent)}
+.batt{height:6px;border:1px solid var(--line);margin:2px 0 4px}.batt i{display:block;height:100%;background:var(--accent)}
+.ov-tc{left:50%;top:66px;transform:translateX(-50%);width:min(560px,calc(100% - 2*var(--gutter-l) - 620px));min-width:320px}
+#sim-ov-run:empty{display:none!important}
+[data-view=sim][data-sim-mode=live] .ov-bc{width:min(760px,calc(100% - 2*var(--gutter-l) - 920px));min-width:520px}
+#sim-ov-controls{flex-direction:column}
+/* Nov 9, 2026 - sleek Command Dock (design B) + system icon rail */
+.sd{background:rgba(8,16,13,.74);backdrop-filter:blur(12px);border:1px solid rgba(112,255,180,.18)}
+.sd-tabs{display:flex;align-items:stretch;border-bottom:1px solid rgba(112,255,180,.12)}
+.sd-tabs button.t{flex:1 1 0;display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:0 8px;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--c);opacity:.55;font:700 9px var(--display);letter-spacing:.16em;cursor:pointer;white-space:nowrap;transition:opacity .12s}
+.sd-tabs button.t:hover{opacity:.85}.sd-tabs button.t.on{opacity:1;border-bottom-color:var(--c);background:color-mix(in srgb,var(--c) 8%,transparent)}
+.sd-tabs button.t small{font:600 8px var(--mono);color:var(--muted)}
+.sd-tabs button.fold{width:40px;background:transparent;border:0;border-left:1px solid rgba(112,255,180,.12);color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.sd-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:6px}
+.sc{position:relative;width:78px;height:64px;box-sizing:border-box;padding:8px 5px 7px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;background:transparent;border:1px solid transparent;color:var(--text);cursor:pointer;transition:background .12s,transform .12s}
+.sc:hover{background:color-mix(in srgb,var(--c) 9%,transparent);transform:translateY(-2px)}
+.sc.sel{background:color-mix(in srgb,var(--c) 14%,transparent);border-color:color-mix(in srgb,var(--c) 70%,transparent)}
+.sc.wide{width:136px}.sc.lock{opacity:.4}
+.sc svg{color:var(--c)}
+.sc .nm{font:600 8px var(--mono);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sc .bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(112,255,180,.08)}.sc .bar i{display:block;height:100%;background:var(--warm)}
+.sc .live{position:absolute;right:5px;top:3px;font:600 7px var(--mono);color:var(--accent);animation:dkBlink 1s infinite}
+.sc.run{animation:dkPulse 1.4s infinite}
+@keyframes dkPulse{0%{box-shadow:0 0 0 0 rgba(112,255,180,.55)}70%{box-shadow:0 0 0 9px rgba(112,255,180,0)}100%{box-shadow:0 0 0 0 rgba(112,255,180,0)}}
+@keyframes dkBlink{0%,100%{opacity:1}50%{opacity:.3}}
+.sd-pop{margin:0 auto 8px;width:430px;max-width:100%;box-sizing:border-box;padding:10px 12px;background:rgba(8,16,13,.9);backdrop-filter:blur(12px);border:1px solid rgba(112,255,180,.22);border-left:2px solid var(--c)}
+.sd-pop .go{height:40px;padding:0 16px;display:flex;align-items:center;gap:7px;background:var(--accent);border:0;color:var(--ink);font:700 11px var(--display);letter-spacing:.16em;cursor:pointer}
+.sd-pop .go[disabled]{opacity:.4;cursor:not-allowed}
+.sd-pop .abort{height:40px;padding:0 14px;background:transparent;border:1px solid var(--bad);color:var(--bad);font:700 11px var(--display);letter-spacing:.14em;cursor:pointer}
+.rail{display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px}
+.rail button{height:40px;min-width:40px;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 10px;background:rgba(8,16,13,.74);backdrop-filter:blur(10px);color:var(--text);border:1px solid rgba(112,255,180,.18);font:700 10px var(--display);letter-spacing:.14em;cursor:pointer}
+.rail button:hover{border-color:var(--accent)}.rail button.on{border-color:var(--accent);color:var(--accent)}
+.rail button.stop{background:var(--accent);color:var(--ink);border-color:var(--accent)}
+.rail button[disabled]{opacity:.45;cursor:not-allowed}
+.rail-pop{display:flex;gap:6px;align-items:center;margin-bottom:8px;padding:8px;background:rgba(8,16,13,.88);border:1px solid rgba(112,255,180,.22)}
+.rail-pop select{flex:1;min-width:0;padding:6px;background:#050b09;color:var(--text);border:1px solid var(--line-strong);font:500 10px var(--mono)}
+.rail-pop button{height:36px;padding:0 12px;background:var(--accent);border:0;color:var(--ink);font:700 10px var(--display);letter-spacing:.14em;cursor:pointer}
+.rail-pop label{display:flex;align-items:center;gap:6px;flex:1;font:500 10px var(--mono);color:var(--muted);white-space:nowrap}
+.l3tabs{display:flex;gap:4px;margin-bottom:6px}.l3tabs button{flex:1;font:600 9px var(--mono);letter-spacing:.1em;padding:4px;background:transparent;border:1px solid var(--line);color:var(--muted);cursor:pointer}.l3tabs button.on{background:var(--accent);color:var(--ink);border-color:var(--accent)}
 .mlog{font:400 11px/1.45 var(--mono);color:var(--muted);display:grid;gap:6px;max-height:150px;overflow:auto}
 .mlog div{border-left:2px solid var(--accent);padding-left:8px}
 .mlog b{color:var(--text);font-weight:500}
@@ -281,13 +353,73 @@ table.t td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
   .loop{grid-template-columns:1fr 1fr}
   .sgrid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ---- Nov 8 2026: Skill Tree + Attributes as fullscreen 3D rooms (same pattern as Digital Twin) ---- */
+#lab3d{position:absolute;inset:0;width:100%;height:100%;display:none}
+#lab3d-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;display:none;z-index:3}
+[data-view=skills] #lab3d,[data-view=attributes] #lab3d,[data-view=skills] #lab3d-labels,[data-view=attributes] #lab3d-labels{display:block}
+[data-view=skills] .page,[data-view=attributes] .page{display:none!important}
+[data-view=skills] .lab3d-hud.ov,[data-view=attributes] .lab3d-hud.ov{display:flex}
+.lab3d-hud.ov:empty{display:none!important}
+.l3-detail{right:var(--gutter-r);top:66px;bottom:28px;width:min(400px,34vw);min-width:300px;max-height:none}
+.l3-detail>.pn{width:100%}
+.lab3d-hud .frame{background:rgba(8,16,13,.95)}
+.lab3d-hud .bar-head{background:rgba(8,16,13,.98)}
+.l3-detail .bar-head{position:relative;padding-right:40px}
+.l3-detail .x{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:30px;height:30px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;font-size:16px}
+.l3lbl{position:absolute;transform:translate(-50%,0);white-space:nowrap;font:500 11px var(--mono);color:var(--text);text-shadow:0 0 6px #000,0 0 2px #000}
+.l3lbl.branch{font:700 15px var(--display);letter-spacing:.18em;color:var(--muted);transform:translate(-50%,-50%)}
+.l3lbl.attr{font:700 14px var(--display);letter-spacing:.14em}
+.l3lbl.dim{opacity:.28}
+.l3lbl .l3sc{color:var(--warm);margin-left:4px}
+.l3chips{display:flex;flex-wrap:wrap;gap:6px}
+.l3chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--line);background:transparent;color:var(--c,var(--muted));font:600 10px var(--display);letter-spacing:.12em;cursor:pointer}
+.l3chip i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.l3chip.on{border-color:var(--c,var(--accent));background:rgba(112,255,180,.08);color:var(--c,var(--accent))}
+.l3legend{display:grid;gap:5px;font:500 11px var(--mono);color:var(--muted)}
+.l3legend span{display:flex;align-items:center;gap:8px}
+.l3legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.l3legend i.l3ring{background:transparent;border:2px solid}
+.l3legend i.l3dash{border-style:dashed}
+.l3stats{display:grid;gap:6px}
+.l3stat{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer;text-align:left;font:600 11px var(--display);letter-spacing:.12em}
+.l3stat b{font:700 20px var(--display);color:var(--c)}
+.l3stat small{font:500 10px var(--mono);color:var(--muted)}
+.l3stat.on{border-color:var(--c);background:rgba(255,255,255,.04)}
+.l3pill{font:600 9px var(--display);letter-spacing:.12em;padding:4px 6px;border:1px solid currentColor;white-space:nowrap}
+.l3row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.l3warn{color:#ffc0b5!important;border-left:2px solid var(--bad);padding-left:8px}
+.l3who{padding:9px 10px;display:flex;flex-direction:column;gap:4px}
+.l3who.on{border:1px solid var(--accent);background:rgba(112,255,180,.06)}
+.l3who.off{border:1px dashed rgba(180,156,255,.5)}
+.l3who .t{display:flex;justify-content:space-between;gap:8px;font:600 11px var(--display);letter-spacing:.1em}
+.l3who .f{font:500 10px var(--mono);color:var(--muted);word-break:break-all}
+.l3who .n{font:400 12px/1.4 var(--mono);color:#cfe3d8}
+.l3hist{display:flex;gap:4px;flex-wrap:wrap}
+.l3hist b{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font:600 10px var(--mono);color:var(--ink)}
+.l3hist b.p{background:var(--warm)}.l3hist b.f{background:var(--bad)}
+.l3brow{width:100%;text-align:left;background:transparent;border:1px solid var(--line);padding:9px 10px;color:var(--text);cursor:pointer;display:flex;flex-direction:column;gap:5px}
+.l3brow.unm{border-style:dashed}.l3brow.on{border-color:var(--c);background:rgba(255,255,255,.04)}
+.l3brow .t{display:flex;justify-content:space-between;gap:8px;font:600 11px var(--display);letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.l3brow .m{display:flex;justify-content:space-between;gap:8px;font:500 10px var(--mono);color:var(--muted)}
+.l3bar{height:5px;background:rgba(255,255,255,.08)}.l3bar i{display:block;height:5px}
+.l3perk{border:1px solid var(--line);padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+.l3perk.locked{border-style:dashed;opacity:.82}
+.l3perk .t{display:flex;justify-content:space-between;gap:8px;font:600 13px var(--display)}
+.l3big{width:60px;height:60px;flex:0 0 60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 24px var(--display)}
+.l3loadout{display:flex;gap:6px;overflow-x:auto;width:100%}
+.l3loadout>div{flex:0 0 auto;min-width:130px;background:var(--panel);border:1px solid var(--line);padding:7px 10px}
+.l3loadout small{display:block;font:600 9px var(--display);letter-spacing:.16em;color:var(--muted)}
+.l3loadout b{display:block;font:600 12px var(--display);margin:2px 0}
+.l3loadout span{font:500 10px var(--mono);color:var(--muted)}
+[data-view=attributes] #l3-bottom{width:min(1100px,calc(100% - 2*var(--gutter-l) - 420px));left:var(--gutter-l);transform:none}
 </style>
 <div class="screen" id="root" data-view="home">
   <div class="watermark">SHADOW</div>
   <canvas id="gl"></canvas>
   <div class="loading" id="loading">LOADING SHADOW&hellip;</div>
 
-  <div class="crumb">DIGITAL LAB / <b id="crumb-room">LAB HUB</b></div>
+  <div class="crumb"><a class="crumb-home" href="{{ url_for('home') }}">ZERO COMMAND</a> / DIGITAL LAB / <b id="crumb-room">LAB HUB</b></div>
   <nav class="ring" id="ring" aria-label="Digital Lab rooms"></nav>
   <div class="status"><i></i>SIM STACK OFFLINE (MOCKUP)</div>
 
@@ -311,6 +443,11 @@ table.t td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
   <aside class="detail" id="detail" aria-live="polite"></aside>
 
   <div class="page" id="page"></div>
+  <canvas id="lab3d" aria-label="3D room. Drag to rotate, scroll to zoom, click a node for details."></canvas>
+  <div id="lab3d-labels" aria-hidden="true"></div>
+  <div class="ov ov-tl lab3d-hud" id="l3-left"></div>
+  <div class="ov l3-detail lab3d-hud" id="l3-detail" aria-live="polite"></div>
+  <div class="ov ov-bc lab3d-hud" id="l3-bottom"></div>
 
   <section class="right" aria-label="Skill progress and actions">
     <div class="lvl"><strong id="lv"></strong><span>SKILLS<br>UNLOCKED</span></div>
@@ -324,15 +461,28 @@ table.t td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
     </div>
   </section>
 
-  <!-- ---- Simulation Bay: fullscreen 3D background + floating HUD panels
-       (Oct 29 restructure - same pattern as #gl/.left/.right above) ---- -->
+  <!-- ---- Simulation Bay (round 2, wired Oct 30 2026): two modes, one
+       room. "preview" (the default - matches the approved mockup) runs
+       the fake three.js flight loop on #sim-gl, a scripted stand-in for
+       whichever mission is selected below. Clicking START SIMULATION
+       posts to the real backend and - only once it succeeds - switches
+       to "live" mode, which tears down the fake loop and shows the real
+       Gazebo noVNC feed on #sim-gazebo full-bleed, same URL/iframe the
+       pre-port dashboard.html used. STOP SIMULATION reverses it. Which
+       canvas/iframe is visible is CSS-gated off root.dataset.simMode -
+       see renderSimRoom() further down - never both at once. ---- -->
   <canvas id="sim-gl" class="stage3d"></canvas>
   <div class="stage-loading" id="sim-loading">LOADING SHADOW&hellip;</div>
+  <iframe id="sim-gazebo" class="stage3d" style="border:0;background:#000"
+          src="http://localhost:6080/vnc.html?autoconnect=true&amp;resize=scale"
+          title="Gazebo live view"></iframe>
+  <button type="button" id="sim-fullwindow-btn" style="position:absolute;right:var(--gutter-r);top:16px;z-index:5;padding:6px 10px;cursor:pointer;background:rgba(8,16,13,.85);border:1px solid var(--line-strong);color:var(--text);font:600 10px var(--display);letter-spacing:.1em">FULL WINDOW</button>
   <div class="ov sim-hud ov-tl" id="sim-ov-tel"></div>
   <div class="ov sim-hud ov-tr" id="sim-ov-mission"></div>
   <div class="ov sim-hud ov-bl" id="sim-ov-world"></div>
   <div class="ov sim-hud ov-br" id="sim-ov-fpv"></div>
   <div class="ov sim-hud ov-bc" id="sim-ov-controls"></div>
+  <div class="ov sim-hud ov-tc" id="sim-ov-run" aria-live="polite"></div>
 
   <!-- ---- Digital Twin: same fullscreen-3D-background pattern, PARTS
        floating left, PART DETAIL floating right ---- -->
@@ -341,6 +491,7 @@ table.t td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
   <div class="ov twin-hud ov-tl" id="twin-ov-parts"></div>
   <div class="ov twin-hud ov-tr" id="twin-ov-detail"></div>
   <div class="ov twin-hud ov-bl" id="twin-ov-mass"></div>
+  <div class="ov twin-hud ov-br" id="twin-ov-payload"></div>
   <div class="ov twin-hud ov-bc" id="twin-ov-controls"></div>
 
   <div class="toast" id="toast" role="status"></div>
@@ -352,6 +503,11 @@ const $=id=>document.getElementById(id);
 const root=$("root"),page=$("page");
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=n=>Number(n).toLocaleString("en-GB");
+function fmtTime(ts){
+  if(!ts)return "—";
+  const d=new Date(ts);
+  return isNaN(d.getTime())?String(ts):d.toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+}
 
 /* ------------------------------------------------------------------ data
    Real numbers as established earlier this session from Zer0's own app
@@ -370,21 +526,33 @@ const SK=[
  {id:"deliver_payload",n:"DELIVER PAYLOAD",tier:3,streak:0,un:false,d:"The first full mission. Takeoff, sweep the area with no known payload coordinates, lock on to an orange payload with the camera, pick it up, fly it to the pad, drop it, land."},
  {id:"learned_flight",n:"LEARNED FLIGHT",tier:3,streak:0,un:false,d:"The first skill driven by a trained PPO policy instead of hand-coded control. Flies whatever the loaded checkpoint says, under the same safety limits as every other skill."}
 ];
-const UNLOCKED=SK.filter(s=>s.un).length,TOTAL=SK.length;
+let UNLOCKED=SK.filter(s=>s.un).length,TOTAL=SK.length;
 const ATTR=[
  {k:"CORE FLIGHT",key:"core_flight",v:80,src:"REAL",how:"Share of the five core skills (arm, takeoff, hover, go_to, land) that have proven themselves with a streak of 3. Read from progress.json.",det:"4 of 5 core skills proven: arm, takeoff, go_to, land. Hover is still 0 of 3.",feeds:"Skill unlocks (run_skill.py)"},
  {k:"AGILITY",key:"agility",v:67,src:"EX",how:"Crash-free rate over the last 20 episodes of the most recent PPO training run, read from the MLflow database.",det:"Needs mlflow.db on your machine. The number shown is a placeholder.",feeds:"Point-to-Point Flight, Waypoint Circuit"},
  {k:"PRECISION",key:"precision",v:0,src:"REAL",how:"How far into a clean 3-run streak the Deliver Payload mission has got. Every part of the pipeline has to finish for a run to count.",det:"0 of 3. Per your code notes, every real run so far has aborted before finishing.",feeds:"Deliver Payload mission"},
  {k:"STABILITY",key:"stability",v:42,src:"EX",how:"100 x (1 - coefficient of variation) of the last 20 episode lengths. Measures how consistent flight is, not how good.",det:"42 is this session's placeholder for a real agility-circuit run mixing clean laps with crashes.",feeds:"Point-to-Point Flight, Waypoint Circuit"}
 ];
-const OVR=Math.round(ATTR.reduce((a,x)=>a+x.v,0)/ATTR.length);
-const BEST=ATTR.reduce((a,x)=>x.v>a.v?x:a,ATTR[0]);
-const SIG=SK.filter(s=>["arm","takeoff","go_to","land"].includes(s.id));
-const TIERS=[
-  {label:"Tier 1  Fundamentals",n:SK.filter(s=>s.tier===1&&s.un).length,of:SK.filter(s=>s.tier===1).length},
-  {label:"Tier 2  Navigation",n:SK.filter(s=>s.tier===2&&s.un).length,of:SK.filter(s=>s.tier===2).length},
-  {label:"Tier 3  Missions",n:SK.filter(s=>s.tier===3&&s.un).length,of:SK.filter(s=>s.tier===3).length},
-];
+// The four consts below used to be computed once from the placeholder ATTR/SK
+// snapshot above. Wired Oct 30 2026: they're now `let`, recomputed by
+// recomputeDerived() after the live /simulation/attributes and
+// /simulation/skill-tests fetches (see hydrateLiveData() near the end of
+// this script) mutate ATTR/SK in place - so every place that reads OVR/
+// BEST/SIG/TIERS still just reads the variable, it only now reflects
+// real data once the fetch lands instead of staying frozen at load time.
+let OVR,BEST,SIG,TIERS;
+function recomputeDerived(){
+  OVR=Math.round(ATTR.reduce((a,x)=>a+x.v,0)/ATTR.length);
+  BEST=ATTR.reduce((a,x)=>x.v>a.v?x:a,ATTR[0]);
+  SIG=SK.filter(s=>["arm","takeoff","go_to","land"].includes(s.id));
+  TIERS=[
+    {label:"Tier 1  Fundamentals",n:SK.filter(s=>s.tier===1&&s.un).length,of:SK.filter(s=>s.tier===1).length},
+    {label:"Tier 2  Navigation",n:SK.filter(s=>s.tier===2&&s.un).length,of:SK.filter(s=>s.tier===2).length},
+    {label:"Tier 3  Missions",n:SK.filter(s=>s.tier===3&&s.un).length,of:SK.filter(s=>s.tier===3).length},
+  ];
+  UNLOCKED=SK.filter(s=>s.un).length;TOTAL=SK.length;
+}
+recomputeDerived();
 const SYS={
  FRAME:{n:"FRAME",role:"Carries everything else. Body, four landing feet.",real:"Real parts: base_link, 4x 19x19_feet, 4x M5 Lock nut, 4x Spacer."},
  PROPULSION:{n:"PROPULSION",role:"Four Racerstar BR2205 2300KV motors turning 5045 tri-blade props, CW/CCW on diagonals.",real:"Real parts: 4x Racerstar-BR2205-2300KV, 2x 5045 CW, 2x 5045 CCW."},
@@ -506,7 +674,6 @@ function core(size){
 
 /* ------------------------------------------------------------------ shell init + router */
 $("ring").innerHTML=NAV.map(n=>`<a class="hub" data-n="${n[0]}" href="#${n[0]}" title="${n[2]}" aria-label="${n[2]}">${n[1]}</a>`).join("");
-$("bigcore").innerHTML=core(96);
 
 let toastT;
 function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),2600)}
@@ -515,18 +682,76 @@ document.addEventListener("click",e=>{
   if(b){e.preventDefault();toast(b.getAttribute("data-mock")||"MOCKUP: nothing was saved")}
 });
 
-$("stats").innerHTML=ATTR.map(a=>{
-  const near=a.v>=85;
-  return `<button type="button" class="a${a===BEST?' top1':''}${near?' near':''}" data-stat="${a.key}" aria-label="${a.k} summary"><span>${a.k}</span><b>${a.v}</b><i><u style="width:${a.v}%"></u></i></button>`;
-}).join("");
-$("trio").innerHTML=`<span>${UNLOCKED}/${TOTAL}<small>SKILLS</small></span><span>6<small>SYSTEMS</small></span><span>13<small>M FENCE</small></span>`;
-$("skills").innerHTML=SIG.map((s,i)=>`<button class="skill" data-i="${i}" type="button" aria-label="${s.n}, streak ${s.streak}"><div class="ringp" style="--p:${Math.min(100,s.streak/3*100)}"><b>${s.streak}</b></div><span>${s.n}</span></button>`).join("");
+// Full-window Gazebo toggle (wired Oct 30 2026) - same body.bay-fullscreen-
+// active idea the pre-port dashboard.html already had, renamed/rebuilt
+// against this room's own markup. One persistent button, bound once here
+// rather than inside V.sim() (which reruns every time you revisit the
+// room and would otherwise lose the toggle state).
+const simFullwindowBtn=$("sim-fullwindow-btn");
+if(simFullwindowBtn)simFullwindowBtn.onclick=()=>document.body.classList.toggle("sim-fullwindow");
 
-$("lv").textContent=UNLOCKED+"/"+TOTAL;
-$("rtitle").textContent="TIER 2 REACHED, TIER 1 INCOMPLETE";
-$("xp").innerHTML=`<div class="rw"><span>NEXT UNLOCK: HOVER</span><span>0 / 3 clean runs</span></div><div class="progress"><i style="width:2%"></i></div>`;
-$("ladder").innerHTML=TIERS.map((t,i)=>`<div${i===1?' class="now"':''}><span>${t.label}</span><span>${t.n} / ${t.of}</span></div>`).join("")
-  +`<div><span>Mind (LLM agent)</span><span>LOCKED</span></div>`;
+// Pulled out of top-level script flow into its own function (wired Oct 30
+// 2026) so hydrateLiveData() can call it again once real attribute/skill
+// numbers land, instead of the Hub shell staying frozen at its first,
+// placeholder render forever.
+function renderHubShell(){
+  $("bigcore").innerHTML=core(96);
+  $("stats").innerHTML=ATTR.map(a=>{
+    const near=a.v>=85;
+    return `<button type="button" class="a${a===BEST?' top1':''}${near?' near':''}" data-stat="${a.key}" aria-label="${a.k} summary"><span>${a.k}</span><b>${a.v}</b><i><u style="width:${a.v}%"></u></i></button>`;
+  }).join("");
+  $("trio").innerHTML=`<span>${UNLOCKED}/${TOTAL}<small>SKILLS</small></span><span>6<small>SYSTEMS</small></span><span>13<small>M FENCE</small></span>`;
+  $("skills").innerHTML=SIG.map((s,i)=>`<button class="skill" data-i="${i}" type="button" aria-label="${s.n}, streak ${s.streak}"><div class="ringp" style="--p:${Math.min(100,s.streak/3*100)}"><b>${s.streak}</b></div><span>${s.n}</span></button>`).join("");
+  $("lv").textContent=UNLOCKED+"/"+TOTAL;
+  const nextLocked=SK.filter(s=>!s.un).sort((a,b)=>a.tier-b.tier)[0];
+  $("rtitle").textContent=nextLocked?("TIER "+nextLocked.tier+" IN PROGRESS"):"ALL TIERS COMPLETE";
+  $("xp").innerHTML=nextLocked
+    ?`<div class="rw"><span>NEXT UNLOCK: ${esc(nextLocked.n)}</span><span>${nextLocked.streak} / 3 clean runs</span></div><div class="progress"><i style="width:${Math.min(100,nextLocked.streak/3*100)}%"></i></div>`
+    :`<div class="rw"><span>ALL SKILLS UNLOCKED</span><span>3 / 3</span></div><div class="progress"><i style="width:100%"></i></div>`;
+  $("ladder").innerHTML=TIERS.map((t,i)=>`<div${i===1?' class="now"':''}><span>${t.label}</span><span>${t.n} / ${t.of}</span></div>`).join("")
+    +`<div><span>Mind (LLM agent)</span><span>LOCKED</span></div>`;
+}
+renderHubShell();
+
+// Live hydration (wired Oct 30 2026): the same two GET endpoints the old,
+// pre-port dashboard.html polled - /simulation/attributes and
+// /simulation/skill-tests. ATTR/SK above stay as a same-shape fallback
+// (this session's placeholder snapshot) if a fetch fails or the backing
+// files (progress.json / mlflow.db) don't exist yet on this machine -
+// same "no data yet is normal" handling the backend itself already uses,
+// not an error state.
+function hydrateLiveData(){
+  const attrP=fetch("/simulation/attributes").then(r=>r.ok?r.json():null).catch(()=>null);
+  const skillP=fetch("/simulation/skill-tests").then(r=>r.ok?r.json():null).catch(()=>null);
+  Promise.all([attrP,skillP]).then(([attrData,skillData])=>{
+    let changed=false;
+    if(attrData&&attrData.ok&&attrData.attributes){
+      ATTR.forEach(a=>{
+        const live=attrData.attributes[a.key];
+        if(!live)return;
+        if(typeof live.score==="number"){a.v=live.score;a.src="REAL"}
+        else{a.v=0;a.src="EX"}
+        if(live.detail)a.det=live.detail;
+        changed=true;
+      });
+    }
+    if(skillData&&skillData.ok&&Array.isArray(skillData.tests)){
+      const byKey={};skillData.tests.forEach(t=>byKey[t.key]=t);
+      SK.forEach(s=>{
+        const live=byKey[s.id];
+        if(!live)return;
+        s.streak=live.streak||0;s.un=!!live.unlocked;
+        changed=true;
+      });
+    }
+    if(!changed)return;
+    recomputeDerived();
+    renderHubShell();
+    const cur=(location.hash||"#home").slice(1).split("/")[0]||"home";
+    if(V[cur])V[cur]();
+  });
+}
+hydrateLiveData();
 
 /* detail popover, same shape as the demo's own open()/openAttr()/openSys() */
 const det=$("detail");let selId=null;
@@ -557,6 +782,7 @@ function route(){
   const view=NAV.find(n=>n[0]===v)?v:"home";
   if(view!=="twin"&&typeof teardownTwin==="function")teardownTwin();
   if(view!=="sim"&&typeof teardownSim==="function")teardownSim();
+  if(view!=="training"&&typeof stopTrainPoll==="function")stopTrainPoll();
   root.dataset.view=view;
   // Restart the Hub's own render loop the moment we're back on "home" -
   // animate() (below, in the GLTFLoader section) stops itself as soon as
@@ -577,48 +803,71 @@ window.addEventListener("hashchange",route);
      approved demo's own multi-script-tag layout); route() is called once
      at the very end of the file, after both are loaded. -->
 <script>
-/* ---------------- PROJECTS ---------------- */
-let projSel="shadow";
-const FOLDERS=[["architecture",0],["cad",87],["control",0],["data",6],["deployments",0],["docs",12],["hardware",2],["navigation",0],["perception",8],["ros",0],["sensors",0],["simulation",4],["telemetry",0],["tests",0]];
-const PROJECTS=[
- {id:"shadow",n:"SHADOW MK1",t:"Companion Aerial Robot",st:"ACTIVE",d:"Delivery drone with computer vision. ArduPilot SITL on Gazebo Harmonic, Navio2 on a Pi, RPLIDAR, front camera. Skill tree, Mind agent and PPO training layered on top.",repos:["shadow-drone-ros","zeroGravity-rnd/projects/shadow"],real:true},
- {id:"garden",n:"SMART GARDEN",t:"Agriculture / IoT",st:"PLANNED",d:"Separate from Shadow. May get its own digital twin viewer. No folder in the repo yet.",repos:[],real:false},
- {id:"fpvsim",n:"FPV SIMULATOR",t:"Self-built physics sim",st:"IDEA",d:"Your own Liftoff / Velocidrone style practice sim with custom worlds, such as your house. Not sequenced into the roadmap yet.",repos:[],real:false}
-];
+/* ---------------- PROJECTS (wired Oct 29 2026 - list, status and file
+   counts now come from RND.projects, the real get_workspace_data() rows.
+   Narrative description/repo tags for the three known ids are kept as
+   authored context (not from the backend) via PROJECT_NOTES; a project
+   with no matching note still renders correctly from real fields alone.
+   The fabricated per-subfolder FOLDERS breakdown is gone - the real
+   workspace data doesn't expose folder-level counts, so showing one would
+   mean making numbers up, which is exactly what this wiring pass exists
+   to stop doing. ---------------- */
+let projSel=null;
+const PROJECT_NOTES={
+ shadow:{t:"Companion Aerial Robot",d:"Delivery drone with computer vision. ArduPilot SITL on Gazebo Harmonic, Navio2 on a Pi, RPLIDAR, front camera. Skill tree, Mind agent and PPO training layered on top.",repos:["shadow-drone-ros","zeroGravity-rnd/projects/shadow"]},
+ garden:{t:"Agriculture / IoT",d:"Separate from Shadow. May get its own digital twin viewer.",repos:[]},
+ fpvsim:{t:"Self-built physics sim",d:"Your own Liftoff / Velocidrone style practice sim with custom worlds, such as your house. Not sequenced into the roadmap yet.",repos:[]}
+};
+const PROJECTS=(RND.projects||[]).map(p=>{
+  const note=PROJECT_NOTES[p.id]||{};
+  return {id:p.id,n:(p.name||p.id||'').toUpperCase(),st:(p.status||'UNKNOWN').toUpperCase(),files:p.files,path:p.path,t:note.t||'',d:note.d||'',repos:note.repos||[]};
+});
+if(PROJECTS.length) projSel=PROJECTS.some(p=>p.id==="shadow")?"shadow":PROJECTS[0].id;
 V.projects=function(){
-  const p=PROJECTS.find(x=>x.id===projSel);
+  if(!PROJECTS.length){
+    setPage("fill g21",pn("ENGINEERING PROJECTS","Every experiment, test and result belongs to a project",`<div class="empty">Create project folders inside the R&amp;D repository to populate this room.</div>`));
+    return;
+  }
+  const p=PROJECTS.find(x=>x.id===projSel)||PROJECTS[0];
   setPage("g21 top",
    `<section class="pn sp2"><div class="bar-head"><span>FROM IDEA TO EVIDENCE</span><span>HOW A PROJECT RUNS</span></div><div class="frame"><div class="loop">
      ${[["1 CHOOSE PROJECT","Define the system."],["2 CREATE EXPERIMENT","State the question."],["3 SELECT ENVIRONMENT","Simulation or hardware."],["4 RUN TEST","Capture configuration and data."],["5 REVIEW RESULT","Conclude and plan the next iteration."]].map(x=>`<div class="live"><b>${x[0]}</b><small>${x[1]}</small></div>`).join("")}</div></div></section>`
-   +pn("ENGINEERING PROJECTS","Every experiment, test and result belongs to a project",PROJECTS.map(x=>`<button type="button" class="row${x.id===projSel?' sel':''}" data-p="${x.id}"><b>${x.n}</b><small>${x.t}</small><span class="r">${x.st}</span></button>`).join("")+`<button class="btn" type="button" data-mock="MOCKUP: new project form not wired"><span>+ NEW PROJECT</span><small>mock</small></button>`)
-   +pn(p.n,p.st,`<p class="note">${esc(p.d)}</p>${p.repos.length?`<div class="chips">${p.repos.map(r=>`<span class="tag">${r}</span>`).join("")}</div>`:''}
-     ${p.real?`<div class="sec">PROJECT FOLDERS (FILE COUNTS FROM zeroGravity-rnd)</div>${FOLDERS.map(f=>`<div class="kv"><span>${f[0]}</span><b>${f[1]||'empty'}</b></div>${pb(Math.min(100,f[1]*2),f[1]===0)}`).join("")}
-     <p class="note hl">${FOLDERS.filter(f=>!f[1]).length} of the ${FOLDERS.length} folders are still empty scaffolding: ${FOLDERS.filter(f=>!f[1]).map(f=>f[0]).join(', ')}. The structure is there, the content is not.</p>`:`<div class="empty">Nothing recorded for this project yet. ${p.id==="garden"?"Creating it would add a folder set like Shadow's and a room in this lab.":""}</div>`}`)
+   +pn("ENGINEERING PROJECTS","Every experiment, test and result belongs to a project",PROJECTS.map(x=>`<button type="button" class="row${x.id===projSel?' sel':''}" data-p="${x.id}"><b>${x.n}</b><small>${x.t||(x.files!=null?fmt(x.files)+' files':'')}</small><span class="r">${x.st}</span></button>`).join("")+`<button class="btn" type="button" data-mock="MOCKUP: new project form not wired"><span>+ NEW PROJECT</span><small>mock</small></button>`)
+   +pn(p.n,p.st,`${p.t?`<p class="note">${esc(p.t)}</p>`:''}${p.d?`<p class="note">${esc(p.d)}</p>`:''}${p.repos.length?`<div class="chips">${p.repos.map(r=>`<span class="tag">${esc(r)}</span>`).join("")}</div>`:''}
+     <div class="sec">REPOSITORY</div>${kv("Indexed files",p.files!=null?fmt(p.files):'—')}${p.path?kv("Path",`<span style="font-size:10px">${esc(p.path)}</span>`):''}`)
   );
   page.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{projSel=b.dataset.p;V.projects()});
 };
 
-/* ---------------- EXPERIMENTS ---------------- */
+/* ---------------- EXPERIMENTS (wired Oct 29 2026 - real rows from
+   RND.research.experiments. That table only ever had category, status,
+   experiment_name, hypothesis, conclusion and a date - the mockup's own
+   env/eq/runs/next fields were never backed by a real column, so they're
+   dropped here rather than carried forward as invented detail. ---------------- */
 let exSel=0;
-const EXPS=[
- {id:"EX-001",n:"ArduPilot SITL, Gate 1",cat:"SIMULATION",st:"CONCLUDED",hyp:"Stock ArduCopter can arm, take off and land under SITL with Gazebo Harmonic.",env:"Ubuntu 22.04, ROS2 Humble, Gazebo Harmonic 8.15, ArduCopter 4.8.0-dev",eq:"SITL + gazebo-iris model + MAVROS",runs:"Arm, takeoff, land cycle",res:"Flew the full cycle.",con:"The pipeline works end to end. Next: make Shadow's own body fly it.",next:"Gate 2"},
- {id:"EX-002",n:"Gate 2: Shadow's own body",cat:"SIMULATION",st:"CONCLUDED",hyp:"Shadow's own model flies the same cycle on its calibrated thrust values.",env:"Same stack, shadow_runway.sdf",eq:"p_gain 0.02 on all four control channels, LiftDrag area 0.0014 and cp +/-0.059 on 8 blade-pair plugins",runs:"Arm, takeoff 5 m, land",res:"Clean flight, no wobble.",con:"Shadow flies on ArduPilot with its own parameters.",next:"Build the skill layer"},
- {id:"EX-003",n:"Skill unlock streaks",cat:"CONTROL",st:"ACTIVE",hyp:"Three clean runs in a row is enough evidence to unlock a skill. One failure resets to zero.",env:"SITL, run_skill.py",eq:"progress.json, committed to git so the Pi inherits unlocks",runs:"go_to 8, land 10, arm 2, takeoff 1, hover 0",res:"Four of five core skills proven.",con:"Hover still has no passing run.",next:"Fix hover"},
- {id:"EX-004",n:"Point-to-Point Flight (PPO)",cat:"MACHINE LEARNING",st:"ACTIVE",hyp:"PPO can learn to fly to a random goal faster and more precisely than hand-coded go_to.",env:"Real SITL + Gazebo physics, real-time factor 1.0",eq:"Stable-Baselines3 PPO, MLflow (SQLite), RTX 3070 Ti",runs:"Read from mlflow.db on your machine",res:"Early.",con:"Checkpoint saves to disk. No skill loads it yet.",next:"Swap the checkpoint into a skill (LearnedFlight)"},
- {id:"EX-005",n:"Waypoint Circuit (agility)",cat:"MACHINE LEARNING",st:"ACTIVE",hyp:"PPO can race a six-point circuit lap after lap.",env:"Same as EX-004, real payload/pad coordinates",eq:"agility_circuit_env.py, 600 step episodes",runs:"Sample lengths: 600, 600, 600, 600, 505, 1, 1, 1, 600, 600, 600",res:"Mixed: full laps next to instant crashes.",con:"Stability scores 42 (this session's placeholder). Capable on good episodes, not consistent.",next:"More training, then compare"},
- {id:"EX-006",n:"Search and deliver mission",cat:"MISSION",st:"BLOCKED",hyp:"A fixed sweep plus camera lock-on can find an orange payload and deliver it with no known coordinates.",env:"shadow_runway.sdf, geofence 13 m",eq:"deliver_payload.py, object_detector.py (HSV colour, not ML)",runs:"Every real run so far aborted via limits()",res:"Zero clean deliveries.",con:"Lock-on threshold LOCK_AREA_PX 4000 is a guess, not calibrated.",next:"Tune LOCK_AREA_PX from the first live run's logs"}
-];
+const EXPS=(RND.research.experiments||[]).map(e=>({
+  n:e.experiment_name||"Untitled experiment",
+  cat:(e.category||"GENERAL").toUpperCase(),
+  st:(e.status||"PENDING").toUpperCase(),
+  hyp:e.hypothesis||"",
+  con:e.conclusion||"",
+  date:e.updated_at||e.created_at||""
+}));
 V.experiments=function(){
-  const x=EXPS[exSel];
+  if(!EXPS.length){
+    setPage("fill g21",pn("EXPERIMENT REGISTRY","Questions, hypotheses, methods, results",`<div class="empty">No experiments recorded yet. The room is ready for the first registry entry.</div>`));
+    return;
+  }
+  const x=EXPS[exSel]||EXPS[0];
   const stc={CONCLUDED:"ok",ACTIVE:"sim",BLOCKED:"bad"};
+  const activeCount=(RND.research.experiment_summary&&RND.research.experiment_summary.active!=null)?RND.research.experiment_summary.active:EXPS.filter(e=>e.st==="ACTIVE").length;
   setPage("fill g12",
-   pn("EXPERIMENT REGISTRY","Questions, hypotheses, methods, results",`<div class="kpis"><div class="kpi"><b>${EXPS.length}</b><span>TOTAL</span></div><div class="kpi"><b>${EXPS.filter(e=>e.st==="ACTIVE").length}</b><span>ACTIVE</span></div><div class="kpi"><b>${EXPS.filter(e=>e.st==="CONCLUDED").length}</b><span>CONCLUDED</span></div></div>
-    ${EXPS.map((e,i)=>`<button type="button" class="row${i===exSel?' sel':''}" data-e="${i}"><b>${e.id}  ${esc(e.n)}</b><small>${e.cat}</small><span class="r">${tag(e.st,stc[e.st])}</span></button>`).join("")}
-    <p class="note hl">Built from your project notes and code comments, not from the experiments table (that database is not in git). Your real registry rows would replace these.</p>
+   pn("EXPERIMENT REGISTRY","Questions, hypotheses, methods, results",`<div class="kpis"><div class="kpi"><b>${EXPS.length}</b><span>TOTAL</span></div><div class="kpi"><b>${activeCount}</b><span>ACTIVE</span></div><div class="kpi"><b>${EXPS.filter(e=>e.st==="CONCLUDED").length}</b><span>CONCLUDED</span></div></div>
+    ${EXPS.map((e,i)=>`<button type="button" class="row${i===exSel?' sel':''}" data-e="${i}"><b>${esc(e.n)}</b><small>${e.cat}</small><span class="r">${tag(e.st,stc[e.st]||'')}</span></button>`).join("")}
     <button class="btn main" type="button" data-mock="MOCKUP: creating experiments needs the database write service"><span>+ NEW EXPERIMENT</span><small>mock</small></button>`)
-  +pn(x.id+"  "+esc(x.n.toUpperCase()),tag(x.st,stc[x.st]),`
+  +pn(esc(x.n.toUpperCase()),tag(x.st,stc[x.st]||''),`
     <div class="sec">REQUIRED RECORD</div>
-    ${[["Project and category","Shadow MK1 / "+x.cat],["Objective or hypothesis",x.hyp],["Environment",x.env],["Equipment / configuration",x.eq],["Test runs",x.runs],["Results",x.res],["Conclusion",x.con],["Next action",x.next]].map(r=>`<div><div class="sec" style="margin:0 0 3px">${r[0].toUpperCase()}</div><p class="note"><b>${esc(r[1])}</b></p></div>`).join("")}`));
+    ${[["Category",x.cat],["Hypothesis",x.hyp||"No hypothesis recorded."],["Conclusion",x.con||"No conclusion recorded yet."],["Date",x.date||"No date"]].map(r=>`<div><div class="sec" style="margin:0 0 3px">${r[0].toUpperCase()}</div><p class="note"><b>${esc(r[1])}</b></p></div>`).join("")}`));
   page.querySelectorAll("[data-e]").forEach(b=>b.onclick=()=>{exSel=+b.dataset.e;V.experiments()});
 };
 
@@ -663,6 +912,37 @@ function renderTwinMassCheck(){
     return `<div class="kv" title="${esc(m.catLabel)}"><span>${esc(m.label)}</span><b>${m.cad}/${m.cat} g (${ratio}x)</b></div>`;
   }).join("")}<p class="note hl" style="margin-top:4px">Shown in full, not hidden - gaps like LiDAR's 6.7x point to a real CAD-model scale issue. Hover a row for its catalogue source.</p>`);
 }
+/* ---------------- PAYLOAD / THRUST BUDGET (wired Oct 30 2026 - ported
+   from the pre-port real dashboard.html's own twinRenderBudget(), same
+   formula and same manufacturer thrust figure, just reading CAD_MASS_TOTAL
+   (the real 24-part sum above) as the base airframe mass instead of that
+   version's older 6-component rough total - a strictly more accurate
+   number from the same real source philosophy. Pure client-side math, no
+   backend call needed. ---------------- */
+const TWIN_THRUST_PER_MOTOR_3S=660; // g, manufacturer page, 3S/11.1V with 5045 prop
+const TWIN_MOTOR_COUNT=4;
+const TWIN_SAFE_TWR_FLOOR=2.0;
+let twinPayloadG=0;
+function renderTwinPayload(){
+  const base=CAD_MASS_TOTAL,mass=base+twinPayloadG,thrust=TWIN_THRUST_PER_MOTOR_3S*TWIN_MOTOR_COUNT;
+  const twr=thrust/mass,hoverPct=(mass/thrust)*100,safeCeil=thrust/TWIN_SAFE_TWR_FLOOR,margin=safeCeil-mass;
+  const tiles=[
+    {v:mass.toFixed(0)+"g",l:"Raw mass",d:base.toFixed(0)+"g airframe + "+twinPayloadG+"g payload"},
+    {v:thrust+"g",l:"Thrust budget",d:TWIN_MOTOR_COUNT+" x "+TWIN_THRUST_PER_MOTOR_3S+"g @ 3S"},
+    {v:twr.toFixed(2)+":1",l:"Thrust-to-weight",d:"thrust / raw mass"},
+    {v:hoverPct.toFixed(0)+"%",l:"Est. hover throttle",d:"mass / thrust budget"}
+  ];
+  $("twin-ov-payload").innerHTML=pn("PAYLOAD / THRUST","CAD mass + hypothetical",`
+    <div class="kv"><span>Hypothetical payload</span><b>${twinPayloadG}g</b></div>
+    <input type="range" min="0" max="800" step="10" value="${twinPayloadG}" id="twin-payload-slider" style="width:100%;accent-color:var(--accent)">
+    <div class="sgrid" style="grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">${tiles.map(t=>`<div class="sc" style="cursor:default;padding:6px 8px"><span style="font:600 9px var(--display);letter-spacing:.1em;color:var(--muted)">${t.l}</span><b style="font:700 16px/1.3 var(--display)">${t.v}</b></div>`).join("")}</div>
+    <p class="note ${margin<0?'hl':''}" style="margin-top:4px">${margin>=0
+      ?margin.toFixed(0)+"g of payload margin left before thrust-to-weight drops below "+TWIN_SAFE_TWR_FLOOR.toFixed(0)+":1 (a common minimum for controllable flight)."
+      :twr<1
+        ?"Below 1:1 even at 0g payload - CAD_MASS_TOTAL runs heavier than the real airframe (see MASS CHECK: motors alone CAD at 2.3x catalogue, LiDAR at 6.7x). The real built drone almost certainly flies; this number is honest about what the CAD model itself says, not a claim it can't."
+        :Math.abs(margin).toFixed(0)+"g past the "+TWIN_SAFE_TWR_FLOOR.toFixed(0)+":1 floor - still flies, but with little control margin."}</p>`);
+  $("twin-payload-slider").oninput=e=>{twinPayloadG=+e.target.value;renderTwinPayload()};
+}
 function renderTwinControls(){
   $("twin-ov-controls").innerHTML=`<div class="btns h">
      <button class="btn${twinViewMode==='solid'?' main':''}" type="button" id="twin-vm-solid"><span>SOLID</span></button>
@@ -692,6 +972,7 @@ V.twin=function(){
   renderTwinParts();
   renderTwinDetail();
   renderTwinMassCheck();
+  renderTwinPayload();
   renderTwinControls();
   page.innerHTML="";page.className="page";
   initTwinViewer();
@@ -770,6 +1051,8 @@ const DRONE_REAL_WIDTH_M=0.5, SIM_VISUAL_BOOST=3;
 let simRAF=null,simRenderer=null,simScene=null,simCamera=null,simRoot=null,simCamMode="chase",simLastPhase=null,simBattery=100,simLastPos=null;
 let simFpvRenderer=null,simFpvCamera=null;
 function teardownSim(){
+  stopMindLogPoll();
+  stopSimTelPoll();
   if(simRAF)cancelAnimationFrame(simRAF);
   simRAF=null;
   if(simRenderer){simRenderer.dispose();simRenderer=null;}
@@ -777,12 +1060,193 @@ function teardownSim(){
   simFpvCamera=null;
   simScene=null;simCamera=null;simRoot=null;simLastPhase=null;simBattery=100;simLastPos=null;
 }
+// Mind Log live poll (wired Oct 30 2026) - same /simulation/mind-log tail
+// and the same {type,timestamp,summary} event shape the pre-port
+// dashboard.html's own poller used. Started when the Sim Bay room opens,
+// stopped by teardownSim() above the moment you leave it, so this never
+// keeps polling in the background for a room you're not looking at.
+let mindLogPollId=null,mindLogLastCount=-1;
+function stopMindLogPoll(){if(mindLogPollId){clearInterval(mindLogPollId);mindLogPollId=null;}mindLogLastCount=-1;}
+function startMindLogPoll(){
+  stopMindLogPoll();
+  function tick(){
+    fetch("/simulation/mind-log").then(r=>r.json()).then(data=>{
+      if(!data.ok)return;
+      const events=data.events||[];
+      const el=$("sim-mlog");if(!el)return;
+      if(!events.length){el.innerHTML='<p class="note">No Mind run yet. Click RUN MIND below - dry run is checked by default, so it\'s safe to try first.</p>';mindLogLastCount=0;return;}
+      if(events.length===mindLogLastCount)return;
+      mindLogLastCount=events.length;
+      el.innerHTML=events.slice(-30).map(ev=>{
+        const t=ev.timestamp?new Date(ev.timestamp*1000).toLocaleTimeString([],{hour12:false}):"";
+        return `<div><b>${esc(t)}</b>&nbsp;${esc(ev.summary||JSON.stringify(ev))}</div>`;
+      }).reverse().join("");
+    }).catch(()=>{});
+  }
+  tick();
+  mindLogPollId=setInterval(tick,2500);
+}
 function simLog(msg){
   const el=$("sim-mlog");if(!el)return;
   const row=document.createElement("div");
   row.innerHTML=`<b>${new Date().toLocaleTimeString([],{hour12:false})}</b> &nbsp;${esc(msg)}`;
   el.insertBefore(row,el.firstChild);
   while(el.children.length>6)el.removeChild(el.lastChild);
+}
+// Live telemetry poll (round 3, wired Oct 30 2026) - real bug fix: the
+// old TELEMETRY/FPV panels only ever showed LIVE_SIM, a JS constant the
+// server baked into the page ONCE at load time from shadow.telemetry.latest
+// - frozen forever, never re-fetched, so clicking Start Simulation never
+// actually updated either panel. There's no dedicated /simulation/telemetry
+// route, but /research-development/api/status already recomputes that
+// same shadow.telemetry.latest fresh on every hit (the backend treats a
+// snapshot older than 5s as stale and returns null itself - see
+// _live_telemetry()'s own comment in rnd_workspace.py), so this polls
+// THAT instead, same 2.5s cadence the Mind Log poll already uses.
+let simTelPollId=null;
+function stopSimTelPoll(){if(simTelPollId){clearInterval(simTelPollId);simTelPollId=null;}stopLidarPoll();}
+// Nov 9 - LiDAR radar. Polls /simulation/lidar-scan (written ~4 Hz by
+// lidar_bridge.py). Bearings are clockwise from the nose, nose up.
+let lidarPollId=null;
+const RADAR_MAX_M=8;
+function stopLidarPoll(){if(lidarPollId){clearInterval(lidarPollId);lidarPollId=null;}}
+function startLidarPoll(){
+  stopLidarPoll();
+  function tick(){
+    if(!$("sim-radar")){stopLidarPoll();return;}
+    fetch("/simulation/lidar-scan").then(r=>r.json()).then(d=>drawRadar(d)).catch(()=>drawRadar(null));
+  }
+  tick();
+  lidarPollId=setInterval(tick,300);
+}
+function drawRadar(d){
+  const cv=$("sim-radar"),kvEl=$("sim-radar-kv");if(!cv)return;
+  const g=cv.getContext("2d"),W=cv.width,c=W/2,R=c-14,sc=R/RADAR_MAX_M;
+  g.clearRect(0,0,W,W);
+  g.strokeStyle="rgba(112,255,180,.18)";g.lineWidth=1;g.fillStyle="rgba(142,170,155,.8)";g.font="600 16px Chakra Petch, monospace";
+  for(let m=2;m<=RADAR_MAX_M;m+=2){g.beginPath();g.arc(c,c,m*sc,0,Math.PI*2);g.stroke();g.fillText(m+"m",c+4,c-m*sc+16);}
+  g.beginPath();g.moveTo(c,c-R);g.lineTo(c,c+R);g.moveTo(c-R,c);g.lineTo(c+R,c);g.stroke();
+  // drone + nose marker
+  g.fillStyle="#70ffb4";g.beginPath();g.moveTo(c,c-12);g.lineTo(c-8,c+8);g.lineTo(c+8,c+8);g.closePath();g.fill();
+  const live=d&&d.live&&d.scan;
+  if(!live){
+    g.fillStyle="rgba(255,207,92,.9)";g.textAlign="center";g.fillText(d&&d.scan?"SCAN STALE":"NO SCAN",c,c+40);g.textAlign="left";
+    if(kvEl)kvEl.innerHTML=`<div class="empty">${d&&d.scan?"Last scan "+d.age_s+" s old - lidar_bridge.py stopped?":"No scan yet. Needs Gazebo restarted with the lidar model and lidar_bridge.py running (logs/lidar_bridge.log)."}</div>`;
+    return;
+  }
+  const s=d.scan,rs=s.ranges||[];
+  rs.forEach((r,b)=>{if(r==null)return;const rr=Math.min(r,RADAR_MAX_M),a=b*Math.PI/180,x=c+Math.sin(a)*rr*sc,y=c-Math.cos(a)*rr*sc;
+    g.fillStyle=r<1.5?"#ff6b6b":r<3?"#ffcf5c":"#70ffb4";g.globalAlpha=r>RADAR_MAX_M?.35:1;g.fillRect(x-2,y-2,4,4);});
+  g.globalAlpha=1;
+  const n=s.nearest;
+  if(n){const a=n.bearing*Math.PI/180,rr=Math.min(n.dist,RADAR_MAX_M);g.strokeStyle="rgba(255,207,92,.7)";g.setLineDash([6,6]);g.beginPath();g.moveTo(c,c);g.lineTo(c+Math.sin(a)*rr*sc,c-Math.cos(a)*rr*sc);g.stroke();g.setLineDash([]);}
+  if(kvEl){
+    const sec=s.sectors||{},f=v=>v==null?"clear":v.toFixed(2)+" m";
+    kvEl.innerHTML=`${kv("Nearest",n?n.dist.toFixed(2)+" m @ "+n.bearing+"&deg;":"nothing in 12 m")}${kv("Front / Back",f(sec.front)+" / "+f(sec.back))}${kv("Left / Right",f(sec.left)+" / "+f(sec.right))}${kv("Tilt",s.tilt_deg==null?"no pose":s.tilt_deg.toFixed(1)+"&deg;"+(s.tilt_deg>10?" (rocking)":""))}${kv("Ground hits dropped",String(s.ground_dropped||0))}${kv("To ArduPilot",s.fcu_frame_set?"YES (BODY_FRD)":"waiting on MAVROS")}`;
+  }
+}
+function startSimTelPoll(){
+  stopSimTelPoll();
+  function tick(){
+    const rs=fetch("/simulation/run-status").then(r=>r.json()).then(d=>{lastRun=d&&d.run;}).catch(()=>{});
+    fetch("/research-development/api/status").then(r=>r.json()).then(data=>{
+      const live=(data&&data.shadow&&data.shadow.telemetry)?data.shadow.telemetry.latest:null;
+      rs.finally(()=>{renderSimTelemetry(live);renderRunPopup();renderDock();});
+      if(!simFpvShown||!!live!==simFpvShown.live)renderSimFpv(live);
+    }).catch(()=>{});
+  }
+  tick();
+  simTelPollId=setInterval(tick,1000);
+}
+// Nov 9, 2026 - live WORLD panel. /simulation/world reads the world SDF,
+// limits.py, the skills' altitudes and shadow_sitl.parm (works with the sim
+// off), plus world_monitor.py's live real-time factor / sim time / wind.
+let simBlTab="lidar",worldPollId=null;
+function stopWorldPoll(){if(worldPollId){clearInterval(worldPollId);worldPollId=null;}}
+function startWorldPoll(elId){
+  stopWorldPoll();
+  function tick(){
+    const el=$(elId);if(!el){stopWorldPoll();return;}
+    fetch("/simulation/world").then(r=>r.json()).then(d=>{if($(elId))$(elId).innerHTML=worldHtml(d);}).catch(()=>{});
+  }
+  tick();worldPollId=setInterval(tick,2000);
+}
+function worldHtml(d){
+  const w=(d&&d.world)||{},m=v=>v==null?"—":v+" m";
+  const wind=w.wind_live||w.wind_sdf;
+  const windTxt=wind?(Math.hypot(wind.x,wind.y).toFixed(1)+" m/s @ "+Math.round(((90-Math.atan2(wind.y,wind.x)*180/Math.PI)%360+360)%360)+"&deg;"+(w.wind_live&&!w.wind_live.enabled?" (off)":"")):"none (calm)";
+  const rtf=w.real_time_factor;
+  return `<div class="sec">ENVIRONMENT ${d&&d.live?'<span style="float:right;color:var(--accent)">LIVE</span>':'<span style="float:right;color:var(--muted)">sim off</span>'}</div>
+   ${kv("World",esc(w.world||"—"))}${kv("Gravity",w.gravity!=null?w.gravity+" m/s&sup2;":"—")}${kv("Wind",windTxt)}
+   ${kv("Real-time factor",rtf!=null?`<span style="color:${rtf<0.8?'var(--bad)':'var(--accent)'}">${rtf.toFixed(2)}x</span>`:"—")}${kv("Sim time",w.sim_time!=null?Math.round(w.sim_time)+" s":"—")}${kv("Physics step",w.step_ms!=null?w.step_ms+" ms":"—")}
+   ${kv("Props / obstacles",(w.payloads??"—")+" / "+(w.obstacles??"—"))}
+   <div class="sec">LIMITS & FLIGHT</div>
+   ${kv("Geofence",m(w.geofence_m))}${kv("Max altitude",m(w.max_alt_m))}${kv("Search / path altitude",m(w.path_alt_m))}${kv("Payload hover",m(w.payload_alt_m))}${kv("Approach hover",m(w.approach_alt_m))}${kv("Follow altitude",m(w.follow_alt_m))}${kv("RTL altitude",m(w.rtl_alt_m))}${kv("Speed cap (WP_SPD)",w.wp_spd!=null?w.wp_spd+" m/s":"—")}${kv("Obstacle avoidance",esc(w.avoidance||"—"))}`;
+}
+// Nov 9, 2026 - telemetry upgrade. Every ArduCopter mode is shown and
+// only the active one lights up; speed/battery wired (battery comes from
+// telemetry_publisher.py's new /mavros/battery field). The run strip
+// (skill / mission stages) comes from run_skill.py's run_status.json via
+// /simulation/run-status and only shows while something is running, or
+// for 60 s after it finishes.
+const AP_MODES=[["MANUAL",["STABILIZE","ALT_HOLD","ACRO"]],["ASSISTED",["LOITER","POSHOLD","BRAKE"]],["AUTONOMOUS",["GUIDED","AUTO","FOLLOW"]],["RETURN / LAND",["RTL","SMART_RTL","LAND"]]];
+const AP_MODE_INFO={STABILIZE:"Pilot flies, autopilot only levels.",ALT_HOLD:"Holds height, pilot controls the rest.",ACRO:"Rate mode, no self-levelling.",LOITER:"Holds position and height using GPS.",POSHOLD:"Like Loiter, snappier stick feel.",BRAKE:"Stops as fast as possible and holds.",GUIDED:"Follows commands from a computer. Every Shadow skill flies here.",AUTO:"Flies a stored waypoint mission.",FOLLOW:"Follows another vehicle.",RTL:"Flies home and lands.",SMART_RTL:"Retraces its path home.",LAND:"Lands where it is."};
+const RUN_PHASES={approach_target:["ACQUIRE","VIEW","REFINE","OVERHEAD"]};
+let lastRun=null;
+function modeStrip(mode){
+  const known=AP_MODES.some(g=>g[1].includes(mode));
+  return `<div class="modes">${AP_MODES.map(g=>`<div class="mg">${g[0]}</div>${g[1].map(m=>`<span class="${m===mode?'on':''}" title="${esc(AP_MODE_INFO[m]||'')}">${m.replace('_',' ')}</span>`).join("")}`).join("")}${mode&&!known?`<div class="mg">OTHER</div><span class="on">${esc(mode)}</span>`:""}</div>`;
+}
+function runStrip(run){
+  if(!run)return "";
+  const active=run.state==="running"||run.state==="checking";
+  if(!active&&(run.age_s==null||run.age_s>60))return "";
+  const st={running:["RUNNING","var(--accent)"],checking:["CHECKING","var(--warm)"],passed:["PASSED","var(--accent)"],failed:["FAILED","var(--bad)"],stopped:["STOPPED","var(--bad)"]}[run.state]||[run.state,"var(--muted)"];
+  const head=`<div class="kv"><span>${run.kind==="sequence"?"MISSION":"SKILL"}</span><b>${esc(run.skill)} <span style="color:${st[1]}">${st[0]}</span> ${run.elapsed!=null?Math.round(run.elapsed)+" s":""}</b></div>`;
+  let chips="";
+  if(run.kind==="sequence"&&run.stages){
+    chips=`<div class="phase" style="margin:4px 0">${run.stages.map((l,i)=>{let c="";if(i<run.stage_index||(i===run.stage_index&&run.state==="passed"))c="done";else if(i===run.stage_index)c=(run.state==="failed"||run.state==="stopped")?"bad":"on";return `<span class="${c}">${esc(l.toUpperCase())}</span>`}).join("")}</div>`;
+  }
+  const sub=RUN_PHASES[run.kind==="sequence"&&run.stages?run.stages[run.stage_index]:run.skill];
+  if(sub&&run.phase)chips+=`<div class="phase" style="margin:2px 0 4px">${sub.map(p=>{const i=sub.indexOf(run.phase),k=sub.indexOf(p);return `<span class="${k<i?'done':k===i?'warn':''}">${p}</span>`}).join("")}</div>`;
+  else if(run.phase)chips+=kv("Phase",esc(run.phase));
+  const why=run.reason&&run.state!=="passed"?`<p class="note" style="color:var(--bad)">${esc(run.reason)}</p>`:"";
+  return `${head}${chips}${why}`;
+}
+// The run strip (mission stages, a skill's own sub-phases like approach's
+// ACQUIRE/VIEW/REFINE/OVERHEAD, result and reason) pops up top centre.
+function renderRunPopup(){
+  const el=$("sim-ov-run");if(!el)return;
+  const html=runStrip(lastRun);
+  el.innerHTML=html?pn(lastRun.kind==="sequence"?"MISSION PHASES":"SKILL RUNNING",lastRun.state==="running"||lastRun.state==="checking"?"live":"last run",html):"";
+}
+function renderSimTelemetry(live){
+  const el=$("sim-ov-tel");if(!el)return;
+  if(!live){
+    el.innerHTML=pn("TELEMETRY","live, polls 1s",`<div class="empty">No live telemetry yet - the sim hasn't started publishing, or the last sample is more than 2 s old. Still polling.</div>`);
+    return;
+  }
+  const od=live.odometry||{},v=od.linear_velocity||{},p=od.position||{},q=od.orientation;
+  const gs=Math.hypot(v.x||0,v.y||0),vz=v.z||0;
+  let hdg="—";if(q){const yaw=Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z));hdg=Math.round(((90-yaw*180/Math.PI)%360+360)%360)+"&deg;";}
+  const b=live.battery;let batt="—",bar="";
+  if(b){const pct=b.percentage!=null?Math.round(b.percentage*100):null;batt=(b.voltage!=null?b.voltage.toFixed(1)+" V":"")+(pct!=null?" · "+pct+"%":"");
+    if(pct!=null)bar=`<div class="batt"><i style="width:${Math.max(0,Math.min(100,pct))}%;background:${pct<25?'var(--bad)':pct<50?'var(--warm)':'var(--accent)'}"></i></div>`;}
+  el.innerHTML=pn("TELEMETRY","live, polls 1s",
+    `<div class="sec">FLIGHT MODE <span style="float:right;color:${live.armed?'var(--warm)':'var(--muted)'}">${live.armed?"ARMED":"DISARMED"}</span></div>${modeStrip(live.mode)}
+     ${kv("Altitude",p.z!=null?p.z.toFixed(2)+" m":"—")}${kv("Ground speed",gs.toFixed(1)+" m/s")}${kv("Climb",(vz>=0?"+":"")+vz.toFixed(1)+" m/s")}${kv("Heading",hdg)}${kv("Battery",batt)}${bar}`);
+}
+let simFpvShown=null;
+function renderSimFpv(live){
+  const el=$("sim-ov-fpv");if(!el)return;
+  simFpvShown={live:!!live};
+  el.innerHTML=pn("FPV","nose cam",live?
+    `<div class="fpv"><img id="sim-fpv-img" src="${esc(CAMERA_STREAM_URL)}" alt="Shadow live camera feed" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><div class="empty" id="sim-fpv-err" hidden>Camera stream not reachable - check sim_camera_stream.py is running on :5002.</div><span class="fpvtag" style="background:var(--bad);color:#08100d">LIVE</span></div>`
+    :`<div class="empty">No feed yet - waiting on live telemetry (camera topic isn't confirmed publishing until then).</div>`);
+  if(live){
+    const img=$("sim-fpv-img");
+    if(img)img.onerror=()=>{img.hidden=true;const errEl=$("sim-fpv-err");if(errEl)errEl.hidden=false;};
+  }
 }
 function initSimViewer(){
   teardownSim();
@@ -1096,40 +1560,316 @@ function worldMap(){
    ${dots.map(d=>`<rect x="${X(d[1])-4}" y="${Y(d[2])-4}" width="8" height="8" fill="${d[3]}" opacity="${d[4]?1:.55}"/>`).join("")}
    <text x="16" y="24" fill="#ffcf5c" font-size="8" font-family="IBM Plex Mono">13 m GEOFENCE</text></svg>`;
 }
-// Updates the bottom-centre camera-mode + sim-control button panel in
-// place (button highlight only) - deliberately NOT a full V.sim() call,
-// which would tear down and rebuild the whole 3D viewer via
-// initSimViewer() and reset the mission clock back to t=0 every time you
-// just want to switch between chase/orbit.
-function renderSimControls(){
-  $("sim-ov-controls").innerHTML=`<div class="btns h">
-     <button class="btn${simCamMode==='chase'?' main':''}" type="button" id="sim-cam-chase"><span>CHASE CAM</span></button>
-     <button class="btn${simCamMode==='orbit'?' main':''}" type="button" id="sim-cam-orbit"><span>ORBIT CAM</span></button>
-     <button class="btn main" type="button" data-mock="Your real app already does this - POST /simulation/start, SITL+Gazebo"><span>START SIM</span></button>
-     <button class="btn" type="button" data-mock="Your real app already does this"><span>RUN MISSION</span></button>
-     <button class="btn" type="button" data-mock="Your real app already does this - POST /simulation/stop"><span>STOP</span></button>
-     <button class="btn" type="button" data-mock="Your real app already does this - dry run"><span>RUN MIND</span></button>
-    </div>`;
-  $("sim-cam-chase").onclick=()=>{simCamMode="chase";renderSimControls()};
-  $("sim-cam-orbit").onclick=()=>{simCamMode="orbit";renderSimControls()};
+/* ---------------- SIMULATION BAY (round 2, wired Oct 30 2026) - two
+   modes sharing one set of panels. "preview" is the default: the fake
+   three.js flight loop (initSimViewer() above) runs on #sim-gl, scripted
+   around whichever mission is selected in the controls panel below -
+   same honesty convention as the rest of this mockup (it's a preview,
+   says so on-panel, never claims to be live telemetry). START SIMULATION
+   is a REAL POST to /simulation/start; only once the backend confirms ok
+   does simMode flip to "live" and the room tears down the fake loop and
+   switches to the real Gazebo noVNC feed (#sim-gazebo) full-bleed, same
+   routes the pre-port dashboard.html's simAction() used: /run-mission,
+   /run-mind, /stop. STOP SIMULATION reverses it back to "preview".
+   RUN AUTOTUNE was left out here on purpose from Oct 30 through Nov 6 -
+   the backend's own /run-autotune comment said it still targeted the
+   retired PX4/Gazebo-Classic stack and wouldn't do anything useful
+   post-migration. Re-added Nov 6, 2026 once that was actually fixed (see
+   autotune_hover.py's rewrite and areas/pid-autotune-dashboard.md's
+   Session 4/5 notes) - it's in the live-mode row next to START TRAINING.
+   Restart World View is still left out for the same reason that one's
+   backend comment gives; this one hasn't been revisited. CHASE/ORBIT CAM
+   are back (preview-mode only) - they
+   drive the fake three.js camera; Gazebo's own camera lives inside the
+   noVNC view once you're live. */
+let simBusy=false,simMode="preview",simMissionKey="flight_smoke";
+const SIM_MISSION_META={
+ flight_smoke:{label:"Flight Skills Smoke Test",d:"Runs the proven arm / takeoff / go_to / land sequence through run_skill.py."},
+ deliver_payload:{label:"Deliver Payload",d:"Search shadow_runway's 5 payload props, lock onto an orange payload, pick it up, fly it to the pad, drop it, land."},
+ learned_flight:{label:"Learned Flight",d:"Flown by a trained PPO checkpoint's own forward pass instead of hand-coded control, over the same waypoint circuit and safety limits as training."}
+};
+// Skill Test / Training Task quick-launch (Nov 5 2026) - Zer0's ask:
+// nothing in Simulation Bay let him run a single skill or kick off
+// training while actually watching the live feed, only full missions.
+// modules/simulation_control.py's SKILL_TESTS/TRAINING_TASKS registries
+// and their /run-skill-test, /run-training-task routes were already
+// real and working (built Oct 26/30) - nothing in the frontend was ever
+// pointed at the skill-test one. These two client-side lists mirror
+// those registries' real keys/names so this dropdown stays consistent
+// with the Skill Tree/Training rooms, not a separate invented list.
+// "Train:" prefix is deliberate - TRAINING_TASKS' own "name" field
+// ("Learned Flight"/"Waypoint Circuit") is otherwise identical to two
+// of the skill tests' names, and those are genuinely different actions
+// (gradient-updating the policy vs. flying/testing whatever checkpoint
+// already exists) - see TRAINING_TASKS' own comment on this in
+// simulation_control.py.
+let simSkillKey="arm",simTrainKey="go_to";
+// Nov 9, 2026 - grouped like the Skill Tree branches (dropdown uses
+// <optgroup> per grp, in SIM_SKILL_GROUPS order). Keys must match
+// simulation_control.py's SKILL_TESTS and run_skill.py.
+const SIM_SKILL_GROUPS=["Flight basics","Navigation","Perception","Mapping","Missions","Learned (trained policy)"];
+const SIM_SKILL_TEST_META=[
+ {key:"arm",label:"Arm",cat:"Basic",grp:"Flight basics"},
+ {key:"takeoff",label:"Takeoff",cat:"Basic",grp:"Flight basics"},
+ {key:"hover",label:"Hover",cat:"Basic",grp:"Flight basics"},
+ {key:"land",label:"Land",cat:"Basic",grp:"Flight basics"},
+ {key:"rtl",label:"Return Home (RTL)",cat:"Basic",grp:"Flight basics"},
+ {key:"go_to",label:"Go To (next payload)",cat:"Basic",grp:"Navigation"},
+ {key:"follow_path",label:"Follow Path (zigzag)",cat:"Basic",grp:"Navigation"},
+ {key:"search",label:"Search (stop on find)",cat:"Basic",grp:"Perception"},
+ {key:"approach_target",label:"Approach Target",cat:"Basic",grp:"Perception"},
+ {key:"follow_target",label:"Follow Target (moving payload)",cat:"Basic",grp:"Perception"},
+ {key:"map_area",label:"Map Area (zigzag + SLAM)",cat:"Basic",grp:"Mapping"},
+ {key:"delivery_rehearsal",label:"Delivery Rehearsal",cat:"Sequence",grp:"Missions"},
+ {key:"deliver_payload",label:"Deliver Payload (old, monolithic)",cat:"Sequence",grp:"Missions"},
+ {key:"learned_flight",label:"Learned Flight",cat:"Sequence",grp:"Learned (trained policy)"},
+ {key:"waypoint_circuit",label:"Waypoint Circuit",cat:"Sequence",grp:"Learned (trained policy)"}
+];
+// Nov 9, 2026 - Command Dock (Sim Bay live mode). Tabs = SIM_SKILL_GROUPS.
+// o = owner (colour), d = what it does, t = pass test, chain = mission tiles.
+// Streak / unlocked / last result are live: /simulation/skill-tests and
+// /simulation/skill-history. flight_smoke runs through /run-mission.
+// Branch colours: tab, its icon and its skill chips share one colour.
+const DOCK_TABS=[["Flight basics","FLIGHT","#70ffb4","flight"],["Navigation","NAV","#67e8f9","nav"],["Perception","PERCEPTION","#ffa860","vision"],["Mapping","MAPPING","#7fb8ff","map"],["Missions","MISSIONS","#ffcf5c","mission"],["Learned (trained policy)","LEARNED","#b49cff","learned"]];
+const DOCK_OWN={CODED:"#70ffb4",VISION:"#ffa860",AUTOPILOT:"#67e8f9",LEARNED:"#b49cff",MISSION:"#ffcf5c"};
+const DOCK_ICON={
+ flight:'<circle cx="5" cy="5" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/>',
+ nav:'<path d="M4 20l4-10 6 4 6-10"/><circle cx="20" cy="4" r="1.5"/>',
+ vision:'<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><rect x="9" y="9" width="6" height="6"/>',
+ map:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-5"/>',
+ mission:'<path d="M5 21V4"/><path d="M5 4h12l-3 4 3 4H5"/>',
+ learned:'<circle cx="6" cy="12" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/><path d="M8 12h2M14 11l2.5-3.5M14 13l2.5 3.5"/>',
+ stop:'<rect x="6" y="6" width="12" height="12"/>',
+ tune:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+ train:'<path d="M4 18l5-6 4 3 7-9"/><path d="M14 6h6v6"/>',
+ mind:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>',
+ play:'<path d="M7 4l13 8-13 8z" fill="currentColor"/>',
+ down:'<path d="M6 9l6 6 6-6"/>',up:'<path d="M6 15l6-6 6 6"/>'
+};
+function ico(k,size){return `<svg aria-hidden="true" width="${size||20}" height="${size||20}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${DOCK_ICON[k]}</svg>`}
+const DOCK_SHORT={arm:"ARM",takeoff:"TAKEOFF",hover:"HOVER",land:"LAND",rtl:"RTL",go_to:"GO TO",follow_path:"PATH",search:"SEARCH",approach_target:"APPROACH",follow_target:"FOLLOW",map_area:"MAP AREA",delivery_rehearsal:"DELIVERY REHEARSAL",flight_smoke:"SMOKE TEST",deliver_payload:"DELIVER (OLD)",learned_flight:"LEARNED GO TO",waypoint_circuit:"CIRCUIT"};
+const DOCK_INFO={
+ arm:{o:"CODED",d:"GUIDED mode, motors armed.",t:"Armed in GUIDED."},
+ takeoff:{o:"CODED",d:"Climbs to 2 m. Refuses unless armed.",t:"Reach altitude within tolerance."},
+ hover:{o:"CODED",d:"Holds position for 5 s; fails if Shadow drifts more than 0.3 m.",t:"Hold within 0.3 m."},
+ land:{o:"CODED",d:"Lands where it is and waits for auto-disarm.",t:"Touchdown and disarm."},
+ rtl:{o:"AUTOPILOT",d:"ArduPilot RTL: flies home at 3 m and lands where it was armed.",t:"Land within 1.5 m of home."},
+ go_to:{o:"CODED",d:"Flies to the next payload prop in turn, nose first, 2.5 m above it.",t:"Arrive within 0.3 m."},
+ follow_path:{o:"CODED",d:"Flies the zigzag at 2.5 m, rolling on inside 1 m of each point.",t:"Complete the path."},
+ search:{o:"VISION",d:"Flies the zigzag watching for orange and pins the payload down on the ground. Stops at the first confirmed find.",t:"Find within 1 m of the real payload."},
+ approach_target:{o:"VISION",d:"Viewpoint 4.5 m back, refine the estimate, then over the top at 1.5 m. Uses search's find if recent, otherwise turns to look.",t:"Settle within 0.3 m over a spot within 0.5 m of the payload."},
+ follow_target:{o:"VISION",d:"Moves the orange payload around and stays 4 m behind it, nose on it, for 40 s.",t:"80% in view, estimate within 0.8 m, 2.5 to 6 m away."},
+ map_area:{o:"CODED",d:"Flies the zigzag while slam_toolbox maps, then checks the map against the real wall and pillars and saves it. Live map in Missions.",t:"Wall + 3 of 4 pillars within 0.35 m."},
+ delivery_rehearsal:{o:"MISSION",d:"The delivery mission built only from skills. The two hovers stand in for pickup and drop-off until there is a gripper.",t:"Whole sequence.",chain:["ARM","TAKEOFF","SEARCH","APPROACH","PICKUP*","GO TO PAD","DROP*","RTL"]},
+ flight_smoke:{o:"MISSION",d:"The proven basics in a row through run_mission.sh.",t:"Every step passes.",chain:["ARM","TAKEOFF","GO TO","LAND"],mission:true},
+ deliver_payload:{o:"MISSION",d:"The original one-file mission, being replaced by Delivery Rehearsal.",t:"Full mission.",chain:["TAKEOFF","SEARCH","APPROACH","DESPAWN","RESPAWN","LAND"]},
+ learned_flight:{o:"LEARNED",d:"go_to flown by the trained PPO policy instead of hand-coded control, same safety limits. Training it is the TRAINING button; this flies what training produced.",t:"Eval gate: 8 of 10."},
+ waypoint_circuit:{o:"LEARNED",d:"The circuit flown by its trained policy, the candidate for follow_path's learned slot.",t:"Eval gate: 8 of 10."}
+};
+let dockTab="Flight basics",dockSel=null,dockOpen=true,dockData={tests:{},hist:{}},dockPollId=null,dockSig="",sysPop=null;
+function dockItems(){
+  const items=SIM_SKILL_TEST_META.map(t=>({key:t.key,label:t.label,grp:t.grp}));
+  items.splice(items.findIndex(t=>t.key==="deliver_payload"),0,{key:"flight_smoke",label:"Flight Skills Smoke Test",grp:"Missions"});
+  return items;
 }
-V.sim=function(){
-  // Oct 29 HUD restructure: fullscreen 3D background (#sim-gl, see
-  // initSimViewer() above) instead of a boxed viewport, with the same
-  // floating-panel pattern as the Hub room - explicitly requested:
-  // "the 3D space is the background... and then we've got the telemetry
-  // simulated demo there... top left, and then you've got the button
-  // start simulation, run simulation, stop... and then the FPV inset."
-  // TELEMETRY top-left, MISSION/MIND-LOG top-right, WORLD bottom-left,
-  // FPV inset bottom-right, camera + sim-control buttons bottom-centre.
-  $("sim-ov-tel").innerHTML=pn("TELEMETRY","preview",`<div class="phase" id="sim-phase">${SIM_PHASES.map(p=>`<span data-p="${p}">${p}</span>`).join("")}</div>${kv("Phase",`<span id="sim-tel-ph">TAKEOFF</span>`)}${kv("Altitude",`<span id="sim-tel-alt">0.0 m</span>`)}${kv("Speed",`<span id="sim-tel-spd">0.0 m/s</span>`)}${kv("Battery (mock)",`<span id="sim-tel-batt">100%</span>`)}${kv("Camera",`<span id="sim-tel-mode">CHASE</span>`)}<p class="note hl">Scripted preview, not live Gazebo telemetry - same honesty rule as the rest of this mockup (EX, not REAL).</p>`);
-  $("sim-ov-mission").innerHTML=pn("MISSION / MIND LOG","deliver_payload",`<p class="note">This plays on a loop the moment you open this room - a scripted stand-in for what Start Simulation/Run Mission hands you once the real Gazebo link is wired into this stage.</p><div class="mlog" id="sim-mlog"></div><p class="note">A running trace of WHY the drone is doing what it's doing, not just what it's doing - this is where that reads live once Mind is wired up for real.</p>`);
-  $("sim-ov-world").innerHTML=pn("WORLD","shadow_runway.sdf",`${kv("Geofence","13.0 m")}${kv("Max altitude","3.0 m")}${kv("Search altitude","1.1 m")}<p class="note">Orange/purple markers are from deliver_payload.py/limits.py. The 3D preview flies this exact route.</p>`);
+function dockTabOf(g){return DOCK_TABS.find(t=>t[0]===g)||DOCK_TABS[0];}
+function stopDockPoll(){if(dockPollId){clearInterval(dockPollId);dockPollId=null;}}
+function startDockPoll(){
+  stopDockPoll();
+  function tick(){
+    if(simMode!=="live"||root.dataset.view!=="sim"){stopDockPoll();return;}
+    Promise.all([fetch("/simulation/skill-tests").then(r=>r.json()).catch(()=>null),fetch("/simulation/skill-history").then(r=>r.json()).catch(()=>null)]).then(([t,h])=>{
+      if(t&&t.ok)dockData.tests=Object.fromEntries((t.tests||[]).map(x=>[x.key,x]));
+      if(h&&h.ok)dockData.hist=h.skills||{};
+      renderDock();
+    });
+  }
+  tick();dockPollId=setInterval(tick,4000);
+}
+function dockRunningKey(){return lastRun&&(lastRun.state==="running"||lastRun.state==="checking")?lastRun.skill:null;}
+function renderDock(force){
+  const el=$("sim-ov-controls");if(!el||simMode!=="live")return;
+  const running=dockRunningKey();
+  const sig=JSON.stringify([dockTab,dockSel,dockOpen,running,simBusy,dockData]);
+  if(!force&&sig===dockSig&&$("sim-dock"))return;
+  dockSig=sig;
+  const items=dockItems();
+  const tabs=DOCK_TABS.map(([g,n,c,ic])=>{const list=items.filter(i=>i.grp===g),un=list.filter(i=>(dockData.tests[i.key]||{}).unlocked).length;
+    return `<button type="button" role="tab" class="t${g===dockTab?' on':''}" aria-selected="${g===dockTab}" data-g="${esc(g)}" style="--c:${c}">${ico(ic,13)}${n}<small>${un}/${list.length}</small></button>`}).join("");
+  const tb=dockTabOf(dockTab),col=tb[2];
+  const chips=dockOpen?`<div class="sd-chips">${items.filter(i=>i.grp===dockTab).map(i=>{
+    const info=DOCK_INFO[i.key]||{},t=dockData.tests[i.key]||{},n=t.unlocked?3:Math.min(3,t.streak||0);
+    return `<button type="button" class="sc${info.chain?' wide':''}${i.key===dockSel?' sel':''}${running===i.key?' run':''}" data-k="${i.key}" aria-pressed="${i.key===dockSel}" aria-label="${esc(i.label)}" title="${esc(i.label)}" style="--c:${col}">${running===i.key?'<span class="live">LIVE</span>':''}${ico(tb[3],20)}<span class="nm">${esc(DOCK_SHORT[i.key]||i.label)}</span><span class="bar"><i style="width:${Math.round(n/3*100)}%"></i></span></button>`}).join("")}</div>`:"";
+  let pop="";
+  const sel=dockOpen&&items.find(i=>i.key===dockSel);
+  if(sel){
+    const info=DOCK_INFO[sel.key]||{o:"CODED",d:"",t:""},t=dockData.tests[sel.key]||{};
+    const hist=(dockData.hist[sel.key]||[]),last=hist[hist.length-1];
+    const lastTxt=last?(last.result==="P"?"PASS":"FAIL · "+last.reason):"No runs logged yet";
+    const isRun=running===sel.key,busyOther=running&&!isRun;
+    const st=isRun?["RUNNING","var(--accent)"]:t.unlocked?["★ UNLOCKED","var(--warm)"]:["STREAK "+(t.streak||0)+"/3","#ffa860"];
+    pop=`<div class="sd-pop" style="--c:${col}">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font:700 14px var(--display);letter-spacing:.05em">${esc(sel.label)}</span><span style="font:600 8px var(--mono);letter-spacing:.12em;color:${DOCK_OWN[info.o]||col}">${esc(info.o||"")}</span><span style="flex:1"></span><span style="font:600 8px var(--mono);letter-spacing:.1em;color:${st[1]}">${st[0]}</span></div>
+      <div style="font:400 11px/1.45 var(--mono);color:#c9e6d6;margin-top:4px">${esc(info.d||"")}</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px"><div style="flex:1;min-width:0;font:400 9px/1.5 var(--mono);color:var(--muted)"><div>TEST · <span style="color:var(--text)">${esc(info.t||"")}</span></div><div>LAST · <span style="color:${last?(last.result==="P"?"var(--accent)":"var(--bad)"):"var(--muted)"}">${esc(lastTxt)}</span></div></div>
+      ${isRun?'<button type="button" class="abort" id="dock-abort">ABORT</button>':`<button type="button" class="go" id="dock-go"${simBusy||busyOther?' disabled':''} title="${busyOther?'Something else is running':''}">${ico("play",11)}LAUNCH</button>`}</div></div>`;
+  }
+  const prevStatus=($("sim-action-status")||{}).textContent||"";
+  el.innerHTML=`${pop}<div class="sd" id="sim-dock"><div class="sd-tabs" role="tablist" aria-label="Skill branches">${tabs}<button type="button" class="fold" id="dock-fold" aria-expanded="${dockOpen}" aria-label="${dockOpen?'Collapse skills':'Expand skills'}">${ico(dockOpen?"down":"up",14)}</button></div>${chips}</div>
+    <div id="sim-action-status" style="margin-top:6px;font:500 11px var(--mono);color:var(--muted);text-align:center"></div>`;
+  const stEl=$("sim-action-status");if(stEl)stEl.textContent=prevStatus;
+  el.querySelectorAll(".sd-tabs button.t").forEach(b=>b.onclick=()=>{dockTab=b.dataset.g;dockSel=null;dockOpen=true;renderDock(true);});
+  el.querySelectorAll(".sc").forEach(b=>b.onclick=()=>{dockSel=dockSel===b.dataset.k?null:b.dataset.k;renderDock(true);});
+  $("dock-fold").onclick=()=>{dockOpen=!dockOpen;if(!dockOpen)dockSel=null;renderDock(true);};
+  const go=$("dock-go");if(go)go.onclick=()=>{
+    const k=dockSel,meta=dockItems().find(i=>i.key===k);
+    if(k==="flight_smoke")simPost("/simulation/run-mission",{mission:"flight_smoke"},"Running Flight Skills Smoke Test");
+    else simPost("/simulation/run-skill-test",{skill:k},"Running "+(meta?meta.label:k));
+  };
+  const ab=$("dock-abort");if(ab)ab.onclick=()=>simPost("/simulation/abort-skill",null,"Aborting");
+}
+// System icon rail (top right) + Mind log under it. TRAIN and MIND open a
+// small options row (task / dry run) before they fire.
+function renderSimSystem(){
+  const el=$("sim-ov-mission");if(!el)return;
+  const dis=simBusy?' disabled':'';
+  const trainOpts=Object.keys(SIM_TRAIN_TASK_META).map(k=>`<option value="${k}"${k===simTrainKey?' selected':''}>${esc(SIM_TRAIN_TASK_META[k])}</option>`).join("");
+  let popHtml="";
+  if(sysPop==="train")popHtml=`<div class="rail-pop"><select id="sim-train-select" aria-label="Training task">${trainOpts}</select><button type="button" id="sim-train-btn"${dis}>START</button></div>`;
+  if(sysPop==="mind")popHtml=`<div class="rail-pop"><label><input type="checkbox" id="sim-mind-dryrun" checked style="margin:0">DRY RUN (safe)</label><button type="button" id="sim-mind-btn"${dis}>RUN MIND</button></div>`;
+  el.innerHTML=`<div style="width:100%"><div class="rail" role="toolbar" aria-label="System">
+      <button type="button" id="sim-autotune-btn"${dis} aria-label="Autotune PID" title="Autotune PID (~2.5 min: climbs to 6 m, tunes, lands, saves gains)">${ico("tune",16)}</button>
+      <button type="button" id="sim-train-open" class="${sysPop==='train'?'on':''}" aria-label="Training" aria-expanded="${sysPop==='train'}" title="Training">${ico("train",16)}</button>
+      <button type="button" id="sim-mind-open" class="${sysPop==='mind'?'on':''}" aria-label="Mind" aria-expanded="${sysPop==='mind'}" title="Run the Mind">${ico("mind",16)}</button>
+      <button type="button" class="stop" id="sim-stop-btn"${dis} title="Stop simulation">${ico("stop",14)}STOP</button>
+    </div>${popHtml}${pn("MIND","decision log",`<div class="mlog" id="sim-mlog" style="max-height:200px;overflow:auto"><p class="note">Loading…</p></div>`)}</div>`;
+  $("sim-stop-btn").onclick=()=>simPost("/simulation/stop",null,"Stopping simulation",()=>{simMode="preview";renderSimRoom();});
+  $("sim-autotune-btn").onclick=()=>simPost("/simulation/run-autotune",null,"Running PID autotune");
+  $("sim-train-open").onclick=()=>{sysPop=sysPop==="train"?null:"train";mindLogLastCount=-1;renderSimSystem();};
+  $("sim-mind-open").onclick=()=>{sysPop=sysPop==="mind"?null:"mind";mindLogLastCount=-1;renderSimSystem();};
+  const ts=$("sim-train-select");if(ts)ts.onchange=e=>{simTrainKey=e.target.value;};
+  const tbn=$("sim-train-btn");if(tbn)tbn.onclick=()=>{const k=$("sim-train-select").value;simPost("/simulation/run-training-task",{task:k},"Starting "+(SIM_TRAIN_TASK_META[k]||k)+" training");};
+  const mb=$("sim-mind-btn");if(mb)mb.onclick=()=>{const dry=$("sim-mind-dryrun").checked;simPost("/simulation/run-mind",{dry_run:dry,max_steps:5},dry?"Running Mind (dry run)":"Running Mind");};
+}
+const SIM_TRAIN_TASK_META={go_to:"Learned Flight (go_to PPO)",agility_circuit:"Waypoint Circuit (PPO)"};
+function simPost(url,body,label,onSuccess){
+  // renderSimControls() replaces #sim-ov-controls' innerHTML wholesale,
+  // which recreates #sim-action-status as a fresh element each call - a
+  // reference grabbed before that call points at a detached node the
+  // moment renderSimControls() runs, so every write after it silently
+  // lands nowhere. Fixed by re-reading $("sim-action-status") AFTER each
+  // render instead of caching it once up front (confirmed as the actual
+  // bug via a Playwright click test, not guessed). onSuccess (used by
+  // START/STOP to flip simMode) only fires once data.ok is true, and
+  // runs BEFORE the status text is set so a mode switch's own re-render
+  // (renderSimRoom(), which rebuilds #sim-action-status again) doesn't
+  // clobber it.
+  simBusy=true;renderSimControls();
+  const statusEl1=$("sim-action-status");
+  if(statusEl1)statusEl1.textContent=(label||"Working")+"...";
+  const opts={method:"POST"};
+  if(body){opts.headers={"Content-Type":"application/json"};opts.body=JSON.stringify(body);}
+  fetch(url,opts).then(r=>r.json()).then(data=>{
+    simBusy=false;
+    if(data.ok&&onSuccess)onSuccess();else renderSimControls();
+    const statusEl2=$("sim-action-status");
+    if(statusEl2)statusEl2.textContent=data.ok?(label||"Action")+" triggered.":("Error: "+(data.error||"unknown"));
+  }).catch(err=>{
+    simBusy=false;renderSimControls();
+    const statusEl3=$("sim-action-status");
+    if(statusEl3)statusEl3.textContent="Error: "+err;
+  });
+}
+// Shared by the Skill Tree room's RUN IN SIM button, which has none of
+// simPost()'s dependent elements (#sim-action-status etc. only exist in
+// Simulation Bay) - same real /run-skill-test route Sim Bay's own
+// RUN SKILL button above posts to, just reporting into whatever status
+// element id the caller passes instead of a fixed one.
+function runSkillTest(skill,label,statusElId,onDone){
+  const s0=$(statusElId);if(s0)s0.textContent=(label||"Running "+skill)+"...";
+  fetch("/simulation/run-skill-test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({skill})})
+    .then(r=>r.json()).then(data=>{
+      const s1=$(statusElId);
+      if(s1)s1.textContent=data.ok?(label||"Skill test")+" triggered.":("Error: "+(data.error||"unknown"));
+      if(onDone)onDone(data);
+    }).catch(err=>{
+      const s2=$(statusElId);
+      if(s2)s2.textContent="Error: "+err;
+      if(onDone)onDone({ok:false,error:String(err)});
+    });
+}
+function renderSimControls(){
+  const missionOpts=Object.keys(SIM_MISSION_META).map(k=>
+    `<option value="${k}"${k===simMissionKey?' selected':''}>Mission: ${esc(SIM_MISSION_META[k].label)}</option>`).join("");
+  if(simMode==="live"){
+    // Nov 9, 2026 - the Command Dock replaces the dropdown rows; system
+    // actions (stop, autotune, training, Mind) live top right.
+    renderDock(true);
+    renderSimSystem();
+    mindLogLastCount=-1;
+  }else{
+    $("sim-ov-controls").innerHTML=`<div class="btns h" style="flex-wrap:wrap">
+       <select id="sim-world-select" style="padding:6px" title="shadow_runway is the only world ported to the new ArduPilot/Gazebo Harmonic stack so far."><option value="shadow_runway">World: Shadow Runway</option></select>
+       <select id="sim-mission-select" style="padding:6px">${missionOpts}</select>
+       <button class="btn${simCamMode==='chase'?' main':''}" type="button" id="sim-cam-chase"><span>CHASE CAM</span></button>
+       <button class="btn${simCamMode==='orbit'?' main':''}" type="button" id="sim-cam-orbit"><span>ORBIT CAM</span></button>
+       <button class="btn main" type="button" id="sim-start-btn"${simBusy?' disabled':''}><span>START SIMULATION</span></button>
+      </div>
+      <div id="sim-action-status" style="margin-top:6px;font:500 11px var(--mono);color:var(--muted);text-align:center"></div>`;
+    $("sim-mission-select").onchange=e=>{simMissionKey=e.target.value;renderSimMissionPanel();};
+    $("sim-cam-chase").onclick=()=>{simCamMode="chase";renderSimControls()};
+    $("sim-cam-orbit").onclick=()=>{simCamMode="orbit";renderSimControls()};
+    $("sim-start-btn").onclick=()=>simPost("/simulation/start",{world:$("sim-world-select").value},"Starting simulation",()=>{simMode="live";renderSimRoom();});
+  }
+}
+// Mission choice only changes which label/description this panel shows
+// (the "lighter" scope - see the note I'm sending Zer0 alongside this) -
+// the 3D flight loop itself stays one generic scripted route regardless
+// of mission, same as the CHASE/ORBIT buttons, this is a cosmetic-only
+// re-render that does NOT touch initSimViewer()/the mission clock.
+function renderSimMissionPanel(){
+  const mm=SIM_MISSION_META[simMissionKey];
+  $("sim-ov-mission").innerHTML=pn("MISSION PREVIEW",esc(mm.label),`<p class="note">${esc(mm.d)}</p><p class="note">This plays on a loop while you're deciding - a scripted stand-in for what Start Simulation hands you once Gazebo takes over. Pick a different mission above and this updates.</p><div class="mlog" id="sim-mlog"></div>`);
+}
+function renderSimPreview(){
+  stopMindLogPoll();
+  $("sim-ov-tel").innerHTML=pn("TELEMETRY","preview",`<div class="phase" id="sim-phase">${SIM_PHASES.map(p=>`<span data-p="${p}">${p}</span>`).join("")}</div>${kv("Phase",`<span id="sim-tel-ph">TAKEOFF</span>`)}${kv("Altitude",`<span id="sim-tel-alt">0.0 m</span>`)}${kv("Speed",`<span id="sim-tel-spd">0.0 m/s</span>`)}${kv("Battery (mock)",`<span id="sim-tel-batt">100%</span>`)}${kv("Camera",`<span id="sim-tel-mode">${simCamMode.toUpperCase()}</span>`)}<p class="note hl">Scripted preview, not live Gazebo telemetry - same honesty rule as the rest of this room (EX, not REAL). Click START SIMULATION to go live.</p>`);
+  renderSimMissionPanel();
+  $("sim-ov-world").innerHTML=pn("WORLD","shadow_runway.sdf",`<div id="sim-world-prev"><div class="empty">Loading…</div></div><p class="note">Orange/purple markers are from deliver_payload.py/limits.py. The 3D preview flies this exact route.</p>`);
+  startWorldPoll("sim-world-prev");
   $("sim-ov-fpv").innerHTML=pn("FPV","nose cam",`<div class="fpv"><canvas id="sim-fpv-gl"></canvas><span class="fpvtag">PREVIEW</span><span class="fpvrec"><i></i>REC</span></div>`);
+  initSimViewer();
+}
+function renderSimLive(){
+  teardownSim();
+  // Optimistic first paint from the page-load snapshot (may well be
+  // stale/null), immediately superseded by the first real poll tick
+  // below within 2.5s - see startSimTelPoll()'s own comment for why
+  // this used to be the whole bug (LIVE_SIM never updated after load).
+  renderSimTelemetry(LIVE_SIM);
+  renderSimFpv(LIVE_SIM);
+  renderSimSystem();
+  startMindLogPoll();
+  startDockPoll();
+  // Nov 9 - LiDAR radar replaces the static WORLD panel in live mode.
+  // Nov 9 - LIDAR radar and the live WORLD panel share this corner, tabbed.
+  $("sim-ov-world").innerHTML=pn("SENSORS & WORLD","live",`<div class="l3tabs"><button type="button" data-t="lidar" class="${simBlTab==='lidar'?'on':''}">LIDAR</button><button type="button" data-t="world" class="${simBlTab==='world'?'on':''}">WORLD</button></div>
+    <div id="sim-bl-lidar" ${simBlTab==='lidar'?'':'hidden'}><canvas id="sim-radar" width="400" height="400" style="width:100%;aspect-ratio:1;display:block;background:#050b09;border:1px solid var(--line-strong)"></canvas><div id="sim-radar-kv"><div class="empty">Waiting for lidar_bridge.py...</div></div></div>
+    <div id="sim-bl-world" ${simBlTab==='world'?'':'hidden'}><div class="empty">Loading…</div></div>`);
+  document.querySelectorAll("#sim-ov-world .l3tabs button").forEach(bt=>bt.onclick=()=>{simBlTab=bt.dataset.t;
+    document.querySelectorAll("#sim-ov-world .l3tabs button").forEach(x=>x.classList.toggle("on",x===bt));
+    $("sim-bl-lidar").hidden=simBlTab!=="lidar";$("sim-bl-world").hidden=simBlTab!=="world";});
+  startSimTelPoll();
+  startLidarPoll();
+  startWorldPoll("sim-bl-world");
+}
+function renderSimRoom(){
+  root.dataset.simMode=simMode;
+  if(simMode==="live")renderSimLive();else renderSimPreview();
   renderSimControls();
   page.innerHTML="";page.className="page";
-  initSimViewer();
-};
+}
+V.sim=renderSimRoom;
 
 /* ---------------- ATTRIBUTES ---------------- */
 let attrSel="core_flight";
@@ -1183,16 +1923,67 @@ V.skills=function(arg){
     ${kv("Current streak",s.streak)}${kv("Unlock rule","3 passes, one failure resets to 0")}
     ${s.tier===2?kv("Requires","arm, takeoff, hover"):''}${s.id==="deliver_payload"?kv("Requires","Tier 1 and Tier 2 unlocked"):''}
     ${s.id==="deliver_payload"?`<div class="sec">PHASES</div><div class="phase">${["TAKEOFF","SEARCH","APPROACH","DESPAWN","TRANSIT","RESPAWN","LAND"].map(p=>`<span>${p}</span>`).join("")}</div>`:''}
-    <div class="btns h"><button class="btn main" type="button" data-mock="MOCKUP: this would run ros2 run shadow_drone run_skill.py ${s.id}"><span>RUN IN SIM</span><small>run_skill.py</small></button>
-    ${s.id==="deliver_payload"?'<a class="btn" href="#missions"><span>MISSION BRIEF</span></a>':''}</div>`));
+    <div class="btns h"><button class="btn main" type="button" id="sk-run-btn"><span>RUN IN SIM</span><small>run_skill.py</small></button>
+    ${s.id==="deliver_payload"?'<a class="btn" href="#missions"><span>MISSION BRIEF</span></a>':''}</div>
+    <div id="sk-run-status" class="note" style="margin-top:6px"></div>`));
   page.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{skSel=b.dataset.k;V.skills()});
+  const runBtn=$("sk-run-btn");
+  if(runBtn)runBtn.onclick=()=>{
+    runBtn.disabled=true;
+    runSkillTest(s.id,"Running "+s.n,"sk-run-status",()=>{runBtn.disabled=false;});
+  };
 };
 
-/* ---------------- MISSIONS ---------------- */
+/* ---------------- MISSIONS (requirement badges were already reading live
+   SK data since the Hub/Attributes wiring pass above - SK is the same
+   array hydrateLiveData() mutates. The one thing still hardcoded was the
+   header's LOCKED/UNLOCKED label, fixed below. RUN MISSION stays mock
+   for now - it needs a live SITL+Gazebo session already running, which
+   isn't wired up until Simulation Bay's Start Simulation button is. ---------------- */
+// Nov 9, 2026 - live SLAM map (map_area skill). /simulation/map gives
+// size/origin/pose/trail; /simulation/map.png is the occupancy grid.
+let mapPollId=null,mapImg=null,mapImgT=null;
+function stopMapPoll(){if(mapPollId){clearInterval(mapPollId);mapPollId=null;}}
+function startMapPoll(){
+  stopMapPoll();
+  function tick(){
+    if(!$("msn-map")){stopMapPoll();return;}
+    fetch("/simulation/map").then(r=>r.json()).then(d=>{
+      const m=d&&d.map;
+      if(m&&m.map_t&&m.map_t!==mapImgT){
+        const im=new Image();im.onload=()=>{mapImg=im;mapImgT=m.map_t;drawMap(d)};im.src="/simulation/map.png?t="+m.map_t;
+      }else drawMap(d);
+    }).catch(()=>drawMap(null));
+  }
+  tick();mapPollId=setInterval(tick,2000);
+}
+function drawMap(d){
+  const cv=$("msn-map"),kvEl=$("msn-map-kv");if(!cv)return;
+  const g=cv.getContext("2d"),W=cv.width;g.fillStyle="#0b1712";g.fillRect(0,0,W,W);
+  const m=d&&d.map;
+  if(!m||!mapImg){
+    g.fillStyle="rgba(255,207,92,.9)";g.font="600 22px Chakra Petch, monospace";g.textAlign="center";
+    g.fillText("NO MAP YET",W/2,W/2);g.textAlign="left";
+    if(kvEl)kvEl.innerHTML=`<div class="empty">No map yet. Needs slam_toolbox installed (sudo apt install ros-humble-slam-toolbox), the sim restarted, and Shadow flying. Check logs/slam_toolbox.log.</div>`;
+    return;
+  }
+  // fit the map into the square, keep metres square
+  const wm=m.width*m.resolution,hm=m.height*m.resolution,sc=Math.min(W/wm,W/hm)*.96,ox=(W-wm*sc)/2,oy=(W-hm*sc)/2;
+  g.imageSmoothingEnabled=false;g.drawImage(mapImg,ox,oy,wm*sc,hm*sc);
+  const P=(x,y)=>[ox+(x-m.origin_x)*sc,oy+(hm-(y-m.origin_y))*sc];
+  g.strokeStyle="rgba(112,255,180,.08)";g.lineWidth=1;
+  for(let x=Math.ceil(m.origin_x/5)*5;x<=m.origin_x+wm;x+=5){const a=P(x,m.origin_y),b=P(x,m.origin_y+hm);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();}
+  for(let y=Math.ceil(m.origin_y/5)*5;y<=m.origin_y+hm;y+=5){const a=P(m.origin_x,y),b=P(m.origin_x+wm,y);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();}
+  const o=P(0,0);g.strokeStyle="rgba(255,207,92,.8)";g.beginPath();g.arc(o[0],o[1],5,0,Math.PI*2);g.stroke();
+  if(m.trail&&m.trail.length>1){g.strokeStyle="rgba(255,207,92,.55)";g.lineWidth=2;g.beginPath();m.trail.forEach((p,i)=>{const q=P(p[0],p[1]);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1])});g.stroke();}
+  if(m.drone){const q=P(m.drone.x,m.drone.y),a=m.drone.yaw;g.save();g.translate(q[0],q[1]);g.rotate(-a);g.fillStyle="#ffcf5c";g.beginPath();g.moveTo(12,0);g.lineTo(-8,-7);g.lineTo(-8,7);g.closePath();g.fill();g.restore();}
+  if(kvEl)kvEl.innerHTML=`${kv("Status",d.live?"LIVE":"stale ("+d.age_s+" s)")}${kv("Mapped",(m.known_m2||0).toFixed(0)+" m&sup2;")}${kv("Walls / obstacles",(m.occupied_m2||0).toFixed(1)+" m&sup2;")}${kv("Shadow",m.drone?m.drone.x.toFixed(1)+", "+m.drone.y.toFixed(1)+" m":"not localised yet")}`;
+}
 V.missions=function(){
   const need=["arm","takeoff","hover","go_to","land"];
+  const dp=SK.find(s=>s.id==="deliver_payload");
   setPage("fill g21",
-   pn("MISSION BRIEF: DELIVER PAYLOAD","TIER 3 / LOCKED",`
+   pn("MISSION BRIEF: DELIVER PAYLOAD","TIER 3 / "+(dp.un?"UNLOCKED":"LOCKED"),`
     <p class="note">${esc(SK.find(s=>s.id==="deliver_payload").d)} One payload per run, by choice.</p>
     <div class="phase">${["TAKEOFF","SEARCH","APPROACH","DESPAWN","TRANSIT","RESPAWN","LAND"].map(p=>`<span class="done">${p}</span>`).join("")}</div>
     <div class="sec">REQUIREMENTS</div>
@@ -1202,13 +1993,306 @@ V.missions=function(){
     <div class="btns h"><a class="btn main" href="#sim"><span>OPEN IN SIM BAY</span></a><button class="btn" type="button" data-mock="MOCKUP: this would POST /simulation/run-mission"><span>RUN MISSION</span><small>locked</small></button></div>`)
   +pn("WORLD: SHADOW_RUNWAY","TOP DOWN",worldMap()+`<p class="note">Orange payloads and the pad are the coordinates in deliver_payload.py. Purple is from limits.py. Blue and green are approximate. Dashed route is the fixed sweep.</p>
     <div class="sec">MISSION LIBRARY</div>
-    ${[["RETURN HOME","IDEA","Fly back to launch and land without being told."],["OUTDOOR DELIVERY","ROADMAP","Phase 7: train spot and approach, build grab and release, then an outdoor world."],["FIELD SURVEY","IDEA","Agriculture direction. Needs field worlds."]].map(m=>`<div class="row" style="cursor:default"><b>${m[0]}</b><small>${m[2]}</small><span class="r">${tag(m[1])}</span></div>`).join("")}`));
+    ${[["RETURN HOME","IDEA","Fly back to launch and land without being told."],["OUTDOOR DELIVERY","ROADMAP","Phase 7: train spot and approach, build grab and release, then an outdoor world."],["FIELD SURVEY","IDEA","Agriculture direction. Needs field worlds."]].map(m=>`<div class="row" style="cursor:default"><b>${m[0]}</b><small>${m[2]}</small><span class="r">${tag(m[1])}</span></div>`).join("")}`)
+  +pn("LIVE MAP","slam_toolbox, polls 2s",`<canvas id="msn-map" width="640" height="640" style="width:100%;aspect-ratio:1;display:block;background:#0b1712;border:1px solid var(--line-strong)"></canvas><div id="msn-map-kv"><div class="empty">Loading…</div></div><p class="note">Built from the LiDAR while Shadow flies (any skill, not only Map Area). Bright = walls and obstacles, dim = seen and empty, dark = not seen yet. Grid lines every 5 m, north up. Stop/Start Simulation starts a fresh map.</p>`));
+  startMapPoll();
 };
 
-/* ---------------- TRAINING ---------------- */
+/* ---------------- TRAINING (wired Oct 30 2026, round 3) - real data off
+   /simulation/training-tasks (per-task checkpoint/crash-free/eval status)
+   and /simulation/train-log?task=<key> (live episode-by-episode feed,
+   polled every 3s while this room is open - same pattern as the Mind
+   Log/live-telemetry polls). START/EVALUATE are real POSTs to
+   /run-training-task and /run-checkpoint-eval - both share one lock
+   ("training") on the real machine, so only one of them can ever be
+   running at a time regardless of which task/button you clicked, which
+   is why there's one global busy flag here rather than one per task. ---------------- */
+// go_to_env.py caps an episode at 300 steps, agility_circuit_env.py at
+// 600 - these aren't returned by /train-log itself (only derivable
+// server-side from an mlflow param), so they're mirrored here from the
+// same source simulation_control.py's own CRASH_LEN_FRACTION comment
+// documents, not invented for this chart.
+const TRAIN_EPISODE_CAP={go_to:300,agility_circuit:600};
+const TRAIN_CRASH_FRACTION=0.8;
+// Oct 30 2026 (round 5) - eval_checkpoint.py's own EVAL_SEEDS list has
+// exactly 10 entries and /simulation/run-checkpoint-eval never overrides
+// --episodes, so 10 is evaluation's real, fixed denominator for the
+// progress bar below - not invented, not a guess.
+const EVAL_SEED_COUNT=10;
+let trainTasks=[],trainSel="go_to",trainBusy=false,trainPollId=null,lastTrainKind=null;
+// Oct 30 2026 (round 6, then round 7 - Zer0's own screenshot showed round
+// 6's first fix hadn't actually closed this) - real bug: /simulation/
+// run-checkpoint-eval's lock check (modules/simulation_control.py
+// _run_detached()) can refuse a click BEFORE eval_checkpoint.py ever runs
+// - "a training or evaluation run is already in progress" - which means
+// checkpoint_eval.log/train-log never get touched at all, so whatever
+// done:true/started:true content is already sitting in that file (days
+// old, in Zer0's case) is all /eval-log or /train-log can ever return
+// until a run actually completes again. Round 6's fix only intercepted
+// when the CURRENTLY-DISPLAYED kind matched the failed click's kind - but
+// activeTrainKind's own fallback can still pick the OTHER kind purely
+// because ITS stale file happens to say started:true, which is exactly
+// what Zer0's second screenshot showed (a failed click, "already in
+// progress," right next to "Evaluation finished, 10/10 seeds" - old data
+// neither round 6's check nor activeTrainKind's picking logic caught).
+//
+// Round 7's actual fix: there is no reliable way to tell a genuinely
+// fresh done:true/error from a stale one using only started/done/error
+// flags with no timestamp - so stop trying to infer it from the log
+// content at all. Instead, trainClickState tracks, per kind, what THIS
+// browser session actually knows firsthand: "unknown" (never clicked
+// this kind this session - we have zero basis to say whether its log
+// content is from just now or from days ago, so don't show it as
+// current), "failed" (the last click for this kind came back ok:false -
+// show that real refusal, not the log), or "trust" (a click succeeded,
+// or genuine real-time evidence - started && !done && !error - has been
+// observed, so the log is known-current and safe to show as-is).
+// maskedLogState() is the one place that turns a raw /train-log or
+// /eval-log response into what's actually safe to treat as "now," and
+// both activeTrainKind (which kind to show) and renderTrainLive (how to
+// show it) go through it, so there's one rule instead of two that can
+// disagree.
+let trainClickState={train:{status:"unknown",message:null},eval:{status:"unknown",message:null}};
+let lastTrainLogData=null,lastEvalLogData=null;
+function maskedLogState(kind,raw){
+  const d=raw||{};
+  const cs=trainClickState[kind];
+  const genuinelyRunning=!!(d.started&&!d.done&&!d.error);
+  if(genuinelyRunning){
+    if(cs.status!=="trust")trainClickState[kind]={status:"trust",message:null};
+    return d;
+  }
+  if(cs.status==="trust")return d;
+  if(cs.status==="failed")return {started:false,done:false,error:null,episodes:[],total_timesteps:d.total_timesteps,_clickFailedMessage:cs.message};
+  return {started:false,done:false,error:null,episodes:[],total_timesteps:null};
+}
+function stopTrainPoll(){if(trainPollId){clearInterval(trainPollId);trainPollId=null;}}
+function startTrainPoll(){
+  stopTrainPoll();
+  function tick(){
+    Promise.all([
+      fetch("/simulation/train-log?task="+encodeURIComponent(trainSel)).then(r=>r.json()).catch(()=>null),
+      fetch("/simulation/eval-log").then(r=>r.json()).catch(()=>null)
+    ]).then(([trainData,evalData])=>{
+      lastTrainLogData=trainData;lastEvalLogData=evalData;
+      renderEpisodeChart(trainData);
+      renderTrainLive(trainData,evalData);
+    });
+  }
+  tick();
+  trainPollId=setInterval(tick,3000);
+}
+function renderTrainLiveNow(){renderTrainLive(lastTrainLogData,lastEvalLogData);}
+function fetchTrainTasks(cb){
+  fetch("/simulation/training-tasks").then(r=>r.json()).then(data=>{
+    trainTasks=(data&&data.ok&&data.tasks)||[];
+    if(cb)cb();
+  }).catch(()=>{if(cb)cb();});
+}
+function trainAction(url,body,label,kind){
+  trainBusy=true;renderTrainTasksList();
+  const statusEl1=$("train-action-status");
+  if(statusEl1)statusEl1.textContent=(label||"Working")+"...";
+  fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(r=>r.json()).then(data=>{
+    trainBusy=false;
+    trainClickState[kind]=data.ok?{status:"trust",message:null}:{status:"failed",message:data.error||"unknown error"};
+    fetchTrainTasks(()=>{
+      renderTrainTasksList();
+      const statusEl2=$("train-action-status");
+      if(statusEl2)statusEl2.textContent=data.ok?(label||"Action")+" triggered.":("Error: "+(data.error||"unknown"));
+      renderTrainLiveNow();
+    });
+  }).catch(err=>{
+    trainBusy=false;renderTrainTasksList();
+    trainClickState[kind]={status:"failed",message:String(err)};
+    const statusEl3=$("train-action-status");
+    if(statusEl3)statusEl3.textContent="Error: "+err;
+    renderTrainLiveNow();
+  });
+}
+function trainTaskRow(t){
+  const crash=t.crash_free_pct!=null?t.crash_free_pct+"% crash-free over its last run's recent episodes":(t.detail||"never run yet");
+  const evalText=t.has_eval?(t.eval_stale?"evaluated, but stale - the checkpoint has changed since (retrain or re-evaluate)":(t.eval_detail||"evaluated")):(t.eval_detail||"no checkpoint to evaluate yet");
+  return `<div class="row" style="cursor:default;grid-template-columns:1fr auto">
+    <div><b>${esc(t.name)}</b><div class="note" style="margin-top:4px">${esc(t.description)}</div>
+      <div class="chips" style="margin-top:6px">${(t.feeds_attributes||[]).map(a=>`<span class="tag">feeds ${esc(String(a).toUpperCase())}</span>`).join("")}<span class="tag">${esc(t.key)}</span>${t.checkpoint_exists?'':'<span class="tag" style="opacity:.6">no checkpoint yet</span>'}</div>
+      <p class="note" style="margin-top:4px">${esc(crash)}</p>
+      <p class="note" style="margin-top:2px">${esc(evalText)}</p></div>
+    <div class="btns" style="flex-direction:column;align-items:stretch;gap:6px">
+      <button class="btn main" type="button" data-start="${esc(t.key)}"${trainBusy?' disabled':''}><span>START</span></button>
+      <button class="btn" type="button" data-evaluate="${esc(t.key)}"${(trainBusy||!t.checkpoint_exists)?' disabled':''}><span>EVALUATE</span></button>
+      <button class="btn${trainSel===t.key?' main':''}" type="button" data-chart="${esc(t.key)}"><span>VIEW CHART</span></button>
+    </div></div>`;
+}
+function renderTrainTasksList(){
+  const el=$("train-tasks");if(!el)return;
+  el.innerHTML=trainTasks.length?trainTasks.map(trainTaskRow).join(""):'<div class="empty">Loading training tasks…</div>';
+  el.querySelectorAll("[data-start]").forEach(b=>b.onclick=()=>{lastTrainKind="train";trainAction("/simulation/run-training-task",{task:b.dataset.start},"Starting training","train");});
+  el.querySelectorAll("[data-evaluate]").forEach(b=>b.onclick=()=>{lastTrainKind="eval";trainAction("/simulation/run-checkpoint-eval",{task:b.dataset.evaluate},"Starting evaluation","eval");});
+  el.querySelectorAll("[data-chart]").forEach(b=>b.onclick=()=>{trainSel=b.dataset.chart;renderTrainTasksList();startTrainPoll();});
+}
+function renderEpisodeChart(data){
+  const el=$("train-chart");if(!el)return;
+  const cap=TRAIN_EPISODE_CAP[trainSel]||600;
+  const eps=(data&&data.episodes)||[];
+  if(!eps.length){
+    let msg="Not started yet. Pick "+trainSel+" above and click START.";
+    if(data&&data.started&&!data.done)msg="Training running - waiting on the first completed episode...";
+    if(data&&data.error)msg="Error: "+data.error;
+    el.innerHTML=`<div class="empty">${esc(msg)}</div>`;
+    return;
+  }
+  const show=eps.slice(-15);
+  const crashThresh=cap*TRAIN_CRASH_FRACTION;
+  const bars=show.map((e,i)=>{
+    const l=Math.min(e.length,cap);
+    const crashed=e.length<crashThresh;
+    return `<rect x="${10+i*19}" y="${110-l/cap*100}" width="14" height="${Math.max(2,l/cap*100)}" fill="${crashed?'#ff8a7a':'#70ffb4'}" opacity=".9"/>`;
+  }).join("");
+  const statusLine=data.done?"This run has finished.":(data.started?"Training in progress - this chart polls every 3s.":"");
+  el.innerHTML=`<svg viewBox="0 0 300 130" width="100%" role="img" aria-label="Episode lengths"><line x1="6" y1="110" x2="296" y2="110" stroke="rgba(112,255,180,.3)"/><line x1="6" y1="10" x2="296" y2="10" stroke="rgba(255,207,92,.4)" stroke-dasharray="3 3"/><text x="8" y="8" fill="#ffcf5c" font-size="8" font-family="IBM Plex Mono">cap ${cap}</text>${bars}</svg>
+   <p class="note">Last ${show.length} completed episodes for <b>${esc(trainSel)}</b>, read live off its own log file. Red = crashed early (under ${Math.round(crashThresh)} steps).</p>
+   ${statusLine?`<p class="note hl">${esc(statusLine)}</p>`:''}
+   ${data.total_timesteps?`<p class="note">Target: ${fmt(data.total_timesteps)} total timesteps this run.</p>`:''}`;
+}
+function trainEpisodeLine(e){
+  return `<div><b>Episode ${e.episode}</b> &nbsp;reward ${e.reward.toFixed(1)}, length ${fmt(e.length)}${e.reason?" ("+esc(e.reason)+")":""}${e.waypoints!=null?", "+e.waypoints+" waypoints":""} &middot; ${fmt(e.timesteps)} timesteps</div>`;
+}
+function evalEpisodeLine(e){
+  return `<div><b>Seed ${esc(String(e.seed))}</b> &nbsp;${esc(e.reason||"—")}, reward ${e.reward.toFixed(1)}, length ${fmt(e.length)}${e.waypoints_reached!=null?", "+e.waypoints_reached+" waypoints reached":""}</div>`;
+}
+/* Oct 30 2026 (round 5) - Zer0's own ask after clicking START/EVALUATE and
+   seeing nothing: "I don't know the progress. I can't see anything... I
+   need a transcript of what's going on... minute per minute or whatever...
+   maybe a progress bar as well." START and EVALUATE share one lock
+   (modules/simulation_control.py), so only one of /train-log or /eval-log
+   is ever actually live at a time - this works out which (or, if neither
+   is running right now, whichever the user clicked last) and renders it
+   as a live-scrolling .mlog feed, same pattern as the Mind Log, plus a
+   real progress bar: training's denominator is total_timesteps straight
+   off this run's own "Starting PPO for N timesteps" log line, evaluation's
+   is the fixed EVAL_SEED_COUNT above. Nothing here is a guess or a
+   simulated animation - every line is a parsed log line /simulation/
+   train-log or /simulation/eval-log already returns. */
+function activeTrainKind(trainDataRaw,evalDataRaw){
+  const trainData=maskedLogState("train",trainDataRaw);
+  const evalData=maskedLogState("eval",evalDataRaw);
+  const tRunning=!!(trainData.started&&!trainData.done&&!trainData.error);
+  const eRunning=!!(evalData.started&&!evalData.done&&!evalData.error);
+  if(tRunning&&!eRunning)return "train";
+  if(eRunning&&!tRunning)return "eval";
+  if(tRunning&&eRunning)return lastTrainKind==="eval"?"eval":"train";
+  // Neither is actively running right now. "Known" here means this kind's
+  // masked state has something worth showing - real started/error content
+  // (status "trust") or a real click failure (status "failed", carried as
+  // _clickFailedMessage since maskedLogState zeroes started/error for that
+  // case so the two don't double-render). A kind still at status "unknown"
+  // always masks to all-false/no-message, so it correctly never matches.
+  const tKnown=!!(trainData.started||trainData.error||trainData._clickFailedMessage);
+  const eKnown=!!(evalData.started||evalData.error||evalData._clickFailedMessage);
+  if(lastTrainKind==="eval"&&eKnown)return "eval";
+  if(lastTrainKind==="train"&&tKnown)return "train";
+  if(tKnown)return "train";
+  if(eKnown)return "eval";
+  return null;
+}
+function renderTrainLive(trainDataRaw,evalDataRaw){
+  const el=$("train-live");if(!el)return;
+  const kind=activeTrainKind(trainDataRaw,evalDataRaw);
+  if(!kind){
+    el.innerHTML='<div class="empty">Nothing running right now. Click START or EVALUATE above and it shows up here live.</div>';
+    return;
+  }
+  const d0=maskedLogState(kind,kind==="train"?trainDataRaw:evalDataRaw);
+  if(d0._clickFailedMessage){
+    el.innerHTML=`<p class="note hl" style="margin-bottom:6px">${kind==="train"?"Training":"Evaluation"} didn't start.</p>`
+      +`<p class="note" style="color:var(--bad)">${esc(d0._clickFailedMessage)}</p>`
+      +`<p class="note">Nothing new has run since - without this, the panel below would be showing leftover results from a previous run instead.</p>`;
+    return;
+  }
+  let html="";
+  if(kind==="train"){
+    const d=d0;
+    const eps=d.episodes||[];
+    const last=eps.length?eps[eps.length-1]:null;
+    const running=!!(d.started&&!d.done&&!d.error);
+    const pct=(d.total_timesteps&&last)?Math.min(100,last.timesteps/d.total_timesteps*100):0;
+    const label=d.done?"Training finished.":(d.error?"Training stopped.":(running?("Training "+esc(trainSel)+" is running..."):"Not started yet."));
+    html=`<p class="note hl" style="margin-bottom:6px">${running?'<b style="color:var(--accent)">&#9679; LIVE</b> &middot; ':''}${label}</p>`
+      +(d.error?`<p class="note" style="color:var(--bad)">${esc(d.error)}</p>`:'')
+      +(d.total_timesteps?pb(pct,!running):'')
+      +(d.total_timesteps?`<p class="note" style="margin:4px 0 8px">${fmt(last?last.timesteps:0)} / ${fmt(d.total_timesteps)} timesteps</p>`:(running?'<p class="note">Waiting on the first "Starting PPO" line to know the target…</p>':''))
+      +`<div class="mlog">${eps.length?eps.slice(-20).map(trainEpisodeLine).join(""):'<div>Waiting on the first completed episode…</div>'}</div>`;
+  }else{
+    const d=d0;
+    const eps=d.episodes||[];
+    const running=!!(d.started&&!d.done&&!d.error);
+    const pct=Math.min(100,eps.length/EVAL_SEED_COUNT*100);
+    const label=d.done?"Evaluation finished.":(d.error?"Evaluation stopped.":(running?"Evaluation is running...":"Not started yet."));
+    html=`<p class="note hl" style="margin-bottom:6px">${running?'<b style="color:var(--accent)">&#9679; LIVE</b> &middot; ':''}${label}</p>`
+      +(d.error?`<p class="note" style="color:var(--bad)">${esc(d.error)}</p>`:'')
+      +pb(pct,!running)
+      +`<p class="note" style="margin:4px 0 8px">${eps.length} / ${EVAL_SEED_COUNT} seeds</p>`
+      +`<div class="mlog">${eps.length?eps.slice(-20).map(evalEpisodeLine).join(""):'<div>Waiting on the first completed seed…</div>'}</div>`;
+  }
+  el.innerHTML=html;
+  const mlogEl=el.querySelector(".mlog");
+  if(mlogEl)mlogEl.scrollTop=mlogEl.scrollHeight;
+}
+/* ---------------- SIMULATION REPORTS (wired Oct 30 2026, round 4) - the
+   sequential events log Zer0 asked for: "if it takes off, it's actually
+   showcasing me a little bit of the flight logs." Real, already-built
+   backend (modules/shadow.py) that nothing was pointed at yet:
+   GET /shadow/reports lists recent simulation_runs, GET
+   /shadow/reports/<id> returns one run's merged, chronologically-sorted
+   `events` array - every skill attempt (arm/takeoff/hover/go_to/land/
+   deliver_payload/learned_flight, each with its own result, reason and
+   real timestamp) interleaved with every mission's start and end, sorted
+   by time. Nothing here is invented - every field below is read straight
+   off that response. Opens in the existing `det` aside panel (same
+   popover the Attributes/Systems rows already use), not a new UI
+   pattern. */
+let reportsList=[];
+function fetchReports(cb){
+  fetch("/shadow/reports").then(r=>r.json()).then(data=>{
+    reportsList=(data&&data.ok&&data.reports)||[];
+    if(cb)cb();
+  }).catch(()=>{if(cb)cb();});
+}
+function reportRow(r){
+  const skillCount=(r.skills||[]).length,missionCount=(r.missions||[]).length;
+  const bad=!(r.status==="completed"||r.status==="success");
+  return `<div data-report="${r.id}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+    <span><b>${esc(r.scenario_name||("Run #"+r.id))}</b> &middot; ${skillCount} skill${skillCount===1?"":"s"}, ${missionCount} mission${missionCount===1?"":"s"} &middot; ${esc(fmtTime(r.started_at))}</span>
+    <span style="color:${bad?"var(--bad)":"var(--accent)"};white-space:nowrap;font-weight:500">${esc(String(r.status||"—").toUpperCase())}</span></div>`;
+}
+function renderReportsList(){
+  const el=$("sim-reports");if(!el)return;
+  el.innerHTML=reportsList.length?`<div class="mlog" style="max-height:260px">${reportsList.map(reportRow).join("")}</div>`:'<div class="empty">No simulation runs recorded yet - this fills in the moment a run completes.</div>';
+  el.querySelectorAll("[data-report]").forEach(b=>b.onclick=()=>openReport(b.dataset.report,b));
+}
+function reportEventsHtml(events){
+  if(!events||!events.length)return '<div class="empty">No skill attempts or mission events recorded for this run.</div>';
+  return events.map(e=>{
+    const ok=["pass","completed","success"].indexOf(e.status)!==-1;
+    const bad=["fail","failed","aborted","crashed"].indexOf(e.status)!==-1;
+    const color=ok?"var(--accent)":(bad?"var(--bad)":"var(--muted)");
+    return `<div class="kv"><span>${esc(fmtTime(e.timestamp))} &middot; ${esc((e.kind||"").toUpperCase())}</span><b style="color:${color}">${esc(e.label||e.key||"—")} — ${esc(e.status||"—")}</b></div>`
+      +(e.detail?`<p class="note" style="margin:-4px 0 8px">${esc(e.detail)}</p>`:'');
+  }).join("");
+}
+function openReport(id,btn){
+  fetch("/shadow/reports/"+encodeURIComponent(id)).then(r=>r.json()).then(data=>{
+    if(!data||!data.ok||!data.report)return;
+    const r=data.report;
+    openDetail({
+      title:r.scenario_name||("Run #"+r.id),
+      path:"SIMULATION RUN / "+String(r.status||"—").toUpperCase(),
+      body:`${kv("Vehicle",esc(r.vehicle_model||"—"))}${kv("Started",esc(fmtTime(r.started_at)))}${kv("Completed",esc(fmtTime(r.completed_at)))}${kv("Telemetry samples",fmt(r.telemetry_sample_count||0))}<div class="sec">SEQUENCE</div>${reportEventsHtml(r.events)}`
+    },"report"+id,btn);
+  }).catch(()=>{});
+}
 V.training=function(){
-  const lens=[600,600,600,600,505,1,1,1,600,600,600];
-  const bars=lens.map((l,i)=>`<rect x="${10+i*26}" y="${110-l/600*100}" width="18" height="${Math.max(2,l/600*100)}" fill="${l<480?'#ff8a7a':'#70ffb4'}" opacity=".9"/>`).join("");
   setPage("g21 top",
    `<section class="pn sp2"><div class="bar-head"><span>ML LOOP</span><span>EVERY FAILURE FEEDS THE NEXT MODEL</span></div><div class="frame"><div class="loop">
      <div class="todo"><b>DATA</b><small>Gazebo labelled images. Not started.</small></div>
@@ -1217,15 +2301,22 @@ V.training=function(){
      <div class="live"><b>REGISTRY</b><small>MLflow (SQLite) tracks every run.</small></div>
      <div class="todo"><b>DEPLOY + MONITOR</b><small>Checkpoint into a skill. Not built.</small></div></div></div></section>`
    +pn("TRAINING TASKS","registry in simulation_control.py",
-    [["Point-to-Point Flight","go_to","PPO learns to fly to one random goal as fast and precisely as it can. The base task everything else builds on."],["Waypoint Circuit","agility_circuit","PPO races a six-point circuit built from the real payload and pad coordinates, lap after lap."]].map(t=>`
-     <div class="row" style="cursor:default;grid-template-columns:1fr auto"><div><b>${t[0]}</b><div class="note" style="margin-top:4px">${t[2]}</div><div class="chips" style="margin-top:6px"><span class="tag">feeds AGILITY</span><span class="tag">feeds STABILITY</span><span class="tag">${t[1]}</span></div></div>
-     <button class="btn main" type="button" data-mock="MOCKUP: this would POST /simulation/run-training-task {task: ${t[1]}}"><span>START</span></button></div>`).join("")
-    +`<p class="note hl">Runs go at real speed. The world is set to real-time factor 1.0, so training cannot be fast-forwarded. Run progress is read from MLflow on your machine; use <b>mlflow ui</b> for the full view.</p>`)
-   +pn("EPISODE LENGTH","SAMPLE FROM YOUR NOTES",`<svg viewBox="0 0 300 130" width="100%" role="img" aria-label="Episode lengths"><line x1="6" y1="110" x2="296" y2="110" stroke="rgba(112,255,180,.3)"/><line x1="6" y1="10" x2="296" y2="10" stroke="rgba(255,207,92,.4)" stroke-dasharray="3 3"/><text x="8" y="8" fill="#ffcf5c" font-size="8" font-family="IBM Plex Mono">cap 600</text>${bars}</svg>
-    <p class="note">These eleven episode lengths are the real agility-circuit pattern quoted in your own code comments. Three episodes crashed within a step, the rest ran the full lap. That mix is what this session's STABILITY placeholder (42) is standing in for.</p>
-    <div class="sec">THE MIND</div>
-    <div class="row" style="cursor:default"><b>LLM DECISION LOOP</b><small>Picks one unlocked skill per step, hard cap 8 steps, hover excluded. Needs ANTHROPIC_API_KEY. Locked until deliver_payload unlocks.</small><span class="r">${tag("LOCKED","bad")}</span></div>
-    <p class="note hl">Not trained yet: no skill loads a checkpoint in place of its hand-coded controller. LearnedFlight is the planned link and is still at streak 0.</p>`));
+    `<div id="train-tasks"><div class="empty">Loading training tasks…</div></div>
+     <div id="train-action-status" style="margin-top:6px;font:500 11px var(--mono);color:var(--muted);text-align:center"></div>
+     <p class="note hl">Runs go at real speed. The world is set to real-time factor 1.0, so training cannot be fast-forwarded. START and EVALUATE share one lock on your machine - only one, whichever you clicked, runs at a time.</p>`)
+   +pn("LIVE RUN","whichever's active - polls 3s",
+    `<div id="train-live"><div class="empty">Loading…</div></div>`)
+   +pn("EPISODE LENGTH","history for the selected task",
+    `<div id="train-chart"><div class="empty">Loading…</div></div>
+     <div class="sec">THE MIND</div>
+     <div class="row" style="cursor:default"><b>LLM DECISION LOOP</b><small>Picks one unlocked skill per step, hard cap 8 steps, hover excluded. Needs ANTHROPIC_API_KEY. Locked until deliver_payload unlocks.</small><span class="r">${tag("LOCKED","bad")}</span></div>
+     <p class="note hl">Not trained by anything on this page: the PPO runs above make individual flight skills (go_to, agility_circuit) better, they don't train the Mind. The Mind is a prompted decision loop over your already-proven skills, not a model that learns from these runs - watch it live in <a href="#sim">Simulation Bay</a>'s MIND panel once a simulation is running.</p>`)
+   +pn("SIMULATION REPORTS","click a run for its sequence",
+    `<div id="sim-reports"><div class="empty">Loading…</div></div>
+     <p class="note">Every skill attempt and mission start/end for a run, merged into one timeline sorted by real timestamp - not a scripted preview. Click a run to open it.</p>`));
+  fetchTrainTasks(renderTrainTasksList);
+  startTrainPoll();
+  fetchReports(renderReportsList);
 };
 
 /* ---------------- FLIGHT LOG ---------------- */
@@ -1250,12 +2341,16 @@ V.flights=function(){
   page.querySelectorAll(".chip2").forEach(c=>c.onclick=()=>c.classList.toggle("on"));
 };
 
-/* ---------------- HARDWARE ---------------- */
+/* ---------------- HARDWARE (wired Oct 29 2026: the "N hardware files"
+   count is now real, from RND.repository.hardware_files. The bench/
+   inventory/bench-results content below it is hand-authored editorial
+   detail with no equivalent backend field - left as-is, not real data. ---------------- */
 V.hardware=function(){
   const bench=[["▥","ELECTRONICS","Breadboard Bench","Circuits, wiring diagrams, measurements and fault notes."],["⌬","EMBEDDED","Arduino & Controllers","Firmware, serial logs, pin maps and control tests."],["↝","CONTROL","PID Test Rig","Motor, position, speed and temperature control experiments."],["⌁","SENSORS","Calibration Station","Camera, LiDAR, moisture, IMU and environmental sensors."],["⚙","MECHANISMS","Actuator Bench","Servos, steppers, motors, joints and mechanical prototypes."]];
   const inv=[["Frame","ZMR250 carbon fibre, 250 mm","141 g","STEP, DXF"],["Motors x4","Racerstar BR2205 2300KV","29 g each","STEP, SLDPRT"],["ESCs x4","30A brushless, XT60","7 g each","SLDPRT"],["Compute","Raspberry Pi 3B + Navio2","120-150 g","STEP"],["LiDAR","RPLIDAR A2M12, 12 m","190 g","STEP"],["Camera","Pi camera OV5647, 5 MP","n/a","image only"],["Battery","FCONEGY 1500mAh 3S 80C","136 g","IGES, F3Z"],["Receiver","Flysky FS-iA6","n/a","STP"]];
+  const hwFiles=RND.repository.hardware_files!=null?fmt(RND.repository.hardware_files):'0';
   setPage("fill g21",
-   pn("PHYSICAL PROTOTYPING","2 hardware files",bench.map(b=>`<div class="row" style="cursor:default"><b>${b[2]}</b><small>${b[3]}</small><span class="r">${tag(b[1])}</span></div>`).join("")+`<div class="row" style="cursor:default;border-color:var(--accent)"><b>SHADOW MK1</b><small>Companion Aerial Robot / sim only today</small><span class="r"><a href="#twin" class="tag rl">OPEN TWIN</a></span></div>`)
+   pn("PHYSICAL PROTOTYPING",hwFiles+" hardware files",bench.map(b=>`<div class="row" style="cursor:default"><b>${b[2]}</b><small>${b[3]}</small><span class="r">${tag(b[1])}</span></div>`).join("")+`<div class="row" style="cursor:default;border-color:var(--accent)"><b>SHADOW MK1</b><small>Companion Aerial Robot / sim only today</small><span class="r"><a href="#twin" class="tag rl">OPEN TWIN</a></span></div>`)
   +pn("COMPONENT LIBRARY","from component_library",`<table class="t"><tr><th>PART</th><th>SPEC</th><th>MASS</th><th>CAD</th></tr>${inv.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table>
     <div class="sec">BENCH RESULTS</div>
     <div class="row" style="cursor:default"><b>CAMERA_TEST_001_SETUP</b><small>RPI_OV5647. Opens a live stream. Delay and display still need fixing.</small><span class="r">${tag("PASS","ok")}</span></div>
@@ -1263,14 +2358,21 @@ V.hardware=function(){
     <p class="note hl">Both bench tests are from 11 April. The LiDAR fault was never logged as resolved and no retest of the real unit is on record.</p>`));
 };
 
-/* ---------------- EVIDENCE ---------------- */
+/* ---------------- EVIDENCE / DATA ROOM (wired Oct 29 2026: KPI counts and
+   the test table now come from RND.research.tests, same as the old
+   pre-port template. The Telemetry Bridge panel below it is a hand-
+   authored historical snapshot with no live equivalent in RND - left as
+   editorial content, not real data; live telemetry belongs in Simulation
+   Bay, not here, once that room gets wired. ---------------- */
 V.evidence=function(){
   const topics=[["/scan",2874,"received"],["/camera_sensor/image_raw",8620,"received"],["/clock",0,"none"],["/joint_states",0,"none"],["/tf",0,"none"],["/odom",0,"none"],["/battery_state",0,"none"]];
+  const t=RND.research.tests||{passed:0,failed:0,pending:0,recent:[]};
+  const rows=(t.recent||[]).map(r=>`<tr><td>${esc(r.test_name||'')}</td><td>${esc(r.component||'—')}</td><td>${esc((r.source||'unknown').toUpperCase())}</td><td style="color:${(r.result||'').toUpperCase()==='PASS'?'var(--accent)':'var(--bad)'}">${esc((r.result||'PENDING').toUpperCase())}</td><td>${esc(r.timestamp||'—')}</td></tr>`).join("")||`<tr><td colspan="5">No test runs recorded.</td></tr>`;
   setPage("fill g21",
-   pn("EVIDENCE ROOM","TEST REGISTRY",`<div class="kpis"><div class="kpi"><b style="color:var(--accent)">2</b><span>PASSED</span></div><div class="kpi"><b style="color:var(--bad)">1</b><span>FAILED</span></div><div class="kpi"><b>0</b><span>PENDING</span></div></div>
+   pn("EVIDENCE ROOM","TEST REGISTRY",`<div class="kpis"><div class="kpi"><b style="color:var(--accent)">${t.passed||0}</b><span>PASSED</span></div><div class="kpi"><b style="color:var(--bad)">${t.failed||0}</b><span>FAILED</span></div><div class="kpi"><b>${t.pending||0}</b><span>PENDING</span></div></div>
     <table class="t"><tr><th>TEST</th><th>COMPONENT</th><th>SOURCE</th><th>RESULT</th><th>TIME</th></tr>
-    ${[["PERCEPTION_TEST_001_VIDEO_INPUT","OpenCV pipeline","SIMULATION","PASS","2026-06-20"],["CAMERA_TEST_001_SETUP","RPI_OV5647","HARDWARE","PASS","2026-04-11"],["LIDAR_TEST_001_setup","RPLIDAR_A2M12","HARDWARE","FAIL","2026-04-11"]].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td style="color:${r[3]==='PASS'?'var(--accent)':'var(--bad)'}">${r[3]}</td><td>${r[4]}</td></tr>`).join("")}</table>
-    <p class="note">Perception test note: successfully loaded video.mov and processed frames. Only three tests are on record in the repo. None of the skill runs, training runs or mission attempts appear in the registry.</p>`)
+    ${rows}</table>
+    <p class="note">Journal entries on record: ${RND.journal&&RND.journal.entries!=null?fmt(RND.journal.entries):0}.</p>`)
   +pn("TELEMETRY BRIDGE",tag("SNAPSHOT 13 JUL 2026"),`
     ${kv("Bridge","online")}${kv("Connection state","waiting")}${kv("Live topics","0 of 7")}
     <table class="t"><tr><th>TOPIC</th><th>MESSAGES</th><th>STATE</th></tr>${topics.map(t=>`<tr><td>${t[0]}</td><td>${fmt(t[1])}</td><td style="color:${t[2]==='received'?'var(--accent)':'var(--muted)'}">${t[2]}</td></tr>`).join("")}</table>
@@ -1279,12 +2381,17 @@ V.evidence=function(){
     <p class="note hl">The four MAVROS topics behind the newer /shadow/telemetry route are not in this snapshot.</p>`));
 };
 
-/* ---------------- ARCHIVE ---------------- */
+/* ---------------- ARCHIVE (wired Oct 29 2026: the four KPI counts now
+   come from RND.repository / RND.shadow, matching the pre-port template's
+   own four fields exactly - archived_experiments, cad_assets, urdf_assets,
+   camera_files. The fabricated "29 STL MESHES" tile is gone; there was
+   never a real field behind it. ---------------- */
 V.archive=function(){
+  const repo=RND.repository||{};
+  const latest=repo.latest_artifact;
   setPage("fill g21",
-   pn("RESEARCH MEMORY","completed and historical work",`<div class="kpis"><div class="kpi"><b>1</b><span>ARCHIVED EXPERIMENTS</span></div><div class="kpi"><b>87</b><span>CAD FOLDER FILES</span></div><div class="kpi"><b>29</b><span>STL MESHES</span></div><div class="kpi"><b>4</b><span>URDF FILES</span></div></div>
-    <div class="empty">The archive holds one record and it is empty. Concluded experiments EX-001 and EX-002 would be the first to move here.</div>
-    <div class="sec">URDF ASSETS</div>${["shadow.xacro","shadow.gazebo","shadow.trans","materials.xacro"].map(f=>kv(f,"shadow-drone-ros/urdf")).join("")}`)
+   pn("RESEARCH MEMORY","completed and historical work",`<div class="kpis"><div class="kpi"><b>${repo.archived_experiments||0}</b><span>ARCHIVED EXPERIMENTS</span></div><div class="kpi"><b>${repo.cad_assets||0}</b><span>CAD ASSETS</span></div><div class="kpi"><b>${repo.urdf_assets||0}</b><span>URDF ASSETS</span></div><div class="kpi"><b>${(RND.shadow&&RND.shadow.camera_files)||0}</b><span>CAMERA FILES</span></div></div>
+    ${latest?`<div class="sec">LATEST INDEXED ARTEFACT</div>${kv(esc(latest.name||''),esc(latest.modified||''))}${latest.relative_path?`<p class="note"><code>${esc(latest.relative_path)}</code></p>`:''}`:`<div class="empty">No archived artefacts indexed yet.</div>`}`)
   +pn("DOCUMENTS","repo and Claude Project",`
     <div class="sec">IN THE REPO</div>${["projects/shadow/docs/shadow_system_architecture.md","projects/shadow/docs/system_overview.md","projects/shadow/docs/component_library (9 parts)","docs/OPERATOR_DEVELOPMENT_PLATFORM_V2.md","shadow-drone-ros/SKILL_TREE.md"].map(f=>`<div class="kv"><span>${f}</span></div>`).join("")}
     <div class="sec">IN YOUR CLAUDE PROJECT</div>${["Shadow ArduPilot migration roadmap","Search and deliver mission","Drone attributes system","Digital twin display plan","Digital twin mesh positioning fix","FPV camera bug and telemetry fix","Gazebo restart hang","PID autotune dashboard","Flight log hub"].map(f=>`<div class="kv"><span>${f}</span></div>`).join("")}`));
@@ -1973,6 +3080,300 @@ function initTwinViewer(){
     })();
   });
 }
+</script>
+<script>
+/* ---------------- SKILL TREE + ATTRIBUTES: 3D rooms (Nov 8 2026) ----------------
+   Same pattern as Digital Twin / Simulation Bay: a fullscreen canvas (#lab3d) is the
+   room, .page is hidden, and HUD panels (.ov + .pn chrome) float on top. One renderer
+   serves both rooms; its loop stops itself when you leave, like the Hub's animate().
+   Data below is EXAMPLE data from the Nov 8 notes (EX) - the wiring step later maps it
+   onto progress.json, /simulation/skill-tests and the trial results. */
+(function(){
+"use strict";
+const OWN={
+  AUTOPILOT:{c:"#67e8f9",m:"ArduPilot already does it. You set parameters and prove in SITL that it fires."},
+  CODED:{c:"#70ffb4",m:"Written by hand: requirements, limits, start, update. Same input, same behaviour."},
+  VISION:{c:"#ffa860",m:"A detector looks at the camera; hand-coded steering acts on what it sees."},
+  LEARNED:{c:"#b49cff",m:"A trained policy in a hand-coded skill's flying slot, with the hand-coded version as fallback."},
+  MIND:{c:"#ff8fb1",m:"An LLM that picks which unlocked skill runs next. It never flies anything itself."}
+};
+const EARN="#ffcf5c";
+const ST={untested:{l:"NOT VERIFIED",c:"#67e8f9"},locked:{l:"LOCKED",c:"#8eaa9b"},trainable:{l:"TRAINABLE",c:"#ffa860"},sim:{l:"★ SIM",c:EARN}};
+const BRANCHES=[{id:"flight",n:"FLIGHT",ang:0,core:true},{id:"passive",n:"PASSIVES",ang:200},{id:"perception",n:"PERCEPTION",ang:40},{id:"delivery",n:"DELIVERY",ang:90},{id:"survey",n:"SURVEY",ang:140},{id:"mapping",n:"MAPPING",ang:172},{id:"agri",n:"AGRICULTURE",ang:250},{id:"cine",n:"CINEMATOGRAPHY",ang:305},{id:"mind",n:"MIND",ang:0,top:true}];
+const hc=(f,n)=>({k:"HAND-CODED",f,s:"ACTIVE",on:true,n:n||"Deterministic. This is what flies today."});
+const SK3=[
+ {id:"geofence",b:"passive",t:0,o:"AUTOPILOT",st:"untested",streak:0,req:[],feeds:"SAFETY (new)",hist:"",d:"Stops Shadow at the edge of the allowed area, then holds or returns home.",test:"Fly past the fence in SITL 3 times; ArduPilot must stop or RTL every time.",fail:"Never tested",who:[{k:"AUTOPILOT",f:"FENCE_* params",s:"BUILT IN",on:true,n:"Configure and prove it. shadow/limits.py is a softer fence on top."}]},
+ {id:"battery_failsafe",b:"passive",t:0,o:"AUTOPILOT",st:"untested",streak:0,req:[],feeds:"SAFETY (new)",hist:"",d:"Low battery triggers RTL or LAND automatically.",test:"Drop simulated battery voltage 3 times; must RTL each time.",fail:"Never tested",who:[{k:"AUTOPILOT",f:"BATT_* failsafe params",s:"BUILT IN",on:true,n:"The first thing a regulator or insurer asks about."}]},
+ {id:"ekf_failsafe",b:"passive",t:0,o:"AUTOPILOT",st:"untested",streak:0,req:[],feeds:"SAFETY (new)",hist:"",d:"If the position estimate goes bad, ArduPilot lands rather than flying blind.",test:"Kill simulated GPS 3 times; must switch to LAND.",fail:"Never tested",who:[{k:"AUTOPILOT",f:"FS_EKF_* params",s:"BUILT IN",on:true,n:"Matters more indoors, where SLAM replaces GPS."}]},
+ {id:"object_sense",b:"passive",t:0,o:"VISION",st:"sim",streak:3,req:[],feeds:"AWARENESS",hist:"PPP",d:"The always-on tracker: one box on whatever it sees, yellow then green once locked. A passive sense.",test:"Locked box on a still prop, 3 scenes in a row.",fail:"Ghost box from frame backlog (fixed 8 Nov, now 23 of 23 fps)",who:[{k:"COLOUR TRACKER",f:"nodes/object_tracker.py",s:"ACTIVE",on:true,n:"Knows THAT something is there, not WHAT."},{k:"YOLO",f:"not trained",s:"PLANNED",on:false,n:"Needs torch reinstalled."}]},
+ {id:"arm",b:"flight",t:1,o:"CODED",st:"sim",streak:4,req:[],feeds:"CORE FLIGHT",hist:"PPPP",d:"GUIDED mode and motors armed. Stays armed now the force-land bug is fixed.",test:"3 passes in a row.",fail:"Lost +x bit on run_skill.py (fixed)",who:[hc("shadow/skills/arm.py")]},
+ {id:"takeoff",b:"flight",t:1,o:"CODED",st:"sim",streak:6,req:["arm"],feeds:"CORE FLIGHT",hist:"PPPPPP",d:"Climbs to a target height. Refuses unless Arm was pressed first.",test:"Reach altitude within tolerance, 3 times.",fail:"Rejected after a crash on the ground (8 Nov)",who:[hc("shadow/skills/takeoff.py")]},
+ {id:"hover",b:"flight",t:1,o:"CODED",st:"trainable",streak:0,req:["takeoff"],feeds:"STABILITY",hist:"",d:"Holds position; fails if Shadow drifts more than 0.3 m.",test:"Hold within 0.3 m, 3 times.",fail:"Never attempted on ArduPilot",who:[hc("shadow/skills/hover.py","ArduPilot does the holding; this is the exam.")]},
+ {id:"go_to",b:"flight",t:1,o:"CODED",st:"sim",streak:1,req:["takeoff"],feeds:"PRECISION",hist:"PPPFP",slot:true,d:"Flies to the next payload prop each click, hovering 2.5 m above it.",test:"Arrive within 0.3 m, 3 times.",fail:"Timed out on a 12 m leg at 1 m height (now 2.5 m)",who:[hc("shadow/skills/go_to.py","Cycles all 5 props in order."),{k:"LEARNED POLICY",f:"go_to_ppo_final.zip",s:"BENCHED",on:false,n:"Last eval 0 of 10 crash-free. Needs 8 of 10 to earn the slot."}]},
+ {id:"land",b:"flight",t:1,o:"CODED",st:"sim",streak:4,req:["takeoff"],feeds:"CORE FLIGHT",hist:"PPPP",d:"Comes down right here and waits for ArduPilot's auto-disarm.",test:"Touchdown + disarm, 3 times.",fail:"None recent",who:[hc("shadow/skills/land.py")]},
+ {id:"rtl",b:"flight",t:2,o:"CODED",st:"trainable",streak:0,req:["takeoff"],feeds:"PRECISION",hist:"",d:"Flies home (where it was ARMED) at 3 m and lands there. Built 8 Nov.",test:"Land within 1.5 m of home, 3 times.",fail:"Not flown yet",who:[hc("shadow/skills/rtl.py","ArduPilot RTL, checked against its real home.")]},
+ {id:"follow_path",b:"flight",t:2,o:"CODED",st:"trainable",streak:0,req:["go_to"],feeds:"AGILITY",hist:"",slot:true,d:"Flies the zigzag (or circuit) at 2.5 m, rolling on inside 1 m. Built 8 Nov.",test:"Complete the path, 3 times.",fail:"Not flown yet",who:[hc("shadow/skills/follow_path.py"),{k:"LEARNED POLICY",f:"agility_circuit_ppo_final.zip",s:"CANDIDATE",on:false,n:"Waypoint Circuit training practises exactly this."}]},
+ {id:"search",b:"perception",t:2,o:"VISION",st:"trainable",streak:0,req:["follow_path"],feeds:"AWARENESS",hist:"",d:"Flies the zigzag while watching for the orange payload, then pins it down on the ground (camera direction + attitude + altitude). Stops at the first confirmed find.",test:"Find a payload within 1 m of where it really is. 3 times.",fail:"Built 9 Nov, not flown yet",who:[hc("shadow/skills/search.py","follow_path + detection + shadow/senses/ground_target.py.")]},
+ {id:"detect_target",b:"perception",t:2,o:"VISION",st:"trainable",streak:0,req:["hover"],feeds:"AWARENESS",hist:"",slot:true,d:"Confirms a target over several frames so one glitch doesn't count.",test:"Detect all 5 props from 3 viewpoints, no false hits.",fail:"Not run as its own test yet",who:[{k:"COLOUR (HSV)",f:"object_detector.py",s:"ACTIVE",on:true,n:"Mission still uses orange-only."},{k:"YOLO",f:"not trained",s:"PLANNED",on:false,n:"Trained on labelled Gazebo images, not by RL."}]},
+ {id:"follow_target",b:"perception",t:3,o:"VISION",st:"locked",streak:0,req:["search"],feeds:"AWARENESS",hist:"",d:"Keeps a moving object in view and stays 4 m behind it, nose on it. Uses the camera-to-ground estimate every tick.",test:"Follow the moving payload for 40 s: 80% in view, estimate within 0.8 m of the real one, 2.5 to 6 m away. 3 times.",fail:"Built 9 Nov, not flown yet",who:[hc("shadow/skills/follow_target.py","Position follow on the ground estimate. Test moves payload_orange_1 with scripts/move_target.py.")]},
+ {id:"precision_land",b:"perception",t:3,o:"VISION",st:"locked",streak:0,req:["detect_target","land"],feeds:"PRECISION",hist:"",d:"Lands centred on a marker instead of blind.",test:"Within 15 cm of marker centre, 3 times.",fail:"Needs a downward camera",who:[hc("precision_land.py (to build)")]},
+ {id:"approach_target",b:"delivery",t:3,o:"VISION",st:"locked",streak:0,req:["search","go_to"],feeds:"PRECISION",hist:"",slot:true,d:"Closes in on a found payload and settles right above it: viewpoint 4.5 m back, refine the estimate, then over the top at 1.5 m.",test:"Settle within 0.3 m above an estimate that is within 0.5 m of the real payload. 3 times.",fail:"Built 9 Nov, not flown yet",who:[hc("shadow/skills/approach_target.py","Blind for the last few metres: the level camera can't see below it."),{k:"LEARNED POLICY",f:"(future)",s:"CANDIDATE",on:false,n:"Faster approach, or one that keeps the payload in view with a tilted camera."}]},
+ {id:"release_payload",b:"delivery",t:3,o:"CODED",st:"locked",streak:0,req:["hover"],feeds:"PRECISION",hist:"",d:"Drops the payload from a low hover over the pad.",test:"Payload on the pad, 3 times.",fail:"Not built yet",who:[hc("release_payload.py (to build)")]},
+ {id:"delivery_rehearsal",b:"delivery",t:4,o:"CODED",st:"trainable",streak:0,req:["approach_target","rtl"],feeds:"PRECISION",hist:"",d:"The delivery mission built only from skills: arm, takeoff, search, approach, hover (pickup stand-in), go to the pad, hover (drop-off stand-in), RTL.",test:"Whole sequence, 3 times.",fail:"Built 9 Nov, not flown yet",who:[hc("shadow/skills/delivery_rehearsal.py","SequenceSkill: each stage keeps its own checks and failure reason.")]},
+ {id:"deliver_payload",b:"delivery",t:4,o:"CODED",st:"trainable",streak:0,req:["approach_target","release_payload","rtl"],feeds:"PRECISION",hist:"FFFFFFFFFF",slot:true,d:"Being rebuilt as a mission of skills: takeoff, follow_path zigzag + detect, approach, pickup, go_to pad, release, RTL.",test:"Full mission, 3 times.",fail:"limits() failed, aborted for safety",who:[hc("deliver_payload.py","Monolithic today; one weak phase fails everything."),{k:"LEARNED (TRANSIT)",f:"go_to_ppo_final.zip",s:"TRIES FIRST",on:true,n:"Falls back to hand-coded if the model won't load."}]},
+ {id:"survey_area",b:"survey",t:3,o:"CODED",st:"locked",streak:0,req:["follow_path"],feeds:"AGILITY",hist:"",d:"Back-and-forth lawnmower over an area at fixed height.",test:"Cover 95% of the area, 3 times.",fail:"follow_path not unlocked yet",who:[hc("survey_area.py (to build)")]},
+ {id:"capture_images",b:"survey",t:3,o:"CODED",st:"locked",streak:0,req:["survey_area"],feeds:"PRECISION",hist:"",d:"Geotagged photos with the right overlap. The data-collection product.",test:"Full image set with overlap, 3 times.",fail:"Not built yet",who:[hc("capture_images.py (to build)")]},
+ {id:"field_scan",b:"agri",t:4,o:"CODED",st:"locked",streak:0,req:["capture_images"],feeds:"ENDURANCE",hist:"",d:"Flies crop rows at fixed height and overlap, shaped to the field.",test:"Cover a field world in rows, 3 times.",fail:"Needs a field world in Gazebo",who:[hc("field_scan.py (to build)")]},
+ {id:"plant_count",b:"agri",t:4,o:"VISION",st:"locked",streak:0,req:["capture_images","detect_target"],feeds:"AWARENESS",hist:"",slot:true,d:"Counts plants or gaps in rows from survey images.",test:"Count within 5% of a known field, 3 times.",fail:"Not built yet",who:[{k:"VISION MODEL",f:"detector on plant images",s:"PLANNED",on:false,n:"Same YOLO pipeline, different labels."}]},
+ {id:"crop_health",b:"agri",t:5,o:"VISION",st:"locked",streak:0,req:["field_scan"],feeds:"AWARENESS",hist:"",slot:true,d:"Flags stressed patches in a field map.",test:"Find planted stress patches in a sim field, 3 times.",fail:"Not built yet",who:[{k:"RGB INDEX / MODEL",f:"camera only",s:"PLANNED",on:false,n:"Proper indices (NDVI) need a near-infrared camera. RGB only means an RGB index or a trained model."}]},
+ {id:"orbit",b:"cine",t:3,o:"CODED",st:"locked",streak:0,req:["hover","go_to"],feeds:"AGILITY",hist:"",d:"Circles a point at a set radius, camera always facing the centre.",test:"Full circle within 0.5 m of radius, 3 times.",fail:"Not built yet",who:[hc("orbit.py (to build)","Circle of positions plus yaw to centre each tick.")]},
+ {id:"reveal",b:"cine",t:3,o:"CODED",st:"locked",streak:0,req:["go_to"],feeds:"PRECISION",hist:"",d:"Slow pull back and rise from a subject.",test:"Smooth 10 m pull-back, 3 times.",fail:"Not built yet",who:[hc("reveal.py (to build)")]},
+ {id:"track_shot",b:"cine",t:4,o:"VISION",st:"locked",streak:0,req:["follow_target","orbit"],feeds:"AWARENESS",hist:"",d:"Follows a moving subject while keeping it framed.",test:"Keep subject framed for 30 s, 3 times.",fail:"Not built yet",who:[hc("track_shot.py (to build)")]},
+ {id:"split_s",b:"cine",t:4,o:"CODED",st:"locked",streak:0,req:["follow_path"],feeds:"AGILITY",hist:"",d:"Half roll to inverted, then half loop down. An FPV move.",test:"Clean exit at a safe height, 3 times, sim only.",fail:"Not possible in GUIDED mode",who:[{k:"HAND-CODED (ACRO)",f:"attitude-rate commands",s:"FUTURE",on:false,n:"Position control cannot flip. Needs ACRO mode, body-rate setpoints, height and power margin."}]},
+ {id:"lidar_sense",b:"passive",t:0,o:"CODED",st:"untested",streak:0,req:[],feeds:"AWARENESS",hist:"",d:"The always-on 360 degree LiDAR sense: one scan every 0.1 s, nearest obstacle and its bearing. Feeds avoidance, the radar in Simulation Bay, and mapping.",test:"Nearest-wall distance within 0.1 m of the true value at 3 spots in shadow_runway.",fail:"Built 9 Nov, not checked against the world yet",who:[{k:"LIDAR BRIDGE",f:"nodes/lidar_bridge.py",s:"ACTIVE",on:true,n:"Gazebo gpu_lidar (sim) or RPLIDAR A2M12 (real) to /shadow/scan, ArduPilot and the radar."}]},
+ {id:"obstacle_avoid",b:"passive",t:1,o:"AUTOPILOT",st:"untested",streak:0,req:["lidar_sense"],feeds:"SAFETY (new)",hist:"",d:"ArduPilot steers round obstacles (BendyRuler) and brakes if something gets inside 1 m. Works under every flying skill, no skill code needed.",test:"go_to straight at the south wall 3 times; must stop or route round with at least 1 m clearance.",fail:"Never tested",who:[{k:"AUTOPILOT",f:"PRX1_*, AVOID_*, OA_* params",s:"BUILT IN",on:true,n:"Fed by OBSTACLE_DISTANCE from lidar_bridge.py through MAVROS."}]},
+ {id:"map_area",b:"mapping",t:3,o:"CODED",st:"locked",streak:0,req:["lidar_sense","follow_path"],feeds:"AWARENESS",hist:"",d:"Builds a 2D map of walls and obstacles while flying a path, then checks it against the real world and saves it. Live map in the Missions room. Feeds Survey.",test:"Map shadow_runway with walls within 0.2 m of truth, 3 times.",fail:"Built 9 Nov, not flown yet",who:[hc("shadow/skills/map_area.py","Flies the zigzag, then checks the map: south wall and 3 of 4 pillars within 0.35 m of where they really are."),{k:"SLAM",f:"slam_toolbox + config/slam_toolbox_shadow.yaml",s:"ACTIVE",on:true,n:"Maps the whole sim session from /shadow/scan. Live map in Missions."}]},
+ {id:"localize",b:"mapping",t:4,o:"CODED",st:"locked",streak:0,req:["map_area"],feeds:"PRECISION",hist:"",d:"Knows where it is from the map instead of GPS. The step to flying indoors.",test:"Hold position within 0.3 m with GPS off, 3 times.",fail:"Not built yet",who:[{k:"SLAM LOCALIZATION",f:"slam_toolbox localization mode",s:"PLANNED",on:false,n:"Pose goes to ArduPilot as external navigation."}]},
+ {id:"explore",b:"mapping",t:5,o:"CODED",st:"locked",streak:0,req:["localize","obstacle_avoid"],feeds:"AWARENESS",hist:"",d:"Picks the nearest unmapped edge, flies there, repeats until the map is done.",test:"Map an unknown world fully without collisions, 3 times.",fail:"Not built yet",who:[hc("explore.py (to build)","Frontier exploration on the occupancy grid.")]},
+ {id:"mind",b:"mind",t:6,o:"MIND",st:"locked",streak:0,req:["deliver_payload"],feeds:"none",hist:"",d:"Reads progress and telemetry, then picks one unlocked skill. Prototype: run_mind.py.",test:"Unlocks when deliver_payload unlocks.",fail:"Locked by design",who:[{k:"LLM DECISION LOOP",f:"scripts/run_mind.py",s:"PROTOTYPE",on:false,n:"Chooses skills, never flies. Capped at 8 steps."}]}
+];
+const ATTR3=[
+ {id:"POWER",c:"#ff9a6b",m:"Thrust to spare. Low power means it struggles to climb, sags when it tilts, and can't carry much."},
+ {id:"AGILITY",c:"#67e8f9",m:"How quickly and sharply it moves. Pulls against STABILITY."},
+ {id:"PRECISION",c:"#c7b8ff",m:"How close it ends up to where it was told: points, paths, landings, drops."},
+ {id:"AWARENESS",c:"#ffa860",m:"How well it sees: finding objects, ignoring wrong ones, holding a lock."},
+ {id:"ENDURANCE",c:"#ffcf5c",m:"How long and far it flies on one battery."},
+ {id:"STABILITY",c:"#70ffb4",m:"How well it holds still and recovers when pushed. Mostly the PID tune."}
+];
+const BR3={
+ POWER:[{l:"HOVER THROTTLE",u:"%",raw:71,best:40,worst:85,w:2,src:"REAL",tr:"telemetry rc_out",how:"Motor output while hovering: about 1714 PWM on 8 Nov, roughly 71%. Lower is better."},{l:"THRUST / WEIGHT",u:":1",raw:1.6,best:3,worst:1.2,w:2,src:"EX",tr:"Digital Twin calc",how:"Max thrust over total mass. CAD mass 3.48 kg looks heavy for a 250 frame: verify."},{l:"CLIMB RATE",u:" m/s",raw:null,best:5,worst:0.5,w:1,tr:"climb trial",how:"Full-throttle climb from a 2 m hover."}],
+ AGILITY:[{l:"RESPONSE",u:" s",raw:1.1,best:0.4,worst:3,w:2,src:"EX",tr:"step_response",how:"Time to cover 90% of a sudden 1 m step."},{l:"TOP SPEED",u:" m/s",raw:3,best:8,worst:1,w:1,src:"EX",tr:"WP_SPD cap",how:"Capped at 3 m/s on purpose because of the thin power margin."},{l:"TURN RATE",u:" °/s",raw:null,best:180,worst:30,w:1,tr:"turn trial",how:"Peak yaw rate in a commanded 180° turn."},{l:"LAP TIME",u:" s",raw:null,best:25,worst:90,w:1,tr:"circuit",how:"One lap of the 6-point circuit with follow_path."}],
+ PRECISION:[{l:"GO TO ERROR",u:" m",raw:0.21,best:0.05,worst:1,w:2,src:"EX",tr:"go_to",how:"Distance from the commanded point at arrival."},{l:"PATH ERROR",u:" m",raw:null,best:0.1,worst:1.5,w:1,tr:"follow_path",how:"Average distance from the ideal zigzag line."},{l:"LANDING",u:" m",raw:0.6,best:0.05,worst:1.5,w:1,src:"EX",tr:"rtl",how:"Touchdown distance from home after RTL."},{l:"DROP",u:" m",raw:null,best:0.1,worst:1,w:1,tr:"release_payload",how:"Payload landing distance from pad centre."}],
+ AWARENESS:[{l:"DETECTION",u:"%",raw:92,best:98,worst:50,w:2,src:"EX",tr:"test_detector.py",how:"Share of saved frames where the object was found."},{l:"FALSE ALARMS",u:"%",raw:4,best:0,worst:25,w:2,src:"EX",tr:"test_detector.py",how:"Frames with a box but no object."},{l:"JITTER",u:" px",raw:3,best:1,worst:20,w:1,src:"EX",tr:"test_detector.py",how:"Box-centre wobble on a still scene."},{l:"HOLD",u:" s",raw:null,best:20,worst:2,w:1,tr:"moving target",how:"How long follow_target keeps a moving prop in frame."}],
+ ENDURANCE:[{l:"HOVER AMPS",u:" A",raw:null,best:8,worst:30,w:2,tr:"hover_hold",how:"Battery current while hovering (SITL simulates one)."},{l:"FLIGHT TIME",u:" min",raw:null,best:20,worst:4,w:2,tr:"endurance trial",how:"Hover time from capacity and hover current."},{l:"ENERGY / M",u:" mWh",raw:null,best:0.5,worst:3,w:1,tr:"circuit",how:"Energy per metre flown on the circuit."}],
+ STABILITY:[{l:"DRIFT",u:" m",raw:0.18,best:0.05,worst:1,w:2,src:"EX",tr:"hover_hold",how:"Furthest it wanders during a 30 s hover."},{l:"OVERSHOOT",u:"%",raw:22,best:2,worst:40,w:1,src:"EX",tr:"step_response",how:"How far past a 1 m step it swings."},{l:"SETTLE",u:" s",raw:2.4,best:0.8,worst:6,w:1,src:"EX",tr:"step_response",how:"Time to stay within 5 cm of the target."},{l:"RECOVERY",u:" s",raw:null,best:1,worst:8,w:1,tr:"disturbance",how:"Time back to the hold point after a Gazebo shove."}]
+};
+const PERKS=[
+ {n:"4S battery",st:"AVAILABLE",fx:[["POWER","++"],["AGILITY","+"],["ENDURANCE","?"]],note:"More voltage, more thrust, only if motors and ESCs are rated for 4S. Check motor KV first."},
+ {n:"5S battery",st:"LOCKED",fx:[["POWER","+++"],["ENDURANCE","?"]],note:"Needs 5S-rated motors and ESCs."},
+ {n:"Higher-capacity pack",st:"AVAILABLE",fx:[["ENDURANCE","++"],["POWER","-"]],note:"More time in the air, but the weight costs margin POWER can't spare yet."},
+ {n:"Trim mass",st:"AVAILABLE",fx:[["POWER","++"],["ENDURANCE","+"],["AGILITY","+"]],note:"Every gram helps. Verify the 3.48 kg CAD mass first."},
+ {n:"PID retune",st:"RETEST",fx:[["STABILITY","+"],["AGILITY","+/-"]],note:"Tune changed: STABILITY and AGILITY are stale until their trials run again."},
+ {n:"Raise speed cap",st:"AVAILABLE",fx:[["AGILITY","+"],["STABILITY","-"]],note:"Only after POWER improves, or long legs sag again."},
+ {n:"Downward camera",st:"AVAILABLE",fx:[["PRECISION","++"],["AWARENESS","+"]],note:"Sees the target directly below. One SDF edit in sim."},
+ {n:"YOLO detector",st:"LOCKED",fx:[["AWARENESS","++"]],note:"Knows what an object is. Locked until torch is reinstalled."},
+ {n:"LiDAR / depth",st:"LOCKED",fx:[["AWARENESS","+++"],["PRECISION","+"],["POWER","-"]],note:"Real distance and indoor SLAM. Needs offboard compute."},
+ {n:"Vibration damping",st:"REAL ONLY",fx:[["STABILITY","+"]],note:"Soft-mount the flight controller. The sim has no vibration."}
+];
+const LOADOUT=[["BATTERY","3S LiPo","baseline"],["FRAME","250 mm X","CAD 3.48 kg?"],["PROPS","5 inch","LiftDrag 0.0014"],["FLIGHT CTRL","Navio2 + ArduCopter","SITL 4.8-dev"],["TUNE","p_gain 0.02 · WP_SPD 3","speed capped"],["CAMERA","Front 640×480","~80° view"],["DETECTOR","Colour tracker","23 fps"],["SKILL MODEL","None equipped","all hand-coded"]];
+
+/* ---------- live data: progress.json (via /simulation/skill-tests) + skill_test.log (via /simulation/skill-history) ---------- */
+let LIVE=false;
+function hydrate3(){
+  const t=fetch("/simulation/skill-tests").then(r=>r.ok?r.json():null).catch(()=>null);
+  const h=fetch("/simulation/skill-history").then(r=>r.ok?r.json():null).catch(()=>null);
+  return Promise.all([t,h]).then(([tests,hist])=>{
+    let any=false;
+    if(tests&&tests.ok&&Array.isArray(tests.tests)){
+      tests.tests.forEach(x=>{const s=byId[x.key];if(!s)return;
+        s.streak=x.streak||0;s.st=x.unlocked?"sim":"trainable";s.live=true;any=true});
+    }
+    if(hist&&hist.ok&&hist.skills){
+      Object.keys(hist.skills).forEach(k=>{const s=byId[k];if(!s)return;const list=hist.skills[k]||[];
+        s.hist=list.map(e=>e.result).join("");
+        const lastF=[...list].reverse().find(e=>e.result==="F");
+        s.fail=lastF?lastF.reason+(lastF.at?" ("+lastF.at+")":""):"none in the last "+list.length;
+        s.lastAt=list.length?list[list.length-1].at:null;s.live=true;any=true});
+    }
+    LIVE=any;return any;
+  });
+}
+const scoreOf=b=>b.raw===null?null:Math.round(100*Math.max(0,Math.min(1,(b.raw-b.worst)/(b.best-b.worst))));
+const attrScore=id=>{let s=0,w=0,n=0;BR3[id].forEach(b=>{const v=scoreOf(b);if(v!==null){s+=v*b.w;w+=b.w;n++}});return{score:w?Math.round(s/w):null,n,total:BR3[id].length}};
+const byId={};SK3.forEach(s=>byId[s.id]=s);
+const ovrList=ATTR3.map(a=>attrScore(a.id).score).filter(x=>x!==null);
+const OVR3=Math.round(ovrList.reduce((a,b)=>a+b,0)/ovrList.length);
+
+/* ---------- state + HUD ---------- */
+let mode=null,filter="ALL",picked=null,pickedBranch=null;
+const matches=s=>filter==="ALL"||s.o===filter||(filter==="LEARNED"&&s.slot);
+const L3=id=>document.getElementById(id);
+const pill=(t,c)=>`<span class="l3pill" style="color:${c}">${t}</span>`;
+
+function hudLeft(){
+  if(mode==="skills"){
+    L3("l3-left").innerHTML=pn("SKILL CONSTELLATION",LIVE?"LIVE":"EX DATA",`
+     <div class="l3chips">${["ALL","AUTOPILOT","CODED","VISION","LEARNED","MIND"].map(k=>`<button type="button" class="l3chip${filter===k?' on':''}" data-f="${k}" title="${k==="ALL"?"Show every skill":esc(OWN[k].m)}" ${k!=="ALL"?`style="--c:${OWN[k].c}"`:""}>${k!=="ALL"?`<i style="background:${OWN[k].c}"></i>`:""}${k}</button>`).join("")}</div>
+     <p class="note">${filter==="ALL"?"Filter by who actually flies each skill.":esc(OWN[filter].m)}</p>
+     <p class="note">${LIVE?"Streaks and unlocks from progress.json, attempts from skill_test.log. Skills without a LIVE tag are not built yet.":"Backend not reachable: showing example values."}</p>
+     <div class="l3legend"><span><i style="background:${EARN}"></i>★ sim unlocked</span><span><i class="l3ring" style="border-color:#ffa860"></i>trainable</span><span><i class="l3ring l3dash" style="border-color:#67e8f9"></i>passive, not verified</span><span><i style="background:#22302a"></i>locked</span><span><i style="background:#b49cff;width:7px;height:7px"></i>learned slot</span></div>
+     <p class="note">Drag to orbit · scroll to zoom · click a star.</p>`);
+    L3("l3-left").querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{filter=b.dataset.f;hudLeft();applyFilter()});
+  }else{
+    L3("l3-left").innerHTML=pn("ATTRIBUTES","OVR "+OVR3+" · EX",`
+     <div class="l3stats">${ATTR3.map(a=>{const s=attrScore(a.id);return `<button type="button" class="l3stat${picked===a.id?' on':''}" data-a="${a.id}" style="--c:${a.c}"><span>${a.id}</span><b>${s.score===null?"--":s.score}</b><small>${s.n}/${s.total}</small></button>`}).join("")}</div>
+     <p class="note">${ovrList.length} of 6 stats measured. Drag the hexagon to turn it; click a stat or branch.</p>
+     <p class="note l3warn">Example values. The attribute engine (trials, logs, scores, history) is not built yet; hover throttle is the only real number.</p>`);
+    L3("l3-left").querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>selectAttr(b.dataset.a,null));
+  }
+  L3("l3-bottom").innerHTML=mode==="attributes"?`<div class="l3loadout">${LOADOUT.map(l=>`<div><small>${l[0]}</small><b>${l[1]}</b><span>${l[2]}</span></div>`).join("")}</div>`:"";
+}
+function skillHTML(s){
+  const st=ST[s.st],own=OWN[s.o],unmet=s.req.filter(r=>byId[r]&&byId[r].st!=="sim");
+  const who=s.who.map(w=>`<div class="l3who ${w.on?'on':'off'}"><div class="t"><span>${esc(w.k)}</span>${pill(esc(w.s),w.on?"var(--accent)":"#c7b8ff")}</div><div class="f">${esc(w.f)}</div><div class="n">${esc(w.n)}</div></div>`).join("");
+  const hist=s.hist?`<div class="l3hist">${s.hist.split("").map(c=>`<b class="${c==="P"?"p":"f"}">${c}</b>`).join("")}</div>`:`<p class="note">No attempts logged yet.</p>`;
+  return pn(s.id.toUpperCase(),st.l,`
+   <div class="l3row">${pill(st.l,st.c)}${pill(s.o+(s.slot?" + LEARNED SLOT":""),own.c)}${pill("TIER "+s.t,"var(--muted)")}${s.live?pill("LIVE · progress.json","var(--accent)"):pill(s.st==="locked"?"NOT BUILT":"EX","var(--warm)")}</div>
+   <p class="note">${esc(s.d)}</p>
+   ${unmet.length&&s.st!=="locked"?`<p class="note l3warn">Prerequisite not met: ${unmet.join(", ")} isn't unlocked, yet this is already being run.</p>`:""}
+   <div class="sec">WHO FLIES IT</div>${who}
+   <div class="sec">UNLOCK STREAK</div><div>${pips(Math.min(3,s.streak),3)}</div><p class="note">${s.streak} in a row. ${esc(s.test)}</p>
+   <div class="sec">LAST ATTEMPTS</div>${hist}<p class="note">Last failure: <b>${esc(s.fail)}</b>${s.lastAt?"<br>Last run: "+esc(s.lastAt):""}</p>
+   ${kv("Requires",s.req.length?s.req.join(", "):"nothing")}${kv("Feeds",esc(s.feeds))}
+   ${s.live?`<div class="btns h"><button class="btn main" type="button" id="l3-run" data-k="${s.id}"><span>RUN IN SIM</span><small>run_skill.py</small></button></div><div id="l3-run-status" class="note"></div>`:`<div class="btns h"><button class="btn" type="button" disabled><span>NOT BUILT YET</span><small>no run_skill.py entry</small></button></div>`}`,"l3pn");
+}
+function attrHTML(id,bi){
+  const a=ATTR3.find(x=>x.id===id),sc=attrScore(id);
+  const rows=BR3[id].map((b,i)=>{const v=scoreOf(b);return `<button type="button" class="l3brow${b.raw===null?' unm':''}${bi===i?' on':''}" data-i="${i}" style="--c:${a.c}"><div class="t"><span>${b.l}</span><span>${b.raw===null?"not measured":b.raw+b.u+" → "+v}</span></div><div class="l3bar"><i style="width:${v||0}%;background:${a.c}"></i></div><div class="m"><span>best ${b.best}${b.u} · worst ${b.worst}${b.u}${b.w>1?" · ×"+b.w:""}</span><span>${b.raw===null?"needs "+b.tr:(b.src==="REAL"?"REAL · ":"EX · ")+b.tr}</span></div></button>`}).join("");
+  const how=bi!==null&&BR3[id][bi]?`<div class="sec">HOW ${BR3[id][bi].l} IS MEASURED</div><p class="note">${esc(BR3[id][bi].how)}</p>`:"";
+  const stc={AVAILABLE:"#67e8f9",LOCKED:"#8eaa9b",RETEST:"#ffcf5c","REAL ONLY":"#c7b8ff"};
+  const perks=PERKS.filter(p=>p.fx.some(f=>f[0]===id)).map(p=>`<div class="l3perk${p.st==="LOCKED"?' locked':''}"><div class="t"><span>${esc(p.n)}</span>${pill(p.st,stc[p.st])}</div><div class="l3row">${p.fx.map(f=>{const g=f[1].includes("+")&&!f[1].includes("-"),bd=f[1].includes("-")&&!f[1].includes("+");return pill(f[0]+" "+f[1],g?"var(--accent)":bd?"var(--bad)":"var(--warm)")}).join("")}</div><p class="note">${esc(p.note)}</p></div>`).join("");
+  return pn(id,sc.score===null?"NOT MEASURED":"SCORE "+sc.score,`
+   <div class="l3row"><div class="l3big" style="${sc.score===null?`border:3px dashed ${a.c};color:var(--text)`:`background:${a.c};color:var(--ink)`}">${sc.score===null?"--":sc.score}</div><p class="note" style="flex:1;margin:0">${esc(a.m)}<br><b>${sc.score===null?"No trial has run yet.":sc.n+" of "+sc.total+" branches measured"}</b></p></div>
+   <div class="sec">BRANCHES</div>${rows}${how}
+   <div class="sec">UPGRADES THAT AFFECT ${id}</div>${perks}`,"l3pn");
+}
+function openL3(html){const d=L3("l3-detail");d.innerHTML=html;const h=d.querySelector(".bar-head");if(h){const x=document.createElement("button");x.type="button";x.className="x";x.setAttribute("aria-label","Close");x.innerHTML="&times;";x.onclick=closeL3;h.appendChild(x)}
+  const run=d.querySelector("#l3-run");
+  if(run)run.onclick=()=>{if(typeof runSkillTest!=="function")return;run.disabled=true;
+    runSkillTest(run.dataset.k,"Running "+run.dataset.k,"l3-run-status",()=>{run.disabled=false;hydrate3().then(ok=>{if(ok){rebuildSkills();hudLeft()}})});};}
+function closeL3(){L3("l3-detail").innerHTML="";picked=null;pickedBranch=null;refreshSelection();if(mode==="attributes")hudLeft()}
+
+/* ---------- 3D ---------- */
+let renderer,scene,camera,ray,mouse,skillsG,attrG,hex,GLOW,raf=null,stars;
+const pickables=[],labels=[];
+const cam={theta:.6,phi:1.05,r:92,tr:92,target:new THREE.Vector3(0,4,0),goal:new THREE.Vector3(0,4,0)};
+const hexRot={x:-.95,y:0,vy:0};let dragging=false,dragMoved=false,lx=0,ly=0,idle=0;
+const reduceMotion=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function glowTex(){const c=document.createElement("canvas");c.width=c.height=64;const g=c.getContext("2d"),gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,"rgba(255,255,255,1)");gr.addColorStop(.25,"rgba(255,255,255,.55)");gr.addColorStop(1,"rgba(255,255,255,0)");g.fillStyle=gr;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)}
+function lbl(html,cls,obj,off,room){const d=document.createElement("div");d.className="l3lbl "+(cls||"");d.innerHTML=html;L3("lab3d-labels").appendChild(d);const o={el:d,obj,off:off||0,room};labels.push(o);return o}
+function skillPos(){
+  const P={},fl=SK3.filter(s=>s.b==="flight"),t1=fl.filter(s=>s.t===1),t2=fl.filter(s=>s.t>=2);
+  t1.forEach((s,i)=>{const a=i/t1.length*Math.PI*2;P[s.id]=new THREE.Vector3(Math.cos(a)*9,Math.sin(i*1.7)*1.5,Math.sin(a)*9)});
+  t2.forEach((s,i)=>{const a=i/t2.length*Math.PI*2+.6;P[s.id]=new THREE.Vector3(Math.cos(a)*16,3+i,Math.sin(a)*16)});
+  BRANCHES.filter(b=>!b.core&&!b.top).forEach(br=>{const list=SK3.filter(s=>s.b===br.id&&!P[s.id]),tiers=[...new Set(list.map(s=>s.t))].sort((a,b)=>a-b),base=br.ang*Math.PI/180;
+    list.forEach(s=>{const ti=tiers.indexOf(s.t),same=list.filter(x=>x.t===s.t),k=same.indexOf(s),r=27+ti*9,a=base+(k-(same.length-1)/2)*.2;P[s.id]=new THREE.Vector3(Math.cos(a)*r,(ti-.5)*3+k*1.2,Math.sin(a)*r)})});
+  P.mind=new THREE.Vector3(0,26,0);return P}
+function buildSkills(){
+  skillsG=new THREE.Group();scene.add(skillsG);const P=skillPos();
+  BRANCHES.forEach(br=>{const m=SK3.filter(s=>s.b===br.id).map(s=>P[s.id]),c=m.reduce((a,v)=>a.add(v),new THREE.Vector3()).multiplyScalar(1/m.length),size=br.core?26:br.top?8:16;
+    const plate=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshBasicMaterial({color:0x2c6b4f,transparent:true,opacity:.06,side:THREE.DoubleSide,depthWrite:false}));
+    plate.rotation.x=-Math.PI/2;plate.rotation.z=Math.PI/4;plate.position.set(c.x,c.y-4,c.z);
+    plate.add(new THREE.LineSegments(new THREE.EdgesGeometry(plate.geometry),new THREE.LineBasicMaterial({color:0x70ffb4,transparent:true,opacity:.2})));skillsG.add(plate);
+    const topY=Math.max(...m.map(v=>v.y)),an=new THREE.Object3D();an.position.set(c.x,br.core?-6:topY+4.5,c.z);skillsG.add(an);lbl(br.n,"branch",an,0,"skills")});
+  SK3.forEach(s=>s.req.forEach(r=>{if(!P[r])return;const open=byId[r].st==="sim"&&s.st==="sim",g=new THREE.BufferGeometry().setFromPoints([P[r],P[s.id]]);
+    const mat=open?new THREE.LineBasicMaterial({color:0xffcf5c,transparent:true,opacity:.85}):new THREE.LineDashedMaterial({color:0x7d9a8c,dashSize:.8,gapSize:.7,transparent:true,opacity:.35});
+    const ln=new THREE.Line(g,mat);if(!open)ln.computeLineDistances();ln.userData={from:r,to:s.id,open,baseOp:mat.opacity};skillsG.add(ln)}));
+  SK3.forEach(s=>{const own=new THREE.Color(OWN[s.o].c),on=s.st==="sim",rad=s.id==="mind"?1.8:(s.b==="flight"&&s.t===1?1.25:1);
+    const mat=new THREE.MeshBasicMaterial({color:on?new THREE.Color(EARN):(s.st==="locked"?new THREE.Color("#1d2a24"):own.clone().multiplyScalar(.35)),transparent:true});
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(rad,24,18),mat);mesh.position.copy(P[s.id]);mesh.userData={kind:"skill",id:s.id};
+    const ring=new THREE.Mesh(new THREE.RingGeometry(rad*1.25,rad*1.42,40),new THREE.MeshBasicMaterial({color:own,side:THREE.DoubleSide,transparent:true,opacity:s.st==="locked"?.35:s.st==="untested"?.55:.95}));mesh.add(ring);mesh.userData.ring=ring;
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW,color:on?0xffcf5c:own,transparent:true,opacity:on?.7:s.st==="trainable"?.45:.16,depthWrite:false,blending:THREE.AdditiveBlending}));glow.scale.setScalar(rad*(on?7:5));mesh.add(glow);mesh.userData.glow=glow;
+    if(s.slot){const dot=new THREE.Mesh(new THREE.SphereGeometry(.32,12,10),new THREE.MeshBasicMaterial({color:0xb49cff}));dot.position.set(rad*1.1,rad*1.1,0);mesh.add(dot)}
+    skillsG.add(mesh);pickables.push(mesh);const L=lbl(s.id+(on?'<span class="l3sc">★</span>':""),"",mesh,-(rad+1.6),"skills");L.skill=s});
+  const core=new THREE.Mesh(new THREE.OctahedronGeometry(2.2,0),new THREE.MeshBasicMaterial({color:0x70ffb4,wireframe:true,transparent:true,opacity:.6}));core.userData.spin=true;skillsG.add(core);
+}
+function buildAttrs(){
+  attrG=new THREE.Group();scene.add(attrG);hex=new THREE.Group();attrG.add(hex);
+  const R=15,RA=19,RB=32,ang=i=>(-90+i*60)*Math.PI/180,v=(a,r,y)=>new THREE.Vector3(Math.cos(a)*r,y||0,Math.sin(a)*r);
+  const sh=new THREE.Shape();for(let i=0;i<6;i++){const p=v(ang(i),R+1.5);i?sh.lineTo(p.x,p.z):sh.moveTo(p.x,p.z)}
+  const plate=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:.8,bevelEnabled:false}),new THREE.MeshBasicMaterial({color:0x0c1d16,transparent:true,opacity:.88}));plate.rotation.x=Math.PI/2;plate.position.y=-.2;hex.add(plate);
+  const pe=new THREE.LineSegments(new THREE.EdgesGeometry(plate.geometry),new THREE.LineBasicMaterial({color:0x70ffb4,transparent:true,opacity:.4}));pe.rotation.x=Math.PI/2;pe.position.y=-.2;hex.add(pe);
+  [.25,.5,.75,1].forEach(f=>{const pts=[];for(let i=0;i<=6;i++)pts.push(v(ang(i%6),R*f,.25));hex.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x70ffb4,transparent:true,opacity:.18})))});
+  const sc=ATTR3.map(a=>attrScore(a.id)),rp=ATTR3.map((a,i)=>v(ang(i),R*((sc[i].score||0)/100),.35));
+  const rs=new THREE.Shape();rp.forEach((p,i)=>i?rs.lineTo(p.x,-p.z):rs.moveTo(p.x,-p.z));
+  const radar=new THREE.Mesh(new THREE.ShapeGeometry(rs),new THREE.MeshBasicMaterial({color:0x70ffb4,transparent:true,opacity:.22,side:THREE.DoubleSide,depthWrite:false}));radar.rotation.x=-Math.PI/2;radar.position.y=.35;hex.add(radar);
+  hex.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(rp),new THREE.LineBasicMaterial({color:0x70ffb4})));
+  ATTR3.forEach((a,i)=>{const col=new THREE.Color(a.c),s=sc[i],base=v(ang(i),RA,0),h=s.score===null?.4:1+s.score/100*9;
+    const pil=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,h,6,1,true),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:s.score===null?.12:.28,side:THREE.DoubleSide,depthWrite:false}));pil.position.copy(base).add(new THREE.Vector3(0,h/2,0));hex.add(pil);
+    const node=new THREE.Mesh(new THREE.SphereGeometry(2.1,28,20),new THREE.MeshBasicMaterial({color:s.score===null?0x16231d:col,transparent:true}));node.position.copy(base).add(new THREE.Vector3(0,h+1.6,0));node.userData={kind:"attr",id:a.id};
+    const ring=new THREE.Mesh(new THREE.RingGeometry(2.6,2.95,48),new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide,transparent:true,opacity:s.score===null?.5:.9}));node.add(ring);node.userData.ring=ring;
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW,color:col,transparent:true,opacity:s.score===null?.15:.5,depthWrite:false,blending:THREE.AdditiveBlending}));glow.scale.setScalar(13);node.add(glow);
+    hex.add(node);pickables.push(node);const AL=lbl(`${a.id}<span class="l3sc">${s.score===null?"--":s.score}</span>`,"attr",node,-4.2,"attributes");AL.el.style.color=a.c;
+    BR3[a.id].forEach((b,j)=>{const n=BR3[a.id].length,bp=v(ang(i)+(j-(n-1)/2)*.24,RB,1.2+(j%2)*1.6),val=scoreOf(b),me=val!==null;
+      const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints([node.position.clone(),bp]),me?new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.7}):new THREE.LineDashedMaterial({color:0x7d9a8c,dashSize:.7,gapSize:.6,transparent:true,opacity:.4}));if(!me)ln.computeLineDistances();hex.add(ln);
+      const bn=new THREE.Mesh(new THREE.SphereGeometry(.95,18,14),new THREE.MeshBasicMaterial({color:me?0xffcf5c:0x1a2620,transparent:true}));bn.position.copy(bp);bn.userData={kind:"branch",id:a.id,i:j};
+      const r2=new THREE.Mesh(new THREE.RingGeometry(1.2,1.38,32),new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide,transparent:true,opacity:me?.9:.4}));bn.add(r2);bn.userData.ring=r2;hex.add(bn);pickables.push(bn);
+      lbl(`${b.l.toLowerCase()}<span class="l3sc">${me?val:"--"}</span>`,"",bn,-2.3,"attributes")})});
+}
+function rebuildSkills(){
+  if(!scene)return;scene.remove(skillsG);
+  for(let i=pickables.length-1;i>=0;i--)if(pickables[i].userData.kind==="skill")pickables.splice(i,1);
+  for(let i=labels.length-1;i>=0;i--)if(labels[i].room==="skills"){labels[i].el.remove();labels.splice(i,1)}
+  buildSkills();applyFilter();skillsG.visible=mode==="skills";refreshSelection();
+}
+function applyFilter(){
+  pickables.forEach(m=>{if(m.userData.kind!=="skill")return;const s=byId[m.userData.id],ok=matches(s);m.material.opacity=ok?1:.15;m.userData.ring.material.opacity=ok?(s.st==="locked"?.35:s.st==="untested"?.55:.95):.08;m.userData.glow.visible=ok});
+  labels.forEach(L=>{if(L.skill)L.el.classList.toggle("dim",!matches(L.skill))});
+  skillsG.children.forEach(o=>{if(o.isLine&&o.userData.to){const ok=matches(byId[o.userData.to])&&matches(byId[o.userData.from]);o.material.opacity=ok?o.userData.baseOp:.06}});
+}
+function refreshSelection(){
+  pickables.forEach(m=>{const u=m.userData,sel=(u.kind==="skill"&&picked===u.id&&mode==="skills")||(u.kind==="attr"&&picked===u.id&&pickedBranch===null&&mode==="attributes")||(u.kind==="branch"&&picked===u.id&&pickedBranch===u.i&&mode==="attributes");m.scale.setScalar(sel?1.45:1)});
+  skillsG&&skillsG.children.forEach(o=>{if(o.isLine&&o.userData.to){const hot=picked&&mode==="skills"&&(o.userData.to===picked||o.userData.from===picked);o.material.color.set(hot?0x70ffb4:(o.userData.open?0xffcf5c:0x7d9a8c));if(hot)o.material.opacity=1;else if(matches(byId[o.userData.to]))o.material.opacity=o.userData.baseOp}});
+}
+function selectSkill(id){picked=id;pickedBranch=null;openL3(skillHTML(byId[id]));refreshSelection();const m=pickables.find(p=>p.userData.kind==="skill"&&p.userData.id===id);if(m){cam.goal.copy(m.getWorldPosition(new THREE.Vector3()));cam.tr=58}}
+function selectAttr(id,bi){picked=id;pickedBranch=bi;openL3(attrHTML(id,bi));refreshSelection();hudLeft();L3("l3-detail").querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>selectAttr(id,+b.dataset.i))}
+function onPick(x,y){const r=renderer.domElement.getBoundingClientRect();mouse.x=((x-r.left)/r.width)*2-1;mouse.y=-((y-r.top)/r.height)*2+1;ray.setFromCamera(mouse,camera);
+  const vis=pickables.filter(p=>mode==="skills"?p.userData.kind==="skill":p.userData.kind!=="skill"),hit=ray.intersectObjects(vis,false)[0];if(!hit)return;const u=hit.object.userData;
+  if(u.kind==="skill")selectSkill(u.id);else if(u.kind==="attr")selectAttr(u.id,null);else selectAttr(u.id,u.i)}
+function init(){
+  const cv=L3("lab3d");renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setClearColor(0x08100d,1);
+  scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x08100d,.0045);camera=new THREE.PerspectiveCamera(50,1,.1,2000);ray=new THREE.Raycaster();mouse=new THREE.Vector2();GLOW=glowTex();
+  const N=1600,sp=new Float32Array(N*3);for(let i=0;i<N;i++){const r=220+Math.random()*300,t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1);sp.set([r*Math.sin(p)*Math.cos(t),r*Math.cos(p),r*Math.sin(p)*Math.sin(t)],i*3)}
+  const sg=new THREE.BufferGeometry();sg.setAttribute("position",new THREE.BufferAttribute(sp,3));stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0xa9d9c0,size:1.3,transparent:true,opacity:.65}));scene.add(stars);
+  const grid=new THREE.GridHelper(260,52,0x1b3a2c,0x10241b);grid.position.y=-14;grid.material.transparent=true;grid.material.opacity=.45;scene.add(grid);
+  buildSkills();buildAttrs();applyFilter();
+  cv.addEventListener("pointerdown",e=>{dragging=true;dragMoved=false;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);idle=0});
+  cv.addEventListener("pointermove",e=>{if(dragging){const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;if(Math.abs(dx)+Math.abs(dy)>2)dragMoved=true;
+      if(mode==="attributes"){hexRot.vy=dx*.006;hexRot.y+=dx*.008;hexRot.x=Math.max(-1.5,Math.min(.3,hexRot.x+dy*.006))}else{cam.theta-=dx*.006;cam.phi=Math.max(.25,Math.min(1.45,cam.phi-dy*.005))}idle=0;return}
+    const r=cv.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;ray.setFromCamera(mouse,camera);
+    const vis=pickables.filter(p=>mode==="skills"?p.userData.kind==="skill":p.userData.kind!=="skill");cv.style.cursor=ray.intersectObjects(vis,false).length?"pointer":"grab"});
+  cv.addEventListener("pointerup",e=>{dragging=false;if(!dragMoved)onPick(e.clientX,e.clientY)});
+  cv.addEventListener("wheel",e=>{e.preventDefault();cam.tr=Math.max(30,Math.min(170,cam.tr*(1+Math.sign(e.deltaY)*.08)))},{passive:false});
+}
+const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3();let last=0;
+function frame(now){
+  const v=document.getElementById("root").dataset.view;if(v!=="skills"&&v!=="attributes"){raf=null;return}
+  const cv=L3("lab3d"),w=cv.clientWidth,h=cv.clientHeight;if(cv.width!==Math.floor(w*renderer.getPixelRatio())||cv.height!==Math.floor(h*renderer.getPixelRatio())){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+  const dt=Math.min(.05,(now-(last||now))/1000);last=now;idle+=dt;
+  if(!reduceMotion&&!dragging&&idle>4&&mode==="skills"&&!picked)cam.theta+=dt*.05;
+  if(mode==="attributes"&&!dragging){hexRot.y+=hexRot.vy;hexRot.vy*=.94;if(!reduceMotion&&idle>4&&!picked)hexRot.y+=dt*.06}
+  attrG.rotation.set(hexRot.x+.95,0,0);hex.rotation.y=hexRot.y;
+  cam.r+=(cam.tr-cam.r)*Math.min(1,dt*4);cam.target.lerp(cam.goal,Math.min(1,dt*3));
+  camera.position.set(cam.target.x+cam.r*Math.sin(cam.phi)*Math.sin(cam.theta),cam.target.y+cam.r*Math.cos(cam.phi),cam.target.z+cam.r*Math.sin(cam.phi)*Math.cos(cam.theta));camera.lookAt(cam.target);
+  skillsG.children.forEach(o=>{if(o.userData.spin){o.rotation.y+=dt*.6;o.rotation.x+=dt*.25}});stars.rotation.y+=dt*.004;
+  pickables.forEach(m=>{if(m.userData.ring)m.userData.ring.lookAt(camera.position)});
+  renderer.render(scene,camera);
+  const f=h/(2*Math.tan(camera.fov*Math.PI/360));
+  labels.forEach(L=>{if(L.room!==mode){L.el.style.display="none";return}L.obj.getWorldPosition(tmp);tmp2.copy(tmp).project(camera);
+    if(tmp2.z>1||tmp2.z<-1){L.el.style.display="none";return}L.el.style.display="";const px=Math.abs(L.off)/camera.position.distanceTo(tmp)*f;
+    L.el.style.left=((tmp2.x*.5+.5)*w)+"px";L.el.style.top=((-tmp2.y*.5+.5)*h+(L.off<0?px:-px))+"px"});
+  raf=requestAnimationFrame(frame);
+}
+function enter(m,arg){
+  if(!renderer)init();
+  if(mode!==m){picked=null;pickedBranch=null;L3("l3-detail").innerHTML=""}
+  mode=m;skillsG.visible=m==="skills";attrG.visible=m==="attributes";
+  cam.goal.set(0,m==="skills"?4:-6,0);cam.tr=m==="skills"?92:104;cam.phi=m==="skills"?1.05:.95;
+  hudLeft();refreshSelection();
+  if(m==="skills"&&arg&&byId[arg])selectSkill(arg);
+  if(!raf)raf=requestAnimationFrame(frame);
+  if(m==="skills")hydrate3().then(ok=>{if(!ok)return;rebuildSkills();hudLeft();if(picked&&byId[picked])openL3(skillHTML(byId[picked]))});
+}
+V.skills=function(arg){enter("skills",arg)};
+V.attributes=function(){enter("attributes")};
+})();
+
 </script>
 <script>route();</script>
 

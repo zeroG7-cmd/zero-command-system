@@ -26,6 +26,19 @@ const http = require('http');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 
+// The Gazebo debugging work on this machine exports LIBGL_ALWAYS_SOFTWARE=1
+// in some terminals/scripts to force gzclient onto Mesa's software
+// rasterizer (llvmpipe) for the headless Xvfb pipeline - see the
+// gazebo-restart-hang notes. If that variable is still set in whatever
+// shell launches this app, Electron's own GPU process inherits it too,
+// on top of the two switches above. That reproduces exactly the reported
+// symptom: llvmpipe still draws correct geometry, but model-viewer's
+// environment-lighting/IBL pass has nothing real to work with, so Zero's
+// avatar comes out flat white/untextured instead of broken-looking in some
+// obvious way. Force it off for this process no matter what the launching
+// shell has set.
+delete process.env.LIBGL_ALWAYS_SOFTWARE;
+
 const FLASK_URL = 'http://127.0.0.1:5000';
 
 // dist/zero-command-backend/zero-command-backend[.exe], built by running
@@ -64,7 +77,21 @@ let mainWindow = null;
 // launch, before spawning anything.
 function killStaleBackendOnPort5000() {
   return new Promise((resolve) => {
-    if (process.platform !== 'win32') { resolve(); return; }
+    if (process.platform !== 'win32') {
+      // Nov 8, 2026 - Linux/macOS used to skip this sweep entirely, so a
+      // stale backend from a previous session could keep port 5000 and
+      // the freshly opened app would silently talk to OLD code (seen
+      // live: a rebuilt backend's new skills never showed up). Kill
+      // whatever is listening on 5000 first. fuser ships with Ubuntu
+      // (psmisc); lsof is the fallback.
+      const sweep = spawn('sh', ['-c',
+        'pids=$(fuser 5000/tcp 2>/dev/null || lsof -ti tcp:5000 2>/dev/null); ' +
+        'if [ -n "$pids" ]; then echo "clearing stale backend on port 5000: $pids"; kill $pids; sleep 0.5; fi']);
+      sweep.stdout.on('data', (d) => process.stdout.write(d));
+      sweep.on('close', () => resolve());
+      sweep.on('error', () => resolve());
+      return;
+    }
     // No shell: true here, so this one string goes to cmd.exe's own parser
     // exactly once - a bare "|" is correct; a caret-escaped "^|" would be
     // wrong here (that escaping is only needed when a pipe command gets
@@ -100,6 +127,15 @@ function startBackend() {
         ...process.env,
         ZERO_GRAVITY_RND_ROOT: path.join(WORKSPACE_ROOT, 'zeroGravity-rnd'),
         ZEROGRAVITY_ROOT: path.join(WORKSPACE_ROOT, 'zeroGravity'),
+        // Same PyInstaller-breaks-relative-paths problem as the two above -
+        // config.py's own defaults for these two walk up from config.py's
+        // bundled location (inside dist/zero-command-backend/_internal once
+        // frozen), not the real repo, so without an explicit override here
+        // SHADOW_TELEMETRY_JSON and SHADOW_PROGRESS_JSON silently resolve to
+        // a path under dist/ that doesn't exist - read_text() throws, both
+        // routes report "no data available" even while the sim is fully up.
+        SHADOW_SIM_RUNTIME_ROOT: path.join(WORKSPACE_ROOT, 'shadow_sim_runtime'),
+        SHADOW_DRONE_REPO_ROOT: path.join(WORKSPACE_ROOT, 'shadow_ws', 'src', 'shadow_drone'),
       },
     });
 

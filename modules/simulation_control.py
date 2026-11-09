@@ -15,7 +15,7 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
 bp = Blueprint("simulation_control", __name__, url_prefix="/simulation")
 
@@ -167,6 +167,21 @@ LOCK_DIR = Path.home() / "shadow_sim_runtime" / "logs"
 LOCK_NAMES = {
     "mission": "run_mission.lock",
     "training": "run_training.lock",
+    # Nov 6, 2026 - autotune flies Shadow too (ArduCopter-native rewrite,
+    # see [[pid-autotune-dashboard]]), so it needs the same mutual-
+    # exclusion every other flight route already has against each
+    # other. Written by run_autotune.sh itself, same trap-based
+    # pidfile pattern run_mission.sh already uses.
+    "autotune": "run_autotune.lock",
+}
+
+# Nov 6, 2026 - human-readable phrase per lock, for the busy-error message
+# in _run_detached(). Used to be a two-way ternary inline there; a third
+# lock (autotune) made that not scale.
+_LOCK_BUSY_DESCRIPTIONS = {
+    "mission": "a mission or skill test",
+    "training": "a training or evaluation run",
+    "autotune": "a PID autotune run",
 }
 
 
@@ -187,11 +202,22 @@ def _lock_holder_pid(lock: str) -> int | None:
     return pid
 
 
-def _run_detached(script_name: str, args: list[str] | None = None, lock: str | None = None) -> dict:
-    if lock is not None:
-        holder = _lock_holder_pid(lock)
+def _run_detached(
+    script_name: str,
+    args: list[str] | None = None,
+    lock: str | list[str] | None = None,
+) -> dict:
+    # Nov 6, 2026 - lock now also accepts a list, so a route can refuse
+    # to start while ANY of several flight locks is held (autotune vs.
+    # mission vs. training all fly the same Shadow instance and can't
+    # run concurrently) without every caller hand-rolling its own loop.
+    # A single string still works exactly as before - checked against
+    # just that one lock.
+    lock_names = [lock] if isinstance(lock, str) else (lock or [])
+    for lock_name in lock_names:
+        holder = _lock_holder_pid(lock_name)
         if holder is not None:
-            busy_with = "a training or evaluation run" if lock == "training" else "a mission or skill test"
+            busy_with = _LOCK_BUSY_DESCRIPTIONS.get(lock_name, lock_name)
             return {"ok": False, "error": f"{busy_with} is already in progress (PID {holder}) - wait for it to finish, then try again."}
 
     script_path = SCRIPTS_DIR / script_name
@@ -242,9 +268,16 @@ def run_mission():
     # forever with no explanation. Checking here means a refused click
     # no longer creates a dangling event at all - the UI gets an honest
     # {"ok": False, "error": ...} immediately instead.
-    holder = _lock_holder_pid("mission")
-    if holder is not None:
-        return jsonify({"ok": False, "error": f"a mission or skill test is already in progress (PID {holder}) - wait for it to finish, then try again."})
+    # Nov 6, 2026 - also refuse while autotune is flying (added
+    # alongside the existing "mission" check, not instead of it, so a
+    # mission blocked by a running autotune still gets refused before
+    # _record_mission_started() below, same dangling-row reasoning as
+    # the original Oct 26 fix this comment sits next to).
+    for busy_lock in ("mission", "autotune"):
+        holder = _lock_holder_pid(busy_lock)
+        if holder is not None:
+            busy_with = _LOCK_BUSY_DESCRIPTIONS[busy_lock]
+            return jsonify({"ok": False, "error": f"{busy_with} is already in progress (PID {holder}) - wait for it to finish, then try again."})
     # Oct 26, 2026 (later still) - tag this launch into mission_events
     # BEFORE starting the detached script, so the event row (and its id,
     # which the script reports its own outcome back into) exists from
@@ -255,20 +288,36 @@ def run_mission():
     # Log, same as running it from a terminal with no sim started.
     mission_name = MISSION_NAMES.get(mission, mission)
     event_id = _record_mission_started(mission, mission_name)
-    return jsonify(_run_detached(script, [str(event_id or 0)], lock="mission"))
+    return jsonify(_run_detached(script, [str(event_id or 0)], lock=["mission", "autotune"]))
 
 
 @bp.route("/run-autotune", methods=["POST"])
 def run_autotune():
-    # NOT fixed for the ArduPilot/Harmonic migration as of Oct 17 - still
-    # calls the retired PX4-era autotune_hover.py against a world/stack
-    # that no longer matches it. Left as-is deliberately rather than
-    # guessed at: the real fix needs a design call (keep a custom
-    # autotune script vs. just use ArduCopter's own native AUTOTUNE
-    # flight mode, which didn't exist as an option under the old PX4
-    # setup), not on the critical path for the delivery-mission demo.
-    # Clicking this button right now will not do anything useful.
-    return jsonify(_run_detached("run_autotune.sh"))
+    # Nov 6, 2026 - fixed. autotune_hover.py (which this just shells out
+    # to via run_autotune.sh, unchanged) was fully rewritten for
+    # ArduCopter's own AUTOTUNE flight mode - the design call flagged
+    # below as pending is made: a custom script, driving ArduCopter's
+    # real mode switch instead of PX4's old MAV_CMD_DO_AUTOTUNE_ENABLE.
+    # See that script's own module docstring for the full rewrite
+    # rationale, what's confirmed from independent sources (entering
+    # AUTOTUNE is a plain mode switch; gains only save if you land and
+    # disarm while STILL in AUTOTUNE) vs. what's this script's own
+    # best-effort design and still needs watching on a live run (RC
+    # override hold/descent behaviour, the hover throttle guess).
+    #
+    # Old history, left for context: as of Oct 17 this route still
+    # called the retired PX4-era autotune_hover.py against a world/stack
+    # that no longer matched it - clicking the button did nothing
+    # useful. That's what's fixed above.
+    #
+    # Nov 6, 2026 (same night, later) - the concurrency gap flagged just
+    # above is now closed: checks (and, via run_autotune.sh's own new
+    # pidfile, holds) the "autotune" lock, and also refuses to start
+    # while a mission/skill-test ("mission") or training/eval
+    # ("training") run is already flying Shadow - and those routes now
+    # refuse right back while autotune is running. See LOCK_NAMES above
+    # and run_autotune.sh's own lockfile block.
+    return jsonify(_run_detached("run_autotune.sh", lock=["autotune", "mission", "training"]))
 
 
 @bp.route("/restart-world-view", methods=["POST"])
@@ -504,7 +553,9 @@ def run_training_task():
     # that has no matching flag and would just error on startup.
     if body.get("reset_from_go_to") and task.get("supports_reset_from_go_to"):
         args.append("--reset-from-go-to")
-    return jsonify(_run_detached(task["script"], args, lock="training"))
+    # Nov 6, 2026 - also refuses while autotune is flying - same reason
+    # as the mission/skill-test routes' own "autotune" checks.
+    return jsonify(_run_detached(task["script"], args, lock=["training", "autotune"]))
 
 
 # ---- Drone Attributes scoring sheet (Oct 25, 2026) -------------------------
@@ -1015,15 +1066,37 @@ def _evaluation_status(task: dict) -> dict:
 # (the longer, multi-phase Skills). Same allowlist-by-dict pattern as
 # ALLOWED_MISSIONS/TRAINING_TASKS above: a button's key picks a known,
 # pre-approved arg list here, never passed straight through to bash
-# from the request body. "args" mirrors run_mission.sh's own choices
-# for go_to/takeoff (a fixed 1m offset, 2.0m altitude) rather than
-# inventing new defaults.
+# from the request body. "args" mirrors run_mission.sh's own choice
+# for takeoff (a fixed 2.0m altitude) rather than inventing new
+# defaults.
+#
+# go_to's "args": [] is deliberate, not a placeholder - Nov 8, 2026,
+# Zer0 asked for the Go To button to actually visit the payload props
+# in the world (first click orange, next click blue, and so on) one
+# at a time, which only happens when NO --x/--y/--z is passed; go_to.py's
+# own module docstring explains the no-target cycling logic that then
+# takes over. This button used to hardcode an explicit absolute target
+# (--x 1.0 --y 0.0 --z 2.0) here, which silently overrode that cycling
+# logic every single time the button was pressed - go_to.py's redesign
+# never actually ran through this dashboard until this args list was
+# emptied out to match.
 SKILL_TESTS = [
     {"key": "arm", "name": "Arm", "category": "basic", "args": []},
     {"key": "takeoff", "name": "Takeoff", "category": "basic", "args": ["--altitude", "2.0"]},
     {"key": "hover", "name": "Hover", "category": "basic", "args": ["--duration", "5"]},
-    {"key": "go_to", "name": "Go To", "category": "basic", "args": ["--x", "1.0", "--y", "0.0", "--z", "2.0"]},
+    {"key": "go_to", "name": "Go To", "category": "basic", "args": []},
     {"key": "land", "name": "Land", "category": "basic", "args": []},
+    # Nov 8, 2026 - new Tier 2 skills. Frozen build: these buttons only
+    # appear after `pyinstaller app.spec` is rerun.
+    {"key": "rtl", "name": "Return Home (RTL)", "category": "basic", "args": []},
+    {"key": "follow_path", "name": "Follow Path (zigzag)", "category": "basic", "args": ["--path", "zigzag"]},
+    # Nov 9, 2026 - Mapping branch (needs slam_toolbox running).
+    {"key": "map_area", "name": "Map Area (zigzag)", "category": "basic", "args": ["--path", "zigzag"]},
+    # Nov 9, 2026 - vision skills + the first all-skills mission.
+    {"key": "search", "name": "Search (zigzag, stop on find)", "category": "basic", "args": ["--path", "zigzag"]},
+    {"key": "approach_target", "name": "Approach Target", "category": "basic", "args": []},
+    {"key": "follow_target", "name": "Follow Target (moving payload)", "category": "basic", "args": ["--move-target"]},
+    {"key": "delivery_rehearsal", "name": "Delivery Rehearsal (mission)", "category": "sequences", "args": []},
     # Sequences - the longer, multi-phase Skills. These are the SAME
     # run_skill.py entries Mission Control's "Run Mission" dropdown
     # already launches (via run_deliver_payload.sh/run_learned_flight.sh) -
@@ -1069,7 +1142,9 @@ def run_skill_test():
     test = _SKILL_TESTS_BY_KEY.get(body.get("skill"))
     if test is None:
         return jsonify({"ok": False, "error": f"Unknown skill test: {body.get('skill')!r}"})
-    return jsonify(_run_detached("run_skill_test.sh", [test["key"], "--", *test["args"]], lock="mission"))
+    # Nov 6, 2026 - also refuses while autotune is flying, same reason
+    # as /run-mission's own "autotune" check above.
+    return jsonify(_run_detached("run_skill_test.sh", [test["key"], "--", *test["args"]], lock=["mission", "autotune"]))
 
 
 @bp.route("/skill-tests", methods=["GET"])
@@ -1163,7 +1238,8 @@ def run_checkpoint_eval():
     task_key = body.get("task")
     if task_key not in EVAL_TASKS:
         return jsonify({"ok": False, "error": f"Unknown eval task: {task_key!r}"})
-    return jsonify(_run_detached("run_checkpoint_eval.sh", [task_key], lock="training"))
+    # Nov 6, 2026 - also refuses while autotune is flying.
+    return jsonify(_run_detached("run_checkpoint_eval.sh", [task_key], lock=["training", "autotune"]))
 
 
 @bp.route("/run-skill-test-and-eval", methods=["POST"])
@@ -1183,10 +1259,11 @@ def run_skill_test_and_eval():
     test = _SKILL_TESTS_BY_KEY.get(body.get("skill"))
     if test is None or not test.get("eval_task_key"):
         return jsonify({"ok": False, "error": f"Unknown or non-evaluable skill test: {body.get('skill')!r}"})
+    # Nov 6, 2026 - also refuses while autotune is flying.
     return jsonify(_run_detached(
         "run_skill_test_and_eval.sh",
         [test["key"], test["eval_task_key"], "--", *test["args"]],
-        lock="mission",
+        lock=["mission", "autotune"],
     ))
 
 
@@ -1625,3 +1702,198 @@ def event_log_context():
     if kind not in ("skill", "mission") or not key:
         return jsonify({"ok": False, "error": "kind (skill|mission) and key are required", "found": False})
     return jsonify(_event_log_context(kind, key, timestamp))
+
+
+# Nov 8, 2026 - per-skill attempt history for the 3D Skill Tree room's
+# "LAST ATTEMPTS" strip. Read from skill_test.log rather than the
+# skill_attempts table on purpose: run_skill.py only writes that table
+# when telemetry_bridge.py has a 'running' simulation_runs row open, so
+# the DB misses attempts, while skill_test.log records every dashboard
+# skill test with its pass/fail reason. Read-only, never 500s: a missing
+# log just means empty history.
+_SKILL_RUN_LINE_RE = re.compile(r"^\[run_skill_test\.sh\] (.+?): running '(\w+)'")
+_SKILL_RESULT_LINE_RE = re.compile(r"^\[run_skill\] (\w+): (PASS|FAIL) \((.*)\) - streak")
+
+
+@bp.route("/skill-history", methods=["GET"])
+def skill_history():
+    """{ok, skills: {skill: [{result: "P"|"F", reason, at}, ...]}} - each
+    skill's last 10 results, oldest first, from skill_test.log."""
+    history: dict[str, list[dict]] = {}
+    try:
+        lines = (EVENT_LOG_DIR / "skill_test.log").read_text(errors="replace").splitlines()
+    except OSError:
+        lines = []
+    when = None
+    for line in lines:
+        m = _SKILL_RUN_LINE_RE.match(line)
+        if m:
+            when = " ".join(m.group(1).split())
+            continue
+        m = _SKILL_RESULT_LINE_RE.match(line)
+        if m:
+            history.setdefault(m.group(1), []).append({
+                "result": "P" if m.group(2) == "PASS" else "F",
+                "reason": m.group(3),
+                "at": when,
+            })
+    return jsonify({"ok": True, "source": "skill_test.log",
+                    "skills": {k: v[-10:] for k, v in history.items()}})
+
+
+# Nov 9, 2026 - LiDAR radar. lidar_bridge.py writes this summary at ~4 Hz
+# (360 one-degree bins clockwise from the nose, nearest hit, 8 sectors).
+LIDAR_SCAN_FILE = Path.home() / "shadow_sim_runtime" / "telemetry" / "scan.json"
+LIDAR_STALE_S = 2.0
+
+
+@bp.route("/lidar-scan", methods=["GET"])
+def lidar_scan():
+    """{ok, live, age_s, scan} - live is False when the file is missing
+    or older than 2 s (bridge not running, or Gazebo has no lidar)."""
+    try:
+        scan = json.loads(LIDAR_SCAN_FILE.read_text())
+    except (OSError, ValueError):
+        return jsonify({"ok": True, "live": False, "age_s": None, "scan": None})
+    age = max(0.0, datetime.now().timestamp() - float(scan.get("t", 0)))
+    return jsonify({"ok": True, "live": age < LIDAR_STALE_S,
+                    "age_s": round(age, 2), "scan": scan})
+
+
+# Nov 9, 2026 - live SLAM map for the Missions room. map_exporter.py writes
+# both files whenever slam_toolbox publishes /map (every ~2 s).
+MAP_JSON_FILE = Path.home() / "shadow_sim_runtime" / "telemetry" / "map.json"
+MAP_PNG_FILE = Path.home() / "shadow_sim_runtime" / "telemetry" / "map.png"
+
+
+@bp.route("/map", methods=["GET"])
+def slam_map():
+    """{ok, live, age_s, map} - map is map.json (size, resolution, origin,
+    mapped area, drone pose, trail); live is False past 5 s old."""
+    try:
+        data = json.loads(MAP_JSON_FILE.read_text())
+    except (OSError, ValueError):
+        return jsonify({"ok": True, "live": False, "age_s": None, "map": None})
+    age = max(0.0, datetime.now().timestamp() - float(data.get("t", 0)))
+    return jsonify({"ok": True, "live": age < 5.0, "age_s": round(age, 1), "map": data})
+
+
+@bp.route("/map.png", methods=["GET"])
+def slam_map_png():
+    if not MAP_PNG_FILE.exists():
+        return jsonify({"ok": False, "error": "no map yet"}), 404
+    resp = send_file(str(MAP_PNG_FILE), mimetype="image/png")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+# Nov 9, 2026 - Sim Bay telemetry upgrade.
+RUN_STATUS_FILE = Path.home() / "shadow_sim_runtime" / "state" / "run_status.json"
+
+
+@bp.route("/run-status", methods=["GET"])
+def run_status():
+    """{ok, run} - run_skill.py's live status: skill, kind (skill/sequence),
+    stages + stage_index for sequences, the skill's own sub-phase, state
+    (checking/running/passed/failed) and reason. A 'running' status that
+    stopped updating (run killed) comes back as state 'stopped'."""
+    try:
+        run = json.loads(RUN_STATUS_FILE.read_text())
+    except (OSError, ValueError):
+        return jsonify({"ok": True, "run": None})
+    age = datetime.now().timestamp() - float(run.get("t", 0))
+    run["age_s"] = round(age, 1)
+    if run.get("state") in ("checking", "running") and age > 5.0:
+        run["state"] = "stopped"
+    return jsonify({"ok": True, "run": run})
+
+
+WORLDS_DIR = Path.home() / "ardu_ws" / "src" / "ardupilot_gazebo" / "worlds"
+WORLD_LIVE_FILE = Path.home() / "shadow_sim_runtime" / "telemetry" / "world_live.json"
+SHADOW_PKG = Path.home() / "shadow_ws" / "src" / "shadow_drone"
+
+
+def _grep_float(path, pattern):
+    try:
+        m = re.findall(pattern, path.read_text())
+    except OSError:
+        return None
+    return float(m[-1]) if m else None
+
+
+def _world_static(world):
+    """Everything about the world that comes from files, not the live sim:
+    physics from the SDF, safety limits, the altitudes the skills fly at,
+    and ArduPilot speed/avoidance settings from shadow_sitl.parm."""
+    import xml.etree.ElementTree as ET
+    out = {"world": world}
+    try:
+        w = ET.parse(WORLDS_DIR / f"{world}.sdf").getroot().find("world")
+    except (OSError, ET.ParseError):
+        w = None
+    if w is not None:
+        g = (w.findtext("gravity") or "0 0 -9.8").split()
+        out["gravity"] = round(abs(float(g[2])), 2)
+        ph = w.find("physics")
+        out["step_ms"] = round(float(ph.findtext("max_step_size", "0.001")) * 1000, 2) if ph is not None else None
+        out["target_rtf"] = float(ph.findtext("real_time_factor", "1")) if ph is not None else 1.0
+        wind = w.find("wind")
+        if wind is not None and wind.findtext("linear_velocity"):
+            vx, vy, vz = (float(v) for v in wind.findtext("linear_velocity").split())
+            out["wind_sdf"] = {"x": vx, "y": vy, "z": vz}
+        else:
+            out["wind_sdf"] = None
+        names = [m.get("name", "") for m in w.findall("model")]
+        out["payloads"] = sum(1 for n in names if n.startswith("payload_"))
+        out["obstacles"] = sum(1 for n in names if n.startswith("lidar_"))
+    limits = SHADOW_PKG / "shadow" / "limits.py"
+    out["geofence_m"] = _grep_float(limits, r"'geofence_m':\s*([\d.]+)")
+    out["max_alt_m"] = _grep_float(limits, r"'max_altitude_m':\s*([\d.]+)")
+    sk = SHADOW_PKG / "shadow" / "skills"
+    out["path_alt_m"] = _grep_float(sk / "follow_path.py", r"(?m)^PATH_ALTITUDE_M\s*=\s*([\d.]+)")
+    out["payload_alt_m"] = _grep_float(sk / "go_to.py", r"(?m)^PAYLOAD_HOVER_ALTITUDE_M\s*=\s*([\d.]+)")
+    out["approach_alt_m"] = _grep_float(sk / "approach_target.py", r"(?m)^HOVER_ALT_M\s*=\s*([\d.]+)")
+    out["follow_alt_m"] = _grep_float(sk / "follow_target.py", r"(?m)^FOLLOW_ALT_M\s*=\s*([\d.]+)")
+    parm = SHADOW_PKG / "config" / "shadow_sitl.parm"
+    out["wp_spd"] = _grep_float(parm, r"(?m)^WP_SPD\s+([\d.]+)")
+    out["rtl_alt_m"] = _grep_float(parm, r"(?m)^RTL_ALT_M\s+([\d.]+)")
+    oa = _grep_float(parm, r"(?m)^OA_TYPE\s+([\d.]+)")
+    av = _grep_float(parm, r"(?m)^AVOID_ENABLE\s+([\d.]+)")
+    out["avoidance"] = "BendyRuler" if oa else ("proximity brake" if av and int(av) & 2 else "off")
+    return out
+
+
+@bp.route("/world", methods=["GET"])
+def world_info():
+    """{ok, live, world} - static world/config facts, merged with the live
+    Gazebo state (real-time factor, sim time, wind) from world_monitor.py
+    when the sim is running. path_alt_m fixes the old hard-coded 1.1 m."""
+    world = request.args.get("world", "shadow_runway")
+    data = _world_static(world)
+    live = False
+    try:
+        lv = json.loads(WORLD_LIVE_FILE.read_text())
+        if datetime.now().timestamp() - float(lv.get("t", 0)) < 3.0:
+            live = True
+            data.update({k: lv.get(k) for k in ("real_time_factor", "sim_time", "paused")})
+            if lv.get("wind") is not None:
+                data["wind_live"] = lv["wind"]
+    except (OSError, ValueError):
+        pass
+    return jsonify({"ok": True, "live": live, "world": data})
+
+
+@bp.route("/abort-skill", methods=["POST"])
+def abort_skill():
+    """Command Dock ABORT. Stops the running skill test / mission sequence:
+    SIGTERM to run_skill_test.sh / run_mission.sh and run_skill.py (and
+    move_target.py, which puts its payload back on SIGTERM). The run lock
+    frees itself because _lock_holder_pid() ignores dead PIDs. ArduPilot is
+    left in whatever mode it was in: in GUIDED Shadow holds the last
+    position target, so it hovers where it was. Land or RTL from the dock."""
+    killed = []
+    for pattern in ("run_skill_test.sh", "run_mission.sh", "run_skill.py", "move_target.py"):
+        r = subprocess.run(["pkill", "-15", "-f", pattern], capture_output=True)
+        if r.returncode == 0:
+            killed.append(pattern)
+    return jsonify({"ok": True, "killed": killed})

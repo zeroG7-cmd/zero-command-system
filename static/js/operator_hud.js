@@ -128,7 +128,7 @@ function renderChrome(view) {
   $("minisub").textContent = titleFor(ov.operator_level || 0);
   $("badgelv").textContent = ov.operator_level || 0;
   $("badgetitle").textContent = titleFor(ov.operator_level || 0).toUpperCase();
-  $("crumb").innerHTML = "ZERO COMMAND <b>/ " + (CRUMB[view] || view.toUpperCase()) + "</b>";
+  $("crumb").innerHTML = "<a class=\"crumb-home\" href=\"/\">ZERO COMMAND</a> <b>/ " + (CRUMB[view] || view.toUpperCase()) + "</b>";
 }
 
 /* ---------- overview ---------- */
@@ -888,7 +888,7 @@ function renderSkillPage(slugRaw) {
     return;
   }
   var cap = skillState.data;
-  $("crumb").innerHTML = "ZERO COMMAND <b>/ LEARNING / " + esc(cap.name.toUpperCase()) + "</b>";
+  $("crumb").innerHTML = "<a class=\"crumb-home\" href=\"/\">ZERO COMMAND</a> <b>/ LEARNING / " + esc(cap.name.toUpperCase()) + "</b>";
 
   var tierCols = (cap.tiers || []).map(function (tier) {
     var cards = (tier.concepts || []).map(function (c) {

@@ -5,6 +5,8 @@
 .operator-hero{display:flex;justify-content:space-between;gap:2rem;padding:2rem;background:linear-gradient(135deg,rgba(112,255,180,.12),transparent 50%),var(--op-panel)}
 .operator-hero h1{margin:0;font-size:clamp(2rem,5vw,4.5rem);letter-spacing:.08em}.operator-hero p{color:var(--op-muted)}
 .operator-eyebrow{margin:0 0 .5rem!important;color:var(--op-accent)!important;font-size:.75rem;font-weight:700;letter-spacing:.2em}
+.operator-eyebrow .eyebrow-home{color:inherit;text-decoration:none}
+.operator-eyebrow .eyebrow-home:hover{text-decoration:underline}
 .operator-status{display:flex;align-items:center;gap:.6rem;color:var(--op-accent);font-size:.75rem;font-weight:700;white-space:nowrap}.operator-status span{width:.65rem;height:.65rem;border-radius:50%;background:var(--op-accent);box-shadow:0 0 1rem var(--op-accent)}
 .overview-grid{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:1rem;margin-top:1rem}.panel{padding:1.4rem}.level-panel>strong{display:block;font-size:4rem}.metric strong{display:block;font-size:2.6rem;margin:.6rem 0}.panel small,.panel p,.xp-row,.operator-footer{color:var(--op-muted)}
 .xp-row{display:flex;justify-content:space-between;font-size:.8rem}.progress{height:.5rem;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.08);margin-top:.7rem}.progress div{height:100%;background:var(--op-accent);box-shadow:0 0 .8rem rgba(112,255,180,.55)}
