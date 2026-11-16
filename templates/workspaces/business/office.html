@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>zeroGravity Office | Zero Command</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/business_office.css') }}">
+</head>
+<body>
+<div class="scr" id="root">
+  <div class="wm" aria-hidden="true">OFFICE</div>
+
+  <header class="top">
+    <a class="brand" href="{{ url_for('home') }}" aria-label="Back to Zero Command HQ">
+      <span class="ringbox s52">
+        <svg width="52" height="52" viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"></circle>
+          <circle id="miniRing" cx="60" cy="60" r="50" fill="none" stroke="#70ffb4" stroke-width="8" stroke-dasharray="0 314.2" transform="rotate(-90 60 60)"></circle>
+        </svg>
+        <img src="{{ url_for('static', filename='images/zerogravity-logo-mint.png') }}" alt="zeroGravity logo" class="minilogo">
+      </span>
+      <span>
+        <span class="title">ZEROGRAVITY OFFICE</span>
+        <small id="sub">BUSINESS OPS · LOADING</small>
+      </span>
+    </a>
+    <nav class="ring" id="ring" aria-label="Business sections"></nav>
+    <div class="phase"><span>PHASE</span><strong id="phaseNum">1</strong><span>PRE-REVENUE</span></div>
+  </header>
+
+  <div class="crumbbar">
+    <span>ZERO COMMAND / OFFICE / <b id="crumb">LAUNCH READINESS</b></span>
+    <span class="track">P1 PRE-REVENUE → P2 TEST TRADING → P3 SCALE</span>
+  </div>
+  <div id="banner"></div>
+
+  <main class="main" id="page" aria-live="polite"><div class="empty">LOADING OFFICE DATA</div></main>
+
+  <div id="modal"></div>
+  <div class="toast" id="toast" role="status"></div>
+  <script>window.OFFICE_LOGO = "{{ url_for('static', filename='images/zerogravity-logo-mint.png') }}";</script>
+</div>
+<script defer src="{{ url_for('static', filename='js/business_office.js') }}"></script>
+</body>
+</html>

@@ -40,6 +40,7 @@ from modules.operator_analytics import operator_analytics_bp
 from modules.operator_achievements import operator_achievements_bp
 from modules.operator_challenges import bp as operator_challenges_bp
 from modules.shadow import shadow_bp
+from modules.business_office import business_office_bp
 from flask import redirect, url_for
 
 
@@ -81,6 +82,7 @@ app.register_blueprint(operator_analytics_bp)
 app.register_blueprint(operator_achievements_bp)
 app.register_blueprint(operator_challenges_bp)
 app.register_blueprint(shadow_bp)
+app.register_blueprint(business_office_bp)
 
 @app.route("/")
 def home():
@@ -99,12 +101,17 @@ def legacy_tasks_redirect():
 
 @app.route("/zerogravity")
 def zerogravity_dashboard():
+    # The HQ "zeroGravity Office" room links here. The Office (business
+    # module, modules/business_office.py) replaced the old survey-only page,
+    # so send it there. The old page stays reachable at /zerogravity/legacy.
+    return redirect(url_for("business_office.office"), code=302)
 
-    survey = get_survey_summary()
 
+@app.route("/zerogravity/legacy")
+def zerogravity_legacy():
     return render_template(
         "workspaces/zerogravity/dashboard.html",
-        survey=survey
+        survey=get_survey_summary()
     )
 
 
