@@ -133,7 +133,11 @@ function viewReady() {
     tile("FILED, AWAITING CHECK", claimedNoProof, "doesn't count yet", true) +
     tile("IN PROGRESS", r.in_progress, "signal found, not cleared", true) + tile("REVENUE", "£0", "this launch") + "</div>";
   var gates = '<div class="auto">' + r.gates.map(function (g) {
-    return pn(g.name, g.score, g.items.map(function (i) { return row(i.title, "CHECK · " + i.check, i.now, i.status, i.cls); }).join(""));
+    return pn(g.name, g.score, g.items.map(function (i) {
+      var r = row(i.title, "CHECK · " + i.check, i.now, i.status, i.cls);
+      if (i.can_verify) r = r.replace(/<\/div>$/, '<button type="button" class="btn" style="grid-column:1/-1;min-height:34px;margin-top:6px" data-act="verify" data-v="' + esc(i.id) + '"><span>VERIFY WITH VISION CHECK</span><small>Claude reads the file</small></button></div>');
+      return r;
+    }).join(""));
   }).join("") + "</div>";
 
   var c = DATA.company;
@@ -276,21 +280,24 @@ function viewLeads() {
 function viewPlan() {
   var P = DATA.plan;
   if (!P) return errBox("PLAN failed: " + DATA.plan_error);
-  setBanner('<div class="banner warn"><span class="tg conf">PROGRAMME PAUSED</span><span class="t">King\'s Trust reapply: Feb 2027. Judge: ' + esc(P.judge_source || "none") + " run " + esc(P.judge_run_at || "") + ". Placeholder counts are live from the plan file.</span></div>");
+  var judgeLine = P.judge_source === "claude-api" ? "Judge: " + esc(P.judge_model || "Claude") + " · " + esc(String(P.judge_run_at || "").replace("T", " ")) : "Judge: manual pass " + esc(P.judge_run_at || "") + ". Run the API judge to replace it";
+  setBanner('<div class="banner warn"><span class="tg conf">PROGRAMME PAUSED</span><span class="t">King\'s Trust reapply: Feb 2027. ' + judgeLine + ". Placeholder counts are live.</span></div>" +
+    (P.api_ready ? "" : '<div class="banner warn"><span class="tg bad">NO API KEY</span><span class="t">Put your Anthropic API key in zeroGravity/credentials/anthropic_api_key.txt (gitignored) to switch the judge on.</span></div>'));
   var pass17 = P.sections.filter(function (s) { return s.number <= 7 && s.verdict === "PASS" && s.placeholders === 0; }).length;
   var tagFor = function (s) { return s.verdict === "PASS" ? "done" : s.verdict === "FAIL" ? "bad" : "wip"; };
   var list = P.sections.map(function (s) {
     return '<button type="button" class="btn' + (UI.sec === s.number ? " sel" : "") + '" data-act="sec" data-v="' + s.number + '"><span style="display:grid;gap:2px"><span>' + esc(s.title) +
-      '</span><small style="color:#8eaa9b">' + s.placeholders + " placeholder(s) · judge " + s.met + "/" + s.total + '</small></span><span class="tg ' + tagFor(s) + '">' + esc(s.verdict) + "</span></button>";
-  }).join("");
+      '</span><small style="color:#8eaa9b">' + s.placeholders + " placeholder(s) · judge " + s.met + "/" + s.total + (s.stale ? ' · <b style="color:#ffcf5c">CHANGED</b>' : "") + '</small></span><span class="tg ' + tagFor(s) + '">' + esc(s.verdict) + "</span></button>";
+  }).join("") + '<button type="button" class="btn main" data-act="judge" data-v="changed"' + (P.api_ready && P.stale_count ? "" : " disabled") + '><span>JUDGE CHANGED</span><small>' + P.stale_count + " waiting</small></button>";
   var sel = P.sections.filter(function (s) { return s.number === UI.sec; })[0] || P.sections[0];
   var report = sel.items.map(function (i) {
     return '<div class="row"><b>' + esc(i.c) + '</b><small class="ev">' + esc(i.note) + '</small><span class="r tg ' + (i.met ? "done" : "bad") + '">' + (i.met ? "MET" : "NOT MET") + "</span></div>";
   }).join("") || '<div class="empty">Not judged yet</div>';
-  report += kv("Live placeholders in this section", String(sel.placeholders), sel.placeholders ? "color:#ffcf5c" : "");
+  report += kv("Live placeholders in this section", String(sel.placeholders), sel.placeholders ? "color:#ffcf5c" : "") +
+    '<button type="button" class="btn main" data-act="judge" data-v="' + sel.number + '"' + (P.api_ready ? "" : " disabled") + '><span>JUDGE THIS SECTION AGAIN</span><small>' + (sel.stale ? "changed since last judged" : "about 20s") + "</small></button>";
   var cross = P.cross_checks.map(function (c) { return row(c[0], "", c[2], c[1], c[1] === "FAIL" ? "bad" : "wip"); }).join("");
-  var how = kv("Trigger", "plan file changes") + kv("Sends", "section text + rubric to Claude") + kv("Returns", "met / not met per criterion") + kv("Catches", "placeholders, filler, bad maths") +
-    '<p class="nt">Typing three letters into a heading doesn\'t pass a rubric. What it <b>can\'t</b> judge is truth. That goes to mentor sign-off. Automatic judging switches on in build 2.</p>';
+  var how = kv("Trigger", "edits flagged CHANGED, you press judge") + kv("Sends", "section text + rubric to Claude") + kv("Returns", "met / not met per criterion") + kv("Catches", "placeholders, filler, bad maths") +
+    '<p class="nt">Typing three letters into a heading doesn\'t pass a rubric. What it <b>can\'t</b> judge is truth. That goes to mentor sign-off. Rubrics live in operations/office/judge_rubrics.json.</p>';
   return '<div class="cols"><div class="side" style="max-width:460px">' + pn("SECTIONS · AI JUDGE", pass17 + " / 7 PASS", list) + "</div>" +
     '<div class="wide">' + pn("JUDGE REPORT · " + sel.title, sel.met + " / " + sel.total, report) +
     '<div class="auto">' + pn("HOW THE JUDGE WORKS", "TIER 2", how) + pn("CROSS-CHECKS", "NUMBERS DON'T AGREE", cross, true) + "</div></div></div>";
@@ -321,11 +328,15 @@ function viewContent() {
     pn("PROJECTS · FOLDER SCAN", "zeroGravity-media/projects", C.projects.map(function (p) {
       var stage = p.exports.length ? "EXPORTED" : p.trims.length ? "TRIMMED" : p.misplaced_cuts.length ? "CHECK" : p.raw ? "RAW" : p.empty ? "EMPTY" : "RAW";
       var cls = { EXPORTED: "done", TRIMMED: "wip", CHECK: "conf", RAW: "todo", EMPTY: "todo" }[stage];
-      return row(p.name, "raw " + p.raw + " · trims " + p.trims.length + " · exports " + p.exports.length + (p.prproj.length ? " · .prproj" : ""),
-        (p.manifest_id ? p.manifest_id + " · permission " + p.portfolio_permission : "no manifest"), stage, cls);
+      if (!p.exports.length && !p.trims.length && p.renders) { stage = "RENDERS"; cls = "wip"; }
+      if (p.empty && p.manifest_id) { stage = "PLANNED"; cls = "todo"; }
+      var counts = "raw " + p.raw + " · trims " + p.trims.length + (p.renders || p.type === "brand" || p.type === "animation" ? " · renders " + p.renders : "") + " · exports " + p.exports.length + (p.prproj.length ? " · .prproj" : "");
+      var meta = (p.manifest_id ? p.manifest_id + " · " + p.type.toUpperCase() + " · permission " + p.portfolio_permission : "no manifest") +
+        (p.type === "brand" || p.type === "animation" ? " · doesn't count for Portfolio" : p.type === "showreel" ? " · counts for Footage edited only" : "");
+      return row(p.name, counts, meta, stage, cls);
     }).join(""));
   var right = pn("HOW A CLIP MOVES", "FOLDERS = STAGES",
-      kv("raw/", "untouched card dumps") + kv("edits/", "trims + project file") + kv("exports/", "finished cut, 30s+ (ffprobe)") + kv("published", "found on your live site") +
+      kv("raw/", "untouched card dumps") + kv("renders/", "animation exported from Blender") + kv("edits/", "trims + project file") + kv("exports/", "finished cut, 30s+ (ffprobe)") + kv("published", "found on your live site") +
       '<p class="nt">You never press "next stage". Saving a file in the right folder is the action, and the watcher reads it.' + (C.ffprobe ? "" : " <b>ffprobe isn't installed</b>, so export lengths can't be checked yet.") + "</p>") +
     pn("INGEST", "BUILD 2", '<p class="nt">Card in, files copied to a new project\'s raw/, renamed by date, checksummed, manifest created, flight log linked. Proxies for Premiere. Coming next build.</p>') +
     pn("NEEDS YOU", String(C.needs.length), C.needs.map(function (n) { return row(n.title, n.sub, n.ev, n.tag, n.cls); }).join("") || '<div class="empty">Nothing waiting on you</div>', true);
@@ -391,6 +402,16 @@ document.addEventListener("click", function (ev) {
   else if (act === "tag") {
     var nxt = NEXT_TAG[el.getAttribute("data-t")] || "hero";
     post("/business/content/tag", { key: v, tag: nxt }).then(function (r) { if (r.ok) load(); else toast(r.message || "Couldn't save tag"); });
+  }
+  else if (act === "judge") {
+    el.disabled = true;
+    var body = v === "changed" ? {} : { sections: [Number(v)] };
+    toast(v === "changed" ? "Judging changed sections... about 20s each" : "Judging §" + v + "...");
+    post("/business/judge/plan", body).then(function (r) { load(r.message || (r.ok ? "Judged" : "Judge failed")); });
+  }
+  else if (act === "verify") {
+    el.disabled = true; toast("Reading the file...");
+    post("/business/evidence/" + encodeURIComponent(v) + "/verify").then(function (r) { load(r.message || (r.ok ? "Verified" : "Not verified")); });
   }
   else if (act === "premiere") {
     post("/business/content/open", { project: v }).then(function (r) { toast(r.message || (r.ok ? "Opening Premiere" : "Couldn't open")); });

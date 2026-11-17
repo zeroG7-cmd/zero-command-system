@@ -40,10 +40,18 @@ from typing import Any
 from flask import Blueprint, jsonify, render_template, request
 
 from config import ZEROGRAVITY_DB, ZEROGRAVITY_ROOT
+from modules.business_judge import (
+    JudgeError, api_ready, evidence_state, rubrics, run_plan_judge, stale_sections, verify_evidence,
+)
 
 business_office_bp = Blueprint("business_office", __name__, url_prefix="/business")
 
 VIDEO_EXT = {".mp4", ".mov", ".mkv", ".avi", ".m4v", ".mts"}
+RENDER_EXT = VIDEO_EXT | {".png", ".exr", ".jpg", ".jpeg", ".webm"}
+# Manifest "type": client = paid/real shoot (counts for Footage edited + Portfolio),
+# showreel = cut of real drone footage (counts for Footage edited only),
+# brand / animation = launch video, animation clips (tracked, counts for neither).
+PROJECT_TYPES = ("client", "showreel", "brand", "animation")
 LEAD_STATUSES = ["contacted", "replied", "quoted", "booked", "lost"]
 TAG_VALUES = {"none", "hero", "broll", "rej"}
 
@@ -149,7 +157,11 @@ def scan_media() -> dict[str, Any]:
             prproj = sorted(edits_dir.glob("*.prproj")) if edits_dir.is_dir() else []
             prproj += sorted((folder / "premiere pro").glob("*.prproj")) if (folder / "premiere pro").is_dir() else []
             exports = _videos(folder / "exports")
+            renders_dir = folder / "renders"
+            renders = [p for p in renders_dir.rglob("*") if p.is_file() and p.suffix.lower() in RENDER_EXT] if renders_dir.is_dir() else []
             manifest = by_key.get(_norm(folder.name))
+            ptype = str((manifest or {}).get("type", "client")).lower()
+            ptype = ptype if ptype in PROJECT_TYPES else "client"
             rights = (manifest or {}).get("rights", {})
             permission = "yes" if _yes(rights.get("portfolio_permission")) else ("unknown" if manifest is None or str(rights.get("portfolio_permission", "unknown")).lower() in {"", "unknown"} else "no")
             export_info = [{"name": p.name, "seconds": _duration(p), "bytes": p.stat().st_size} for p in exports]
@@ -163,8 +175,11 @@ def scan_media() -> dict[str, Any]:
                 "exports": export_info,
                 "misplaced_cuts": misplaced,
                 "manifest_id": (manifest or {}).get("project_id"),
+                "type": ptype,
+                "renders": len(renders),
+                "destinations": (manifest or {}).get("destinations", []),
                 "portfolio_permission": permission,
-                "empty": not raw and not edits and not exports and not prproj,
+                "empty": not raw and not edits and not exports and not prproj and not renders,
             })
     return {"root": str(root), "exists": root.is_dir(), "ffprobe": bool(_FFPROBE), "projects": projects}
 
@@ -194,6 +209,7 @@ def _plan_sections(readiness: dict[str, Any]) -> dict[int, str]:
 def plan_status(readiness: dict[str, Any]) -> dict[str, Any]:
     sections = _plan_sections(readiness)
     judge = _load_json(_office_dir() / "plan_judge.json", {"sections": {}, "cross_checks": []})
+    stale = set(stale_sections(sections))
     out = []
     for number in range(1, 9):
         body = sections.get(number, "")
@@ -216,11 +232,14 @@ def plan_status(readiness: dict[str, Any]) -> dict[str, Any]:
             "placeholders": len(holders),
             "bracket_figures": len(figures),
             "money_placeholders": money,
+            "stale": number in stale,
             "met": sum(1 for i in items if i["met"]),
             "total": len(items),
             "items": items,
         })
-    return {"sections": out, "cross_checks": judge.get("cross_checks", []), "judge_source": judge.get("source"), "judge_run_at": judge.get("run_at")}
+    return {"sections": out, "cross_checks": judge.get("cross_checks", []), "judge_source": judge.get("source"),
+            "judge_run_at": judge.get("run_at"), "judge_model": judge.get("model"), "api_ready": api_ready(),
+            "stale_count": len(stale)}
 
 
 # ---------------------------------------------------------------- checks
@@ -259,11 +278,18 @@ def _evaluate(item: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
     res = {"passed": False, "status": "TO DO", "cls": "todo", "now": ""}
 
     if kind == "evidence":
-        folder = _office_dir() / "evidence" / item["id"]
-        files = [p for p in folder.iterdir() if p.is_file()] if folder.is_dir() else []
-        if files:
-            res.update(status="FILED", cls="conf", filed=True,
-                       now=f"{files[0].name} in the vault. Counts once the vision check confirms it (build 2)")
+        ev = evidence_state(item["id"])
+        st = ev["state"]
+        if st == "verified":
+            res.update(passed=True, evidence=f"{ev.get('doc') or 'document'} · expires {ev.get('expiry') or 'not stated'}",
+                       now=f"Vision check passed · expires {ev.get('expiry') or 'not stated'}")
+        elif st == "expired":
+            res.update(status="EXPIRED", cls="bad", now=f"Expired {ev['expiry']}. Re-locked until you file a current one")
+        elif st == "rejected":
+            res.update(status="REJECTED", cls="bad", can_verify=True, now="; ".join(ev.get("reasons", [])) or "Didn't pass")
+        elif st == "filed":
+            res.update(status="FILED", cls="conf", filed=True, can_verify=True,
+                       now=f"{ev['file']} in the vault. Press VERIFY to run the vision check")
         else:
             res["now"] = f"No file in evidence/{item['id']}/ yet"
 
@@ -291,7 +317,10 @@ def _evaluate(item: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
         need = check.get("min", 1)
         min_s = check.get("min_seconds", 30)
         good, unknown = [], 0
+        types = check.get("types") or (["client"] if check.get("require_permission") else ["client", "showreel"])
         for p in media["projects"]:
+            if p["type"] not in types:
+                continue
             if check.get("require_permission") and p["portfolio_permission"] != "yes":
                 continue
             for e in p["exports"]:
@@ -322,12 +351,13 @@ def _evaluate(item: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
         plan = ctx["plan"]
         wanted = [s for s in plan["sections"] if s["number"] in check.get("sections", [])]
         holders = sum(s["placeholders"] for s in wanted)
-        passing = sum(1 for s in wanted if s["verdict"] == "PASS" and s["placeholders"] == 0)
+        passing = sum(1 for s in wanted if s["verdict"] == "PASS" and s["placeholders"] == 0 and not s.get("stale"))
+        changed = sum(1 for s in wanted if s.get("stale"))
         if wanted and passing == len(wanted):
             res.update(passed=True, evidence=f"{passing} section(s) pass, 0 placeholders", now="All sections pass")
         else:
             res.update(status="IN PROGRESS", cls="wip",
-                       now=f"{passing} of {len(wanted)} pass. {holders} placeholder(s) left")
+                       now=f"{passing} of {len(wanted)} pass. {holders} placeholder(s) left" + (f". {changed} need judging" if changed else ""))
 
     elif kind == "plan_figures":
         plan = ctx["plan"]
@@ -531,8 +561,9 @@ def content_status(media: dict[str, Any]) -> dict[str, Any]:
         if not p["empty"] and not p["manifest_id"]:
             needs.append({"title": p["name"], "sub": "No manifest", "ev": "Run media/manifests/create_manifest.py", "tag": "MANIFEST", "cls": "conf"})
         elif p["manifest_id"] and p["portfolio_permission"] != "yes":
-            needs.append({"title": p["name"], "sub": "Portfolio permission not confirmed", "ev": "Update the manifest's rights", "tag": "PERMISSION", "cls": "conf"})
-        if p["empty"]:
+            sub = "Uses client footage: confirm every source project can be shown publicly" if p["type"] == "showreel" else "Portfolio permission not confirmed"
+            needs.append({"title": p["name"], "sub": sub, "ev": "Update the manifest's rights", "tag": "PERMISSION", "cls": "conf"})
+        if p["empty"] and not p["manifest_id"]:
             needs.append({"title": p["name"], "sub": "Empty project folder", "ev": "", "tag": "CLEAN UP", "cls": "todo"})
     select = max(projects, key=lambda p: len(p["trims"]), default=None)
     clips = []
@@ -545,7 +576,7 @@ def content_status(media: dict[str, Any]) -> dict[str, Any]:
         ["INGEST", sum(1 for p in projects if p["manifest_id"]), "projects with manifest", "AUTO"],
         ["VERIFY", sum(1 for p in projects if p["portfolio_permission"] == "yes"), "permission ok", "YOU"],
         ["SELECT", heroes, "heroes", "YOU"],
-        ["EDIT", sum(len(p["trims"]) for p in projects), "trims", "PREMIERE"],
+        ["EDIT", sum(len(p["trims"]) + p["renders"] for p in projects), "trims + renders", "PREMIERE"],
         ["REVIEW", 0, "cuts checked", "YOU"],
         ["EXPORT", sum(len(p["exports"]) for p in projects), "exports", "AUTO CHECK"],
         ["PUBLISH", 0, "on website", "AUTO CHECK"],
@@ -581,6 +612,39 @@ def open_premiere():
         return jsonify({"ok": False, "message": "Opening Premiere only works on Windows"}), 400
     os.startfile(project["prproj"][0])  # noqa: S606 - local desktop app, path comes from our own scan
     return jsonify({"ok": True, "message": f"Opening {Path(project['prproj'][0]).name}"})
+
+
+# ---------------------------------------------------------------- judge routes
+@business_office_bp.post("/judge/plan")
+def judge_plan():
+    body = request.get_json(silent=True) or {}
+    which = body.get("sections")
+    which = [int(n) for n in which] if isinstance(which, list) and which else None
+    readiness = _load_json(_office_dir() / "readiness.json", {})
+    try:
+        sections = _plan_sections(readiness)
+    except OSError as error:
+        return jsonify({"ok": False, "message": f"Plan file not readable: {error}"}), 500
+    result = run_plan_judge(sections, which, force=bool(body.get("force")))
+    if not result["judged"] and not result["errors"]:
+        return jsonify({"ok": True, "message": "Nothing changed since the last judge run"})
+    msg = (f"Judged §{', §'.join(str(n) for n in result['judged'])}" if result["judged"] else "")
+    if result["errors"]:
+        msg = (msg + " · " if msg else "") + " · ".join(result["errors"])
+    return jsonify({"ok": not result["errors"], "message": msg}), (200 if result["judged"] or not result["errors"] else 502)
+
+
+@business_office_bp.post("/evidence/<item_id>/verify")
+def verify_item(item_id: str):
+    if item_id not in rubrics().get("evidence", {}):
+        return jsonify({"ok": False, "message": "Unknown evidence item"}), 404
+    try:
+        verdict = verify_evidence(item_id)
+    except JudgeError as error:
+        return jsonify({"ok": False, "message": str(error)}), 502
+    if verdict["passed"]:
+        return jsonify({"ok": True, "message": f"Verified · expires {verdict['expiry_date'] or 'not stated'}"})
+    return jsonify({"ok": False, "message": "Rejected: " + "; ".join(verdict["reasons"])})
 
 
 # ---------------------------------------------------------------- company
