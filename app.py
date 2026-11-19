@@ -41,6 +41,7 @@ from modules.operator_achievements import operator_achievements_bp
 from modules.operator_challenges import bp as operator_challenges_bp
 from modules.shadow import shadow_bp
 from modules.business_office import business_office_bp
+from modules.home_brief import home_brief_bp
 from flask import redirect, url_for
 
 
@@ -83,9 +84,19 @@ app.register_blueprint(operator_achievements_bp)
 app.register_blueprint(operator_challenges_bp)
 app.register_blueprint(shadow_bp)
 app.register_blueprint(business_office_bp)
+app.register_blueprint(home_brief_bp)  # GET /home/brief - the home screen speech bubble
 
 @app.route("/")
 def home():
+    # Zero Command home world (19 Nov 2026 brief): templates/home_world.html +
+    # static/js/home_world.js. Data comes from /home/layout, /home/brief and
+    # /operator/api/summary (modules/home_brief.py, modules/operator.py).
+    return render_template("home_world.html")
+
+
+@app.route("/home/legacy")
+def home_legacy():
+    # The earlier HQ cross-section page that used to be "/", kept reachable.
     return render_template(
         "home.html",
         tests_completed=get_total_tests(),

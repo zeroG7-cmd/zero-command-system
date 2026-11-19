@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home | Zero Command</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home_world.css') }}">
+<script type="importmap">{"imports":{"three":"{{ url_for('static', filename='js/vendor/three.module.js') }}"}}</script>
+</head>
+<body>
+{# Zero Command home screen (19 Nov 2026 brief). The world only draws:
+   the bubble comes from /home/brief, the layout from /home/layout, level
+   from /operator/api/summary. Rooms are the existing Flask pages. The old
+   HQ page lives on at /home/legacy. #}
+<div id="world" class="retro"><div id="overlay"></div></div>
+
+<div class="hud" id="hud">
+  <div class="hp hud-l">
+    <div class="clock" id="hClock">--:--</div>
+    <div class="date" id="hDate">&nbsp;</div>
+    <div class="loc">LOC <b id="hLoc">LIVING AREA</b></div>
+  </div>
+  <div class="hud-r">
+    <a class="hp lv" id="hLevel" href="{{ url_for('operator.dashboard') }}" title="Operator level">
+      <div class="hex" id="hLv">-</div>
+      <div><b id="hLvText">OPERATOR</b><small id="hXp">&nbsp;</small><span class="xpchip" id="xpChip"></span></div>
+    </a>
+    <button class="hp hbtn wallet" id="hWallet" title="Personal money, from your monthly statement import. Masked by default.">£ ••••<small>TAP</small></button>
+    <button class="hp hbtn cam" id="hCam" title="Switch camera (V)">CAM · RETRO <small>V</small></button>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div class="fx" id="fx"></div>
+
+<script type="module" src="{{ url_for('static', filename='js/home_world.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "note": "Home world layout as data (Zero Command home screen, 19 Nov 2026). Units are metres, x east, z south, house floor at y 0.1. Rooms point at existing Flask endpoints; /home/layout resolves them with url_for, so a renamed route can't silently break a door. Walls: [x0, z0, x1, z1, height]; back walls are tall and camera-facing walls low (Sims cutaway). Colliders: [x0, z0, x1, z1] footprints of furniture. A Unity port reads this same file.",
+  "bounds": 16,
+  "spawn": [0, 1],
+  "rooms": [
+    {"id": "office",   "name": "OFFICE",       "endpoint": "business_office.office",         "zone": [-13, -10, -4.5, -1], "station": [-5.6, -5], "exit": [-2.8, -5], "label": [-8.75, 3.0, -5.5]},
+    {"id": "operator", "name": "OPERATOR DEV", "endpoint": "operator.dashboard",             "zone": [4.5, -10, 13, -1],   "station": [5.6, -5],  "exit": [2.8, -5],  "label": [8.75, 3.0, -5.5]},
+    {"id": "lab",      "name": "DIGITAL LAB",  "endpoint": "research_development.dashboard", "zone": [-13, -1, -4.5, 8],   "station": [-5.6, 3],  "exit": [-2.8, 3],  "label": [-8.75, 3.0, 3.5]},
+    {"id": "flight",   "name": "FLIGHT PAD",   "endpoint": "operator_flights.dashboard",     "circle": [0, 12.6, 3.2],     "station": [0, 10.6],  "exit": [0, 9.4],   "label": [0, 4.6, 12.6]},
+    {"id": "living",   "name": "LIVING AREA",  "endpoint": null,                             "zone": [-4.5, -10, 4.5, 8],  "label": [0, 2.6, -6]},
+    {"id": "locked",   "name": "LOCKED ROOM",  "endpoint": null, "locked": "Locked for now. A new room opens here when it's earned.", "zone": [4.5, -1, 13, 8], "label": [8.75, 2.6, 3.5]}
+  ],
+  "walls": [
+    [-13, -10, 13, -10, 2.8], [-13, -10, -13, 8, 2.8],
+    [-13, 8, -1.3, 8, 0.8], [1.3, 8, 13, 8, 0.8], [13, -10, 13, 8, 0.8],
+    [-4.5, -10, -4.5, -6.2, 1.1], [-4.5, -3.8, -4.5, 1.9, 1.1], [-4.5, 4.1, -4.5, 8, 1.1],
+    [4.5, -10, 4.5, -6.2, 1.1], [4.5, -3.8, 4.5, 1.9, 1.1], [4.5, 4.1, 4.5, 8, 1.1],
+    [-13, -1, -4.5, -1, 1.1], [4.5, -1, 13, -1, 1.1]
+  ],
+  "doors": [[-4.5, -6.2, -3.8], [4.5, -6.2, -3.8], [-4.5, 1.9, 4.1], [4.5, 1.9, 4.1]],
+  "colliders": [
+    [-10.4, -7.8, -7.1, -6.6], [-12.8, -8.2, -12.3, -5.8], [-2.1, -8.9, 2.1, -7.6], [-0.9, -6.8, 0.9, -5.8],
+    [-10.8, 6, -6.7, 7.2], [-12.8, 6.4, -11.9, 7.2], [7.5, -9.7, 10.5, -9.1], [11.4, -2.6, 12.2, -1.8],
+    [4.3, 1.9, 4.7, 4.1], [7.6, 3.4, 10.8, 6.6], [-1.75, 7.95, -1.25, 8.45], [1.25, 7.95, 1.75, 8.45]
+  ],
+  "trees": [[-15, -14], [-11, -14], [-15, -2], [-15, 6], [-15, 14], [-6, 15], [6, 15], [15, 14], [15, 6], [15, -3], [11, -14], [15, -14], [-4, -14.5], [4, -14.5]],
+  "flight_pad": {"center": [0, 12.6], "radius": 2.6, "hover": 2.4, "orbit": 1.2},
+  "lab_bench": [-8.2, 1.25, 6.4]
+}
