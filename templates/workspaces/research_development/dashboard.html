@@ -223,6 +223,28 @@ body.sim-fullwindow #sim-fullwindow-btn{position:fixed!important;z-index:2001!im
 [data-view=twin] #twin-ov-mass{max-height:30vh}
 [data-view=twin] #twin-ov-payload{max-height:30vh}
 .ov-bc{left:50%;bottom:28px;transform:translateX(-50%);width:min(560px,calc(100% - 2*var(--gutter-l)));max-height:none}
+[data-view=twin] .ov-bc{width:min(660px,calc(100% - 2*var(--gutter-l)))}
+.tjgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin-top:8px}
+/* Twin room HUD: compact + collapsible so the model stays visible. Click a panel's title bar to fold or unfold it. */
+[data-view=twin] .twin-hud .bar-head{cursor:pointer;padding:3px 8px;font-size:10px;letter-spacing:.16em;user-select:none}
+[data-view=twin] .twin-hud .bar-head>span:first-child::before{content:"\25BE  "}
+[data-view=twin] .twin-hud.collapsed .bar-head>span:first-child::before{content:"\25B8  "}
+[data-view=twin] .twin-hud.collapsed>.pn>.frame{display:none}
+[data-view=twin] .twin-hud .frame{padding:6px 8px;gap:5px;background:rgba(8,16,13,.72)}
+[data-view=twin] .twin-hud .btns.h{grid-template-columns:repeat(6,1fr);gap:4px}
+[data-view=twin] .twin-hud .btn{padding:3px 6px;font-size:9px;letter-spacing:.06em;gap:4px;justify-content:center;white-space:nowrap}
+[data-view=twin] .twin-hud .tjgrid{grid-template-columns:repeat(3,1fr);gap:1px 12px;margin-top:2px}
+[data-view=twin] .twin-hud .tj{font-size:9px}
+[data-view=twin] .twin-hud .tj input{margin:0;height:14px}
+[data-view=twin] .ov-bc{width:min(520px,calc(100% - 2*var(--gutter-l) - 520px));min-width:420px}
+[data-view=twin] .ov-br{width:min(300px,30vw);min-width:250px}
+[data-view=twin] .ov-bl{width:min(210px,20vw);min-width:180px}
+[data-view=twin] #twin-ov-parts{max-height:min(calc(100% - 94px),34vh)}
+[data-view=twin] #twin-ov-detail{max-height:34vh}
+
+.tj{display:grid;grid-template-columns:1fr auto;gap:0 6px;font:500 10px var(--mono);letter-spacing:.08em;color:var(--muted)}
+.tj b{color:inherit;font-weight:700;filter:brightness(1.6)}
+.tj input{grid-column:1 / -1;width:100%;accent-color:var(--accent);margin:2px 0 0}
 .fpv{position:relative;width:100%;aspect-ratio:4/3;border:1px solid var(--line-strong);background:#000;overflow:hidden}
 .fpv canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .fpv .fpvtag{position:absolute;left:5px;top:4px;font:600 8px var(--mono);color:var(--warm);letter-spacing:.1em;z-index:2;background:rgba(0,0,0,.5);padding:1px 4px}
@@ -490,8 +512,8 @@ table.t td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
   <div class="stage-loading" id="twin-loading">LOADING SHADOW&hellip;</div>
   <div class="ov twin-hud ov-tl" id="twin-ov-parts"></div>
   <div class="ov twin-hud ov-tr" id="twin-ov-detail"></div>
-  <div class="ov twin-hud ov-bl" id="twin-ov-mass"></div>
-  <div class="ov twin-hud ov-br" id="twin-ov-payload"></div>
+  <div class="ov twin-hud ov-bl collapsed" id="twin-ov-mass"></div>
+  <div class="ov twin-hud ov-br collapsed" id="twin-ov-payload"></div>
   <div class="ov twin-hud ov-bc" id="twin-ov-controls"></div>
 
   <div class="toast" id="toast" role="status"></div>
@@ -554,10 +576,10 @@ function recomputeDerived(){
 }
 recomputeDerived();
 const SYS={
- FRAME:{n:"FRAME",role:"Carries everything else. Body, four landing feet.",real:"Real parts: base_link, 4x 19x19_feet, 4x M5 Lock nut, 4x Spacer."},
- PROPULSION:{n:"PROPULSION",role:"Four Racerstar BR2205 2300KV motors turning 5045 tri-blade props, CW/CCW on diagonals.",real:"Real parts: 4x Racerstar-BR2205-2300KV, 2x 5045 CW, 2x 5045 CCW."},
- AVIONICS:{n:"AVIONICS",role:"Raspberry Pi 3B plus the Navio2 autopilot HAT. Runs ROS and ArduPilot, drives the ESCs.",real:"Real parts: Navio2_Platform_v2, Companion Computer Flight Controller Stack."},
- SENSORS:{n:"SENSORS",role:"RPLIDAR A2M12 (360 degree, 12 m) and the front camera gimbal mount.",real:"Real parts: LIDAR_1, LIDAR_2, LiDAR_Deck, Gimbal_Upright_Fit_Check_Assembly (PiCam + pan/tilt servos)."}
+ FRAME:{n:"FRAME",role:"Carries everything else. Body, four landing feet.",real:"Real parts: airframe plates, 4 landing feet, M5 lock nuts, standoff spacers (all inside the one fused base_link mesh, split by geometry)."},
+ PROPULSION:{n:"PROPULSION",role:"Four Racerstar BR2205 2300KV motors turning 5045 tri-blade props, CW/CCW on diagonals.",real:"Real parts: 4 motors, 4 props as real continuous joints (prop_1 and prop_3 CCW, prop_2 and prop_4 CW, measured from the blade pitch)."},
+ AVIONICS:{n:"AVIONICS",role:"Raspberry Pi 3B plus the Navio2 autopilot HAT. Runs ROS and ArduPilot, drives the ESCs.",real:"Real parts: Navio2 platform, Pi 3B + Navio2 stack, standoffs."},
+ SENSORS:{n:"SENSORS",role:"RPLIDAR A2M12 (360 degree, 12 m) and the front camera gimbal mount.",real:"Real parts: LiDAR deck, LiDAR base, spinning LiDAR head (joint), gimbal mount, gimbal pan and tilt links (joints), camera link."}
 };
 
 /* ------------------------------------------------------------------ Digital
@@ -568,72 +590,64 @@ const SYS={
    than the Hub's 4-system SYS object above (adds HARDWARE for the small
    fasteners/standoffs shadow.xacro groups separately) - SYS itself is left
    untouched since the Hub's own hotspot popovers still read it. */
-const PART_SYSTEMS=["FRAME","PROPULSION","AVIONICS","SENSORS","HARDWARE"];
+const PART_SYSTEMS=["FRAME","PROPULSION","POWER","AVIONICS","SENSORS","MANIPULATOR","HARDWARE"];
 const PART_SYSTEM_DESC={
- FRAME:"Carries everything else. Body plate and four landing feet.",
- PROPULSION:"Four Racerstar BR2205 2300KV motors turning 5045 tri-blade props, CW/CCW on diagonals.",
+ FRAME:"Carries everything else. Body plates and four landing feet.",
+ PROPULSION:"Four Racerstar BR2205 2300KV motors turning 5045 tri-blade props, CW/CCW on diagonals. Props are real continuous joints.",
+ POWER:"Battery pack slung under the frame.",
  AVIONICS:"Raspberry Pi 3B plus the Navio2 autopilot HAT. Runs ROS and ArduPilot, drives the ESCs.",
- SENSORS:"RPLIDAR A2M12 (360 degree, 12 m) and the front camera gimbal mount.",
- HARDWARE:"Fasteners and standoffs holding the frame plates together - shadow.xacro's own small-parts group, not a separate physical system."
+ SENSORS:"RPLIDAR A2M12 (360 degree, 12 m) and the front camera on its pan/tilt gimbal.",
+ MANIPULATOR:"Folding arm under the belly: shoulder, elbow, wrist roll and a two-finger claw. All real joints.",
+ HARDWARE:"Fasteners and standoffs holding the frame plates together."
 };
 const PARTS=[
- {id:"base_link",name:"Main Frame Body",sys:"FRAME",mass:485.9,note:"141 g (ZMR250 frame, component library)",mesh:"base_link.stl",desc:"The main carbon-fibre frame plate. Everything else mounts to this."},
- {id:"motor_1",name:"Motor 1, Racerstar BR2205",sys:"PROPULSION",mass:66.3,note:"29 g each",mesh:"Racerstar-BR2205-2300KV_1.stl",desc:"One of the four Racerstar BR2205 2300KV motors, direct-driving its prop."},
- {id:"motor_2",name:"Motor 2, Racerstar BR2205",sys:"PROPULSION",mass:66.3,note:"29 g each",mesh:"Racerstar-BR2205-2300KV_2.stl",desc:"One of the four Racerstar BR2205 2300KV motors, direct-driving its prop."},
- {id:"motor_3",name:"Motor 3, Racerstar BR2205",sys:"PROPULSION",mass:66.3,note:"29 g each",mesh:"Racerstar-BR2205-2300KV_3.stl",desc:"One of the four Racerstar BR2205 2300KV motors, direct-driving its prop."},
- {id:"motor_4",name:"Motor 4, Racerstar BR2205",sys:"PROPULSION",mass:66.3,note:"29 g each",mesh:"Racerstar-BR2205-2300KV_4.stl",desc:"One of the four Racerstar BR2205 2300KV motors, direct-driving its prop."},
- {id:"prop_1",name:"Propeller 1, 5045 CCW",sys:"PROPULSION",mass:21.3,note:"",mesh:"5045_CCW_1.stl",desc:"One of the four 5045 tri-blade propellers. CW and CCW alternate on diagonals to cancel torque."},
- {id:"prop_2",name:"Propeller 2, 5045 CW",sys:"PROPULSION",mass:21.3,note:"",mesh:"5045_CW_1.stl",desc:"One of the four 5045 tri-blade propellers. CW and CCW alternate on diagonals to cancel torque."},
- {id:"prop_3",name:"Propeller 3, 5045 CCW",sys:"PROPULSION",mass:21.3,note:"",mesh:"5045_CCW_2.stl",desc:"One of the four 5045 tri-blade propellers. CW and CCW alternate on diagonals to cancel torque."},
- {id:"prop_4",name:"Propeller 4, 5045 CW",sys:"PROPULSION",mass:21.3,note:"",mesh:"5045_CW_2.stl",desc:"One of the four 5045 tri-blade propellers. CW and CCW alternate on diagonals to cancel torque."},
- {id:"nut_1",name:"M5 Lock Nut",sys:"HARDWARE",mass:1.3,note:"shadow.xacro lists one; the model's own mesh carries 4",mesh:"M5_Lock_nut_1.stl",desc:"M5 lock nut. Four on the real model, one per corner post."},
- {id:"foot_1",name:"Foot 1, 19x19",sys:"FRAME",mass:52.6,note:"",mesh:"19x19_feet_1.stl",desc:"One of the four 19x19 landing feet."},
- {id:"foot_2",name:"Foot 2, 19x19",sys:"FRAME",mass:52.6,note:"",mesh:"19x19_feet_2.stl",desc:"One of the four 19x19 landing feet."},
- {id:"foot_3",name:"Foot 3, 19x19",sys:"FRAME",mass:52.6,note:"",mesh:"19x19_feet_3.stl",desc:"One of the four 19x19 landing feet."},
- {id:"foot_4",name:"Foot 4, 19x19",sys:"FRAME",mass:52.6,note:"",mesh:"19x19_feet_4.stl",desc:"One of the four 19x19 landing feet."},
- {id:"navio2",name:"Navio2 Mounting Platform",sys:"AVIONICS",mass:188.0,note:"Navio2 board itself about 23 g",mesh:"Navio2_Platform_v2__1__1.stl",desc:"Mounting platform for the Navio2 autopilot HAT."},
- {id:"spacer_1",name:"Standoff Spacer 1",sys:"HARDWARE",mass:3.4,note:"",mesh:"Spacer_1.stl",desc:"Standoff spacer holding the two frame plates apart."},
- {id:"spacer_2",name:"Standoff Spacer 2",sys:"HARDWARE",mass:3.4,note:"",mesh:"Spacer_2.stl",desc:"Standoff spacer holding the two frame plates apart."},
- {id:"spacer_3",name:"Standoff Spacer 3",sys:"HARDWARE",mass:3.4,note:"",mesh:"Spacer_3.stl",desc:"Standoff spacer holding the two frame plates apart."},
- {id:"spacer_4",name:"Standoff Spacer 4",sys:"HARDWARE",mass:3.4,note:"",mesh:"Spacer_4.stl",desc:"Standoff spacer holding the two frame plates apart."},
- {id:"lidar_deck",name:"LiDAR Mounting Deck",sys:"SENSORS",mass:141.5,note:"",mesh:"LiDAR_Deck__1__1.stl",desc:"Mounting deck for the RPLIDAR unit."},
- {id:"compute_stack",name:"Pi 3B + Navio2 Stack",sys:"AVIONICS",mass:358.9,note:"120 to 150 g combined (estimate)",mesh:"Companion_Computer_Flight_Controller_Stack_1.stl",desc:"Raspberry Pi 3B and flight-controller stack, bolted to the Navio2 platform."},
- {id:"gimbal",name:"Gimbal Upright / Camera Mount",sys:"SENSORS",mass:452.6,note:"",mesh:"Gimbal_Upright_Fit_Check_Assembly_1.stl",desc:"Camera gimbal upright with pan/tilt mount for the front PiCam."},
- {id:"lidar_base",name:"RPLIDAR A2M12, Base",sys:"SENSORS",mass:845.7,note:"190 g for the whole unit",mesh:"LIDAR_2_1.stl",desc:"Base housing of the RPLIDAR A2M12, fixed to the deck."},
- {id:"lidar_head",name:"RPLIDAR A2M12, Spinning Head",sys:"SENSORS",mass:434.3,note:"190 g for the whole unit",mesh:"LIDAR_1_1.stl",desc:"Spinning scanning head of the RPLIDAR A2M12."}
+ {id:"base_link",name:"Main Frame Body",sys:"FRAME",mass:839.55,note:"The whole fused airframe is ONE 839.6 g lump in the URDF: frame, feet, motors, battery, Pi stack, LiDAR base. The CAD gives no per-part masses inside it.",mesh:"base_link.stl (split by geometry)",desc:"The carbon-fibre frame plates. Everything else mounts to this."},
+ {id:"foot_1",name:"Foot 1",sys:"FRAME",mass:null,note:"",mesh:"base_link.stl (split)",desc:"One of the four landing feet."},
+ {id:"foot_2",name:"Foot 2",sys:"FRAME",mass:null,note:"",mesh:"base_link.stl (split)",desc:"One of the four landing feet."},
+ {id:"foot_3",name:"Foot 3",sys:"FRAME",mass:null,note:"",mesh:"base_link.stl (split)",desc:"One of the four landing feet."},
+ {id:"foot_4",name:"Foot 4",sys:"FRAME",mass:null,note:"",mesh:"base_link.stl (split)",desc:"One of the four landing feet."},
+ {id:"motor_1",name:"Motor 1, Racerstar BR2205",sys:"PROPULSION",mass:null,note:"Front right",mesh:"base_link.stl (split)",desc:"Racerstar BR2205 2300KV, direct-driving prop 1."},
+ {id:"motor_2",name:"Motor 2, Racerstar BR2205",sys:"PROPULSION",mass:null,note:"Front left",mesh:"base_link.stl (split)",desc:"Racerstar BR2205 2300KV, direct-driving prop 2."},
+ {id:"motor_3",name:"Motor 3, Racerstar BR2205",sys:"PROPULSION",mass:null,note:"Rear left",mesh:"base_link.stl (split)",desc:"Racerstar BR2205 2300KV, direct-driving prop 3."},
+ {id:"motor_4",name:"Motor 4, Racerstar BR2205",sys:"PROPULSION",mass:null,note:"Rear right",mesh:"base_link.stl (split)",desc:"Racerstar BR2205 2300KV, direct-driving prop 4."},
+ {id:"prop_1",name:"Propeller 1, CCW",sys:"PROPULSION",mass:6.5,note:"Front right. Handedness measured from the blade pitch",mesh:"prop_1.stl",desc:"5045 tri-blade prop. CW and CCW alternate on diagonals to cancel torque."},
+ {id:"prop_2",name:"Propeller 2, CW",sys:"PROPULSION",mass:6.5,note:"Front left. Handedness measured from the blade pitch",mesh:"prop_2.stl",desc:"5045 tri-blade prop. CW and CCW alternate on diagonals to cancel torque."},
+ {id:"prop_3",name:"Propeller 3, CCW",sys:"PROPULSION",mass:6.5,note:"Rear left. Handedness measured from the blade pitch",mesh:"prop_3.stl",desc:"5045 tri-blade prop. CW and CCW alternate on diagonals to cancel torque."},
+ {id:"prop_4",name:"Propeller 4, CW",sys:"PROPULSION",mass:6.5,note:"Rear right. Handedness measured from the blade pitch",mesh:"prop_4.stl",desc:"5045 tri-blade prop. CW and CCW alternate on diagonals to cancel torque."},
+ {id:"battery_pack",name:"Battery Pack",sys:"POWER",mass:null,note:"Inside the frame lump mass",mesh:"base_link.stl (split)",desc:"Battery pack under the frame (yellow)."},
+ {id:"navio2",name:"Navio2 Mounting Platform",sys:"AVIONICS",mass:null,note:"",mesh:"base_link.stl (split)",desc:"Mounting platform for the Navio2 autopilot HAT."},
+ {id:"compute_stack",name:"Pi 3B + Navio2 Stack",sys:"AVIONICS",mass:null,note:"",mesh:"base_link.stl (split)",desc:"Raspberry Pi 3B and flight-controller stack, bolted to the Navio2 platform."},
+ {id:"spacer_lower",name:"Standoffs, Lower",sys:"HARDWARE",mass:null,note:"",mesh:"base_link.stl (split)",desc:"Lower standoff spacers holding the frame plates apart."},
+ {id:"spacer_upper",name:"Standoffs, Upper",sys:"HARDWARE",mass:null,note:"",mesh:"base_link.stl (split)",desc:"Upper standoff spacers carrying the compute stack and LiDAR deck."},
+ {id:"nut",name:"M5 Lock Nuts",sys:"HARDWARE",mass:null,note:"",mesh:"base_link.stl (split)",desc:"M5 lock nuts, one per corner post."},
+ {id:"lidar_deck",name:"LiDAR Mounting Deck",sys:"SENSORS",mass:null,note:"",mesh:"base_link.stl (split)",desc:"Mounting deck for the RPLIDAR unit."},
+ {id:"lidar_base",name:"RPLIDAR A2M12, Base",sys:"SENSORS",mass:null,note:"",mesh:"base_link.stl (split)",desc:"Base housing of the RPLIDAR A2M12, fixed to the deck."},
+ {id:"lidar_head",name:"RPLIDAR A2M12, Spinning Head",sys:"SENSORS",mass:50.0,note:"Continuous joint, spins in the Hub and Sim Bay",mesh:"lidar_head.stl",desc:"Spinning scanning head of the RPLIDAR A2M12."},
+ {id:"gimbal",name:"Gimbal Upright / Camera Mount",sys:"SENSORS",mass:null,note:"",mesh:"base_link.stl (split)",desc:"Fixed upright the pan/tilt camera mounts on."},
+ {id:"gimbal_pan_link",name:"Gimbal Pan Link",sys:"SENSORS",mass:19.52,note:"Revolute joint, plus or minus 15 degrees",mesh:"gimbal_pan_link.stl",desc:"Pans the camera left and right."},
+ {id:"gimbal_tilt_link",name:"Camera and Tilt Link",sys:"SENSORS",mass:15.33,note:"Revolute joint, plus or minus 90 degrees",mesh:"gimbal_tilt_link.stl",desc:"Tilts the camera. This is the front camera body."},
+ {id:"upper_arm",name:"Arm, Upper Link",sys:"MANIPULATOR",mass:28.84,note:"Shoulder joint, 0 to 110 degrees",mesh:"upper_arm.stl",desc:"Folds against the belly, swings down on the shoulder joint."},
+ {id:"forearm",name:"Arm, Forearm",sys:"MANIPULATOR",mass:26.53,note:"Elbow joint, 0 to 225 degrees (limits are provisional)",mesh:"forearm.stl",desc:"Folds back against the upper link on the elbow joint."},
+ {id:"claw_base",name:"Claw Body",sys:"MANIPULATOR",mass:38.74,note:"Wrist roll joint, plus or minus 90 degrees",mesh:"claw_base.stl",desc:"Claw housing and servo. Rolls on the wrist joint."},
+ {id:"claw_finger_right",name:"Claw Finger, Right",sys:"MANIPULATOR",mass:2.64,note:"Prismatic joint, 0 to 21.6 mm",mesh:"claw_finger_right.stl",desc:"Right finger. Driven open and closed."},
+ {id:"claw_finger_left",name:"Claw Finger, Left",sys:"MANIPULATOR",mass:2.64,note:"Mimics the right finger",mesh:"claw_finger_left.stl",desc:"Left finger. Mirrors the right finger."}
 ];
 const PARTS_BY_ID={};PARTS.forEach(p=>PARTS_BY_ID[p.id]=p);
-const CAD_MASS_TOTAL=+PARTS.reduce((a,p)=>a+p.mass,0).toFixed(1);
+const CAD_MASS_TOTAL=+PARTS.reduce((a,p)=>a+(p.mass||0),0).toFixed(1);
+const PART_NODE_IDS=new Set(PARTS.filter(p=>p.id!=="base_link").map(p=>p.id));
 // Called out explicitly, not hidden, per the review's own "show it, do not
 // hide it" rule - these are the rows where a catalogue/datasheet figure
 // exists to check the CAD mass against.
 const MASS_CHECK=[
- {label:"Frame (base_link)",cad:485.9,cat:141,catLabel:"141 g, ZMR250 frame (component library)"},
- {label:"Each motor",cad:66.3,cat:29,catLabel:"29 g each, Racerstar BR2205 datasheet"},
- {label:"LiDAR unit, base + head combined",cad:+(845.7+434.3).toFixed(1),cat:190,catLabel:"190 g, RPLIDAR A2M12 datasheet, whole unit"},
- {label:"Navio2 mounting platform",cad:188.0,cat:23,catLabel:"about 23 g, bare Navio2 board only - the CAD part is the board plus its mount"},
- {label:"Compute stack",cad:358.9,cat:135,catLabel:"120 to 150 g combined estimate (Pi 3B + Navio2 + standoffs)"}
+ {label:"Whole drone, new URDF vs old CAD sum",cad:CAD_MASS_TOTAL,cat:3482.6,catLabel:"Previous 24-part CAD sum (old shadow.xacro). The old CAD masses were far above the real parts."}
 ];
-// Maps a real (post-gltfpack) GLB node name straight to a part id, same
-// "walk node names, not by hand" rule as the Hub's own partColorHex/
-// colorModel. Names confirmed against the real GLB via dump_structure.py
-// (see project notes), same source as GROUP_KEYS/ANCH elsewhere.
+// Node names in the new twin GLB are the part ids themselves (build_twin.py),
+// except the main frame plate which is called "airframe" so it cannot collide
+// with the "frame" group node.
 function classifyPartNode(name){
   const n=name||"";
-  if(n==="base_link")return"base_link";
-  let m=n.match(/^Racerstar-BR2205-2300KV(\d)$/);if(m)return"motor_"+m[1];
-  m=n.match(/^5045_CCW(\d)$/);if(m)return m[1]==="1"?"prop_1":"prop_3";
-  m=n.match(/^5045_CW(\d)$/);if(m)return m[1]==="1"?"prop_2":"prop_4";
-  if(/^M5_Lock_nut\d$/.test(n))return"nut_1";
-  m=n.match(/^19x19_feet(\d)$/);if(m)return"foot_"+m[1];
-  if(n.indexOf("Navio2_Platform_v2")!==-1)return"navio2";
-  m=n.match(/^Spacer(\d)$/);if(m)return"spacer_"+m[1];
-  if(n.indexOf("LiDAR_Deck")!==-1)return"lidar_deck";
-  if(n.indexOf("Companion_Computer_Flight_Controller_Stack")!==-1)return"compute_stack";
-  if(n.indexOf("Gimbal_Upright_Fit_Check_Assembly")!==-1)return"gimbal";
-  if(n==="LIDAR_21")return"lidar_base";
-  if(n==="LIDAR_11")return"lidar_head";
-  return null;
+  if(n==="airframe")return"base_link";
+  return PART_NODE_IDS.has(n)?n:null;
 }
 // Filled once by buildPartMeta() (engine script below, right after the Hub
 // model finishes loading+centring) with {meshCount,triCount,pos:{x,y,z}}
@@ -883,15 +897,18 @@ V.experiments=function(){
 // actual selected PART and lives with the 3D engine state below since
 // selecting a part has to reach into twinRoot's materials).
 function renderTwinParts(){
-  $("twin-ov-parts").innerHTML=pn("PARTS","24 real, click one",`<p class="note">Same real shadow_mk1.glb, same real-material colours, as the Hub room. Click a part here or in the 3D view - the rest dim. Drag to look around; it keeps turning unless you hit SPIN OFF below.</p><div class="plist">${PART_SYSTEMS.map(sysKey=>`<div class="gh">${sysKey}</div>${PARTS.filter(p=>p.sys===sysKey).map(p=>`<button type="button" class="prow${p.id===twinSelectedPart?' sel':''}" data-pid="${p.id}"><span>${esc(p.name)}</span><b>${p.mass}&nbsp;g</b></button>`).join("")}`).join("")}</div>`);
+  $("twin-ov-parts").innerHTML=pn("PARTS","30 parts, click one",`<p class="note">The new articulated Shadow MK1. Click a part here or in the 3D view - the rest dim. Drag to look around; move the arm, claw and camera with the joint sliders below.</p><div class="plist">${PART_SYSTEMS.map(sysKey=>`<div class="gh">${sysKey}</div>${PARTS.filter(p=>p.sys===sysKey).map(p=>`<button type="button" class="prow${p.id===twinSelectedPart?' sel':''}" data-pid="${p.id}"><span>${esc(p.name)}</span><b>${p.mass!=null?p.mass+"&nbsp;g":"&nbsp;"}</b></button>`).join("")}`).join("")}</div>`);
   $("twin-ov-parts").querySelectorAll("[data-pid]").forEach(b=>b.onclick=()=>selectTwinPart(b.dataset.pid));
 }
 function renderTwinDetail(){
   const p=twinSelectedPart?PARTS_BY_ID[twinSelectedPart]:null;
   const meta=p?partMeta[p.id]:null;
+  const jn=(p&&twinPartRegistry[p.id]&&twinPartRegistry[p.id][0]&&twinPartRegistry[p.id][0].userData.joint)||null;
   $("twin-ov-detail").innerHTML=pn("PART DETAIL",p?p.sys:"",p
     ?`<p class="note"><b>${esc(p.name)}</b></p><p class="note">${esc(p.desc)}</p>
-      ${kv("CAD mass",p.mass+" g")}
+      ${kv("URDF mass",p.mass!=null?p.mass+" g":"inside frame lump")}
+      ${jn?kv("Joint",esc(jn.name)+" ("+jn.type+")"):""}
+      ${jn&&jn.lower!=null?kv("Limits",fmtTwinLimits(jn)):""}
       ${p.note?kv("Catalogue note",esc(p.note)):""}
       ${kv("Source mesh",`<span style="font-size:10px">${esc(p.mesh)}</span>`)}
       ${meta?kv("Triangles (original mesh)",fmt(meta.triCount)):kv("Triangles","measuring...")}
@@ -907,10 +924,10 @@ function renderTwinDetail(){
 // this same screen column - confirmed by screenshot, fixed by shortening
 // the content as well as capping both panels' max-height in CSS above.
 function renderTwinMassCheck(){
-  $("twin-ov-mass").innerHTML=pn("MASS CHECK","CAD vs catalogue",`<p class="note">Total CAD mass, 24 parts: <b>${CAD_MASS_TOTAL.toLocaleString("en-GB")} g</b>.</p>${MASS_CHECK.map(m=>{
+  $("twin-ov-mass").innerHTML=pn("MASS CHECK","URDF mass",`<p class="note">Total URDF mass, 30 parts: <b>${CAD_MASS_TOTAL.toLocaleString("en-GB")} g</b>.</p>${MASS_CHECK.map(m=>{
     const ratio=(m.cad/m.cat).toFixed(1);
     return `<div class="kv" title="${esc(m.catLabel)}"><span>${esc(m.label)}</span><b>${m.cad}/${m.cat} g (${ratio}x)</b></div>`;
-  }).join("")}<p class="note hl" style="margin-top:4px">Shown in full, not hidden - gaps like LiDAR's 6.7x point to a real CAD-model scale issue. Hover a row for its catalogue source.</p>`);
+  }).join("")}<p class="note hl" style="margin-top:4px">The airframe is one 839.6 g lump in the URDF because the CAD gives no masses inside it. Joint links carry their own masses.</p>`);
 }
 /* ---------------- PAYLOAD / THRUST BUDGET (wired Oct 30 2026 - ported
    from the pre-port real dashboard.html's own twinRenderBudget(), same
@@ -932,32 +949,50 @@ function renderTwinPayload(){
     {v:twr.toFixed(2)+":1",l:"Thrust-to-weight",d:"thrust / raw mass"},
     {v:hoverPct.toFixed(0)+"%",l:"Est. hover throttle",d:"mass / thrust budget"}
   ];
-  $("twin-ov-payload").innerHTML=pn("PAYLOAD / THRUST","CAD mass + hypothetical",`
+  $("twin-ov-payload").innerHTML=pn("PAYLOAD / THRUST","T/W "+twr.toFixed(2)+":1  HOVER "+hoverPct.toFixed(0)+"%",`
     <div class="kv"><span>Hypothetical payload</span><b>${twinPayloadG}g</b></div>
     <input type="range" min="0" max="800" step="10" value="${twinPayloadG}" id="twin-payload-slider" style="width:100%;accent-color:var(--accent)">
     <div class="sgrid" style="grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">${tiles.map(t=>`<div class="sc" style="cursor:default;padding:6px 8px"><span style="font:600 9px var(--display);letter-spacing:.1em;color:var(--muted)">${t.l}</span><b style="font:700 16px/1.3 var(--display)">${t.v}</b></div>`).join("")}</div>
     <p class="note ${margin<0?'hl':''}" style="margin-top:4px">${margin>=0
       ?margin.toFixed(0)+"g of payload margin left before thrust-to-weight drops below "+TWIN_SAFE_TWR_FLOOR.toFixed(0)+":1 (a common minimum for controllable flight)."
       :twr<1
-        ?"Below 1:1 even at 0g payload - CAD_MASS_TOTAL runs heavier than the real airframe (see MASS CHECK: motors alone CAD at 2.3x catalogue, LiDAR at 6.7x). The real built drone almost certainly flies; this number is honest about what the CAD model itself says, not a claim it can't."
+        ?"Below 1:1 even at 0g payload - the URDF mass total is above what four motors can lift. Check the link masses."
         :Math.abs(margin).toFixed(0)+"g past the "+TWIN_SAFE_TWR_FLOOR.toFixed(0)+":1 floor - still flies, but with little control margin."}</p>`);
   $("twin-payload-slider").oninput=e=>{twinPayloadG=+e.target.value;renderTwinPayload()};
 }
+document.addEventListener('click',e=>{const h=e.target.closest&&e.target.closest('.twin-hud .bar-head');if(h)h.closest('.twin-hud').classList.toggle('collapsed')});
+function fmtTwinJoint(d,v){return d.u==="mm"?(v*1000).toFixed(1)+" mm":Math.round(v*180/Math.PI)+"\u00b0"}
+function fmtTwinLimits(j){return j.type==="prismatic"?(j.lower*1000).toFixed(1)+" to "+(j.upper*1000).toFixed(1)+" mm":Math.round(j.lower*180/Math.PI)+" to "+Math.round(j.upper*180/Math.PI)+" deg"}
 function renderTwinControls(){
-  $("twin-ov-controls").innerHTML=`<div class="btns h">
+  const J=TWIN_JOINTS.map(d=>{const v=twinJointVals[d.n]||0;
+    return `<label class="tj"><span>${d.l}</span><b id="twin-jv-${d.n}">${fmtTwinJoint(d,v)}</b><input type="range" id="twin-j-${d.n}" data-j="${d.n}" min="${d.lo}" max="${d.hi}" step="${((d.hi-d.lo)/240).toFixed(5)}" value="${v}"></label>`}).join("");
+  $("twin-ov-controls").innerHTML=pn("CONTROLS","view, arm, camera",`<div class="btns h">
      <button class="btn${twinViewMode==='solid'?' main':''}" type="button" id="twin-vm-solid"><span>SOLID</span></button>
      <button class="btn${twinViewMode==='xray'?' main':''}" type="button" id="twin-vm-xray"><span>X-RAY</span></button>
      <button class="btn${twinViewMode==='wire'?' main':''}" type="button" id="twin-vm-wire"><span>WIRE</span></button>
      <button class="btn${twinSpinOn?' main':''}" type="button" id="twin-spin"><span>SPIN ${twinSpinOn?'ON':'OFF'}</span></button>
+     <button class="btn${twinPropsSpin?' main':''}" type="button" id="twin-props"><span>PROPS ${twinPropsSpin?'ON':'OFF'}</span></button>
      <button class="btn" type="button" id="twin-reset"><span>RESET VIEW</span></button>
     </div>
-    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px;font:500 11px var(--mono);color:var(--muted)"><span>EXPLODE</span><span id="twin-explode-pct">${Math.round(twinExplodeT*100)}%</span></div>
-    <input type="range" min="0" max="100" value="${Math.round(twinExplodeT*100)}" id="twin-explode-slider" style="width:100%;accent-color:var(--accent)">`;
+    <div class="btns h" style="margin-top:6px">
+     <button class="btn" type="button" data-pose="fold"><span>FOLD ARM</span></button>
+     <button class="btn" type="button" data-pose="deploy"><span>DEPLOY ARM</span></button>
+     <button class="btn" type="button" data-pose="open"><span>OPEN CLAW</span></button>
+     <button class="btn" type="button" data-pose="close"><span>CLOSE CLAW</span></button>
+     <button class="btn" type="button" data-pose="camdown"><span>CAMERA DOWN</span></button>
+     <button class="btn" type="button" data-pose="camfwd"><span>CAMERA FWD</span></button>
+    </div>
+    <div class="tjgrid">${J}</div>
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px;font:500 9px var(--mono);color:var(--muted)"><span>EXPLODE</span><span id="twin-explode-pct">${Math.round(twinExplodeT*100)}%</span></div>
+    <input type="range" min="0" max="100" value="${Math.round(twinExplodeT*100)}" id="twin-explode-slider" style="width:100%;accent-color:var(--accent)">`);
   $("twin-vm-solid").onclick=()=>setTwinViewMode("solid");
   $("twin-vm-xray").onclick=()=>setTwinViewMode("xray");
   $("twin-vm-wire").onclick=()=>setTwinViewMode("wire");
   $("twin-spin").onclick=()=>{twinSpinOn=!twinSpinOn;renderTwinControls()};
+  $("twin-props").onclick=()=>{twinPropsSpin=!twinPropsSpin;renderTwinControls()};
   $("twin-reset").onclick=()=>{if(typeof resetTwinCamera==="function")resetTwinCamera()};
+  $("twin-ov-controls").querySelectorAll("[data-pose]").forEach(b=>b.onclick=()=>{if(typeof runTwinPose==="function")runTwinPose(b.dataset.pose)});
+  $("twin-ov-controls").querySelectorAll("input[data-j]").forEach(inp=>inp.oninput=()=>{if(typeof setTwinJoint==="function"){twinSeq=null;setTwinJoint(inp.dataset.j,+inp.value)}});
   $("twin-explode-slider").oninput=e=>{twinExplodeT=(+e.target.value)/100;$("twin-explode-pct").textContent=Math.round(twinExplodeT*100)+"%";if(typeof applyTwinExplode==="function")applyTwinExplode()};
 }
 V.twin=function(){
@@ -1046,7 +1081,9 @@ const SIM_LOOP_T=SIM_WAYPOINTS[SIM_WAYPOINTS.length-1].t+1.6;
 const SIM_PHASES=["TAKEOFF","TRANSIT","SEARCH","APPROACH","DESPAWN","RESPAWN","LAND"];
 // Real drone width (prop-tip to prop-tip span) in metres, and how much
 // bigger than real size to draw it - see GLB_TO_SIM in initSimViewer().
-const DRONE_REAL_WIDTH_M=0.5, SIM_VISUAL_BOOST=3;
+// New Shadow MK1 twin is modelled in real millimetres: 255 mm nose to tail. Boost raised so the
+// drawn drone keeps the SAME on-screen size it had (0.5 m x 3 = 1.5 m) instead of shrinking.
+const DRONE_REAL_WIDTH_M=0.255, SIM_VISUAL_BOOST=5.9;
 
 let simRAF=null,simRenderer=null,simScene=null,simCamera=null,simRoot=null,simCamMode="chase",simLastPhase=null,simBattery=100,simLastPos=null;
 let simFpvRenderer=null,simFpvCamera=null;
@@ -1191,7 +1228,7 @@ function worldHtml(d){
 // for 60 s after it finishes.
 const AP_MODES=[["MANUAL",["STABILIZE","ALT_HOLD","ACRO"]],["ASSISTED",["LOITER","POSHOLD","BRAKE"]],["AUTONOMOUS",["GUIDED","AUTO","FOLLOW"]],["RETURN / LAND",["RTL","SMART_RTL","LAND"]]];
 const AP_MODE_INFO={STABILIZE:"Pilot flies, autopilot only levels.",ALT_HOLD:"Holds height, pilot controls the rest.",ACRO:"Rate mode, no self-levelling.",LOITER:"Holds position and height using GPS.",POSHOLD:"Like Loiter, snappier stick feel.",BRAKE:"Stops as fast as possible and holds.",GUIDED:"Follows commands from a computer. Every Shadow skill flies here.",AUTO:"Flies a stored waypoint mission.",FOLLOW:"Follows another vehicle.",RTL:"Flies home and lands.",SMART_RTL:"Retraces its path home.",LAND:"Lands where it is."};
-const RUN_PHASES={approach_target:["ACQUIRE","VIEW","REFINE","OVERHEAD"]};
+const RUN_PHASES={approach_target:["ACQUIRE","VIEW","REFINE","OVERHEAD"],trial_hover_hold:["SETTLE","HOLD","SAVED"],trial_step_response:["SETTLE","STEP","SAVED"],trial_turn:["SETTLE","TURN","SAVED"],trial_climb:["SETTLE","CLIMB","RETURN","SAVED"],trial_disturbance:["SETTLE","SHOVE","RECOVER","SAVED"],trial_speed:["POSITION","RUN","SAVED"],trial_goto:["FLY","SETTLE","MEASURE","SAVED"],trial_detection:["POSITION","SETTLE","WATCH","SAVED"],trial_landing:["OUT","RTL","SAVED"],disturbance:["SETTLE","SHOVE","RECOVER","SAVED"],speed:["POSITION","RUN","SAVED"],"go to":["FLY","SETTLE","MEASURE","SAVED"],detection:["POSITION","SETTLE","WATCH","SAVED"],landing:["OUT","RTL","SAVED"],"hover hold":["SETTLE","HOLD","SAVED"],"step response":["SETTLE","STEP","SAVED"],turn:["SETTLE","TURN","SAVED"],climb:["SETTLE","CLIMB","RETURN","SAVED"]};
 let lastRun=null;
 function modeStrip(mode){
   const known=AP_MODES.some(g=>g[1].includes(mode));
@@ -1478,11 +1515,7 @@ function initSimViewer(){
       // subtracting it keeps the actual body centred on the waypoint.
       tmpBodyOff.copy(bodyCenterVecSim).applyAxisAngle(YAXIS,simYaw);
       simRoot.position.set(worldX,worldY,worldZ).sub(tmpBodyOff);
-      simRoot.traverse(o=>{
-        if(!o.name)return;
-        if(o.name.indexOf("5045_CW")===0)o.rotateY(-dt*14);
-        else if(o.name.indexOf("5045_CCW")===0)o.rotateY(dt*14);
-      });
+      spinRotors(simRoot,dt,14);
 
       // Phase bar + Mind log fire on phase change, not every frame.
       if(p.ph!==simLastPhase){
@@ -1607,7 +1640,7 @@ let simSkillKey="arm",simTrainKey="go_to";
 // Nov 9, 2026 - grouped like the Skill Tree branches (dropdown uses
 // <optgroup> per grp, in SIM_SKILL_GROUPS order). Keys must match
 // simulation_control.py's SKILL_TESTS and run_skill.py.
-const SIM_SKILL_GROUPS=["Flight basics","Navigation","Perception","Mapping","Missions","Learned (trained policy)"];
+const SIM_SKILL_GROUPS=["Flight basics","Navigation","Perception","Mapping","Missions","Learned (trained policy)","Trials"];
 const SIM_SKILL_TEST_META=[
  {key:"arm",label:"Arm",cat:"Basic",grp:"Flight basics"},
  {key:"takeoff",label:"Takeoff",cat:"Basic",grp:"Flight basics"},
@@ -1623,14 +1656,26 @@ const SIM_SKILL_TEST_META=[
  {key:"delivery_rehearsal",label:"Delivery Rehearsal",cat:"Sequence",grp:"Missions"},
  {key:"deliver_payload",label:"Deliver Payload (old, monolithic)",cat:"Sequence",grp:"Missions"},
  {key:"learned_flight",label:"Learned Flight",cat:"Sequence",grp:"Learned (trained policy)"},
- {key:"waypoint_circuit",label:"Waypoint Circuit",cat:"Sequence",grp:"Learned (trained policy)"}
+ {key:"waypoint_circuit",label:"Waypoint Circuit",cat:"Sequence",grp:"Learned (trained policy)"},
+ // Nov 9, 2026 - attribute engine trials (measure + score + save).
+ {key:"trial_suite",label:"Trial Suite",cat:"Sequence",grp:"Trials"},
+ {key:"trial_hover_hold",label:"Hover Hold",cat:"Basic",grp:"Trials"},
+ {key:"trial_step_response",label:"Step Response",cat:"Basic",grp:"Trials"},
+ {key:"trial_turn",label:"Turn",cat:"Basic",grp:"Trials"},
+ {key:"trial_climb",label:"Climb",cat:"Basic",grp:"Trials"},
+ {key:"trial_disturbance",label:"Disturbance",cat:"Basic",grp:"Trials"},
+ {key:"trial_speed",label:"Speed",cat:"Basic",grp:"Trials"},
+ {key:"trial_goto",label:"Go To Accuracy",cat:"Basic",grp:"Trials"},
+ {key:"trial_lap",label:"Lap",cat:"Basic",grp:"Trials"},
+ {key:"trial_detection",label:"Detection",cat:"Basic",grp:"Trials"},
+ {key:"trial_landing",label:"Landing (ends flight)",cat:"Basic",grp:"Trials"}
 ];
 // Nov 9, 2026 - Command Dock (Sim Bay live mode). Tabs = SIM_SKILL_GROUPS.
 // o = owner (colour), d = what it does, t = pass test, chain = mission tiles.
 // Streak / unlocked / last result are live: /simulation/skill-tests and
 // /simulation/skill-history. flight_smoke runs through /run-mission.
 // Branch colours: tab, its icon and its skill chips share one colour.
-const DOCK_TABS=[["Flight basics","FLIGHT","#70ffb4","flight"],["Navigation","NAV","#67e8f9","nav"],["Perception","PERCEPTION","#ffa860","vision"],["Mapping","MAPPING","#7fb8ff","map"],["Missions","MISSIONS","#ffcf5c","mission"],["Learned (trained policy)","LEARNED","#b49cff","learned"]];
+const DOCK_TABS=[["Flight basics","FLIGHT","#70ffb4","flight"],["Navigation","NAV","#67e8f9","nav"],["Perception","PERCEPTION","#ffa860","vision"],["Mapping","MAPPING","#7fb8ff","map"],["Missions","MISSIONS","#ffcf5c","mission"],["Learned (trained policy)","LEARNED","#b49cff","learned"],["Trials","TRIALS","#ff8fb1","trial"]];
 const DOCK_OWN={CODED:"#70ffb4",VISION:"#ffa860",AUTOPILOT:"#67e8f9",LEARNED:"#b49cff",MISSION:"#ffcf5c"};
 const DOCK_ICON={
  flight:'<circle cx="5" cy="5" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/>',
@@ -1643,11 +1688,12 @@ const DOCK_ICON={
  tune:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
  train:'<path d="M4 18l5-6 4 3 7-9"/><path d="M14 6h6v6"/>',
  mind:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>',
+ trial:'<circle cx="12" cy="13" r="8"/><path d="M12 13V9M10 2h4M12 2v3"/>',
  play:'<path d="M7 4l13 8-13 8z" fill="currentColor"/>',
  down:'<path d="M6 9l6 6 6-6"/>',up:'<path d="M6 15l6-6 6 6"/>'
 };
 function ico(k,size){return `<svg aria-hidden="true" width="${size||20}" height="${size||20}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${DOCK_ICON[k]}</svg>`}
-const DOCK_SHORT={arm:"ARM",takeoff:"TAKEOFF",hover:"HOVER",land:"LAND",rtl:"RTL",go_to:"GO TO",follow_path:"PATH",search:"SEARCH",approach_target:"APPROACH",follow_target:"FOLLOW",map_area:"MAP AREA",delivery_rehearsal:"DELIVERY REHEARSAL",flight_smoke:"SMOKE TEST",deliver_payload:"DELIVER (OLD)",learned_flight:"LEARNED GO TO",waypoint_circuit:"CIRCUIT"};
+const DOCK_SHORT={arm:"ARM",takeoff:"TAKEOFF",hover:"HOVER",land:"LAND",rtl:"RTL",go_to:"GO TO",follow_path:"PATH",search:"SEARCH",approach_target:"APPROACH",follow_target:"FOLLOW",map_area:"MAP AREA",delivery_rehearsal:"DELIVERY REHEARSAL",flight_smoke:"SMOKE TEST",deliver_payload:"DELIVER (OLD)",learned_flight:"LEARNED GO TO",waypoint_circuit:"CIRCUIT",trial_suite:"TRIAL SUITE",trial_hover_hold:"HOVER HOLD",trial_step_response:"STEP",trial_turn:"TURN",trial_climb:"CLIMB",trial_disturbance:"SHOVE",trial_speed:"SPEED",trial_goto:"GO TO ACC",trial_lap:"LAP",trial_detection:"DETECT",trial_landing:"LANDING"};
 const DOCK_INFO={
  arm:{o:"CODED",d:"GUIDED mode, motors armed.",t:"Armed in GUIDED."},
  takeoff:{o:"CODED",d:"Climbs to 2 m. Refuses unless armed.",t:"Reach altitude within tolerance."},
@@ -1664,6 +1710,17 @@ const DOCK_INFO={
  flight_smoke:{o:"MISSION",d:"The proven basics in a row through run_mission.sh.",t:"Every step passes.",chain:["ARM","TAKEOFF","GO TO","LAND"],mission:true},
  deliver_payload:{o:"MISSION",d:"The original one-file mission, being replaced by Delivery Rehearsal.",t:"Full mission.",chain:["TAKEOFF","SEARCH","APPROACH","DESPAWN","RESPAWN","LAND"]},
  learned_flight:{o:"LEARNED",d:"go_to flown by the trained PPO policy instead of hand-coded control, same safety limits. Training it is the TRAINING button; this flies what training produced.",t:"Eval gate: 8 of 10."},
+ trial_suite:{o:"CODED",d:"Arm, take off, then every trial in a row, ending with an RTL landing. About 5 minutes. One click to re-measure Shadow after a tune or loadout change.",t:"Completes every trial. The numbers are the result, not a pass mark.",chain:["ARM","TAKEOFF","HOVER","STEP","TURN","CLIMB","SHOVE","SPEED","GO TO","LAP","DETECT","LAND"]},
+ trial_disturbance:{o:"CODED",d:"Holds position while Gazebo shoves Shadow sideways (12 N for 0.4 s). Measures how long until he is back within 15 cm.",t:"Completes. Feeds STABILITY (RECOVERY). Fails if the shove didn't land."},
+ trial_speed:{o:"CODED",d:"Straight 12 m run along x at 2.5 m. Measures peak ground speed (capped by WP_SPD).",t:"Completes. Feeds AGILITY (TOP SPEED)."},
+ trial_goto:{o:"CODED",d:"Flies 4 m to a point and holds. Measures the average distance from the point once stopped.",t:"Completes. Feeds PRECISION (GO TO ERROR)."},
+ trial_lap:{o:"CODED",d:"One lap of the 6-point circuit with follow_path. Measures lap time and how far off the straight lines it flew.",t:"Completes. Feeds AGILITY (LAP TIME), PRECISION (PATH ERROR)."},
+ trial_detection:{o:"VISION",d:"Hovers 5 m from the orange payload, watching the tracker for 10 s. Checks each locked box against the real payload positions.",t:"Completes. Feeds AWARENESS (DETECTION, FALSE ALARMS, JITTER)."},
+ trial_landing:{o:"AUTOPILOT",d:"Flies 4 m out, then ArduPilot RTL. Measures touchdown distance from home. Ends the flight.",t:"Completes. Feeds PRECISION (LANDING)."},
+ trial_hover_hold:{o:"CODED",d:"5 s settle, then holds position for 30 s. Measures drift, hover throttle, battery current and estimated flight time.",t:"Completes. Feeds STABILITY, POWER, ENDURANCE."},
+ trial_step_response:{o:"CODED",d:"Sudden 1 m step along the nose. Measures time to 90%, overshoot and settle time (within 5 cm).",t:"Completes. Feeds AGILITY, STABILITY."},
+ trial_turn:{o:"CODED",d:"Commanded 180° yaw on the spot. Measures peak turn rate.",t:"Completes. Feeds AGILITY."},
+ trial_climb:{o:"CODED",d:"Climbs 2.5 m and comes back. Measures peak climb rate (capped by ArduPilot's climb speed limit in GUIDED).",t:"Completes. Feeds POWER."},
  waypoint_circuit:{o:"LEARNED",d:"The circuit flown by its trained policy, the candidate for follow_path's learned slot.",t:"Eval gate: 8 of 10."}
 };
 let dockTab="Flight basics",dockSel=null,dockOpen=true,dockData={tests:{},hist:{}},dockPollId=null,dockSig="",sysPop=null;
@@ -2433,7 +2490,7 @@ let modelPivot;
 let modelReady=false;
 const modelReadyCbs=[];
 const groupNodes={};
-const GROUP_KEYS=['frame','motors','battery','compute','lidar','camera'];
+const GROUP_KEYS=['frame','motors','battery','compute','lidar','camera','arm'];
 let GLB_TO_METERS=1;
 // Walks the same six named group nodes GROUP_KEYS already finds, classifies
 // each direct child via classifyPartNode() (defined earlier, with PARTS),
@@ -2441,31 +2498,42 @@ let GLB_TO_METERS=1;
 // real position - computed from the actual loaded GLB once, right after
 // modelRoot is centred and before it's ever rotated, so "position in
 // metres" is stable and doesn't need recomputing per Twin-room visit.
+// Visits every node under `start` that classifyPartNode() recognises, however
+// deep (the arm chain is nested: upper_arm > forearm > claw_base > fingers).
+function collectParts(start,cb){
+  (function w(o){o.children.forEach(c=>{const pid=classifyPartNode(c.name);if(pid)cb(pid,c);w(c)})})(start);
+}
+// Visits `node` and its descendants but stops at any descendant that is itself
+// a separate part, so highlight/triangle counts never leak into nested joints.
+function partOwnTraverse(node,fn){
+  (function w(o,top){
+    if(!top&&classifyPartNode(o.name))return;
+    fn(o);o.children.forEach(c=>w(c,false));
+  })(node,true);
+}
+// Spins every node carrying userData.spin (set by build_twin.py from the measured
+// blade pitch): "ccw" is positive about the joint's own +Z (up in the URDF frame).
+function spinRotors(rootNode,dt,rate){
+  rootNode.traverse(o=>{const sp=o.userData&&o.userData.spin;if(sp)o.rotateZ((sp==="ccw"?1:-1)*dt*rate)});
+}
 function buildPartMeta(){
   modelRoot.updateMatrixWorld(true);
   GROUP_KEYS.forEach(gk=>{
     const g=groupNodes[gk];if(!g)return;
-    g.children.forEach(child=>{
-      const pid=classifyPartNode(child.name);
-      if(!pid)return;
+    collectParts(g,(pid,child)=>{
       if(!partMeta[pid])partMeta[pid]={meshCount:0,triCount:0,box:new THREE.Box3()};
       const pm=partMeta[pid];
-      child.traverse(o=>{
+      partOwnTraverse(child,o=>{
         if(o.isMesh){
           pm.meshCount++;
           const geo=o.geometry;
           const tri=geo&&geo.index?geo.index.count/3:(geo&&geo.attributes.position?geo.attributes.position.count/3:0);
           pm.triCount+=Math.round(tri);
+          pm.box.expandByObject(o);
         }
       });
-      pm.box.union(new THREE.Box3().setFromObject(child));
     });
   });
-  // modelRoot.position is already offset by -bodyCenter and modelPivot has
-  // never been rotated at this point in the load sequence, so each part's
-  // WORLD box centre here is already "relative to the body centre" with no
-  // further subtraction needed - same reasoning as bodyCenterVec's own
-  // definition above.
   Object.keys(partMeta).forEach(pid=>{
     const pm=partMeta[pid];
     if(pm.box.isEmpty()){pm.pos={x:0,y:0,z:0};return}
@@ -2516,15 +2584,10 @@ function partColorHex(name,groupKey){
 // CAD part names.
 const GENERATED_NAME=/^mesh_\d+/i;
 function colorModel(){
-  GROUP_KEYS.forEach(groupKey=>{
-    const node=groupNodes[groupKey];if(!node)return;
-    (function walk(o,nearestName){
-      const hasRealName=o.name&&!GENERATED_NAME.test(o.name);
-      const nm=hasRealName?o.name:nearestName;
-      if(o.isMesh)o.material=new THREE.MeshStandardMaterial({color:lc(partColorHex(nm,groupKey)),metalness:.22,roughness:.52,side:THREE.DoubleSide});
-      o.children.forEach(c=>walk(c,nm));
-    })(node,node.name||"");
-  });
+  // New twin GLB carries its real per-part colours (red motors and spacers, black
+  // frame/feet/LiDAR, silver nuts, yellow battery, grey gimbal, orange claw) in its
+  // own materials, so nothing is repainted here any more. partColorHex() is kept
+  // above only for reference.
 }
 function findByName(node,name){
   if(!node)return null;if(node.name===name)return node;
@@ -2625,10 +2688,10 @@ function fitDistanceFor(cam,container,box,dir){
   const vDist=halfHeight/Math.tan(fovRad/2),hDist=halfWidth/(Math.tan(fovRad/2)*aspect);
   return Math.max(vDist,hDist,80);
 }
-function fitCameraTo(cam,ctl,container,box){
+function fitCameraTo(cam,ctl,container,box,k){
   if(!box)return 1;
   const dir=new THREE.Vector3(.55,.42,.75).normalize();
-  const dist=fitDistanceFor(cam,container,box,dir)*1.3;
+  const dist=fitDistanceFor(cam,container,box,dir)*(k||1.3);
   cam.position.copy(dir.clone().multiplyScalar(dist));
   cam.lookAt(0,0,0);ctl.target.set(0,0,0);ctl.update();
   return dist;
@@ -2656,7 +2719,7 @@ function fitCamera(){ return fitCameraTo(camera,controls,root,modelLocalBox);
 // in animate() never ran, and the prop-spin check's "5045 CW"/"5045 CCW"
 // (space) never matched the real "5045_CW"/"5045_CCW" (underscore) names
 // either. Fixed by matching the real post-pack names throughout.
-const ANCH={FRAME:"19x19_feet3",PROPULSION:"Racerstar-BR2205-2300KV2",AVIONICS:"Companion_Computer_Flight_Controller_Stack",SENSORS:"LIDAR_11"};
+const ANCH={FRAME:"foot_3",PROPULSION:"motor_2",AVIONICS:"compute_stack",SENSORS:"lidar_head"};
 const anchorNodes={};
 function projectHotspots(){
   if(root.dataset.view!=="home")return;
@@ -2705,7 +2768,7 @@ resize();
 let groundGroup=null;
 new THREE.GLTFLoader().load("{{ url_for('static', filename='models/shadow_mk1.glb') }}",gltf=>{
   modelRoot=gltf.scene;
-  recenterPropPivots(modelRoot);
+  // (no prop pivot fix needed: every prop is its own joint node at the hub axis)
   // Root cause of the centering bug found and fixed Oct 29 (confirmed by
   // direct measurement, not guesswork): a freshly-parsed GLTF scene has
   // never been rendered, so every descendant's matrixWorld is still the
@@ -2818,13 +2881,9 @@ function animate(){
     // to look static. .rotateY() composes a local-axis spin on top of
     // whatever the part's rest orientation already is, which is the
     // correct fix regardless of mount angle.
-    modelRoot.traverse(o=>{
-      if(!o.name)return;
-      if(o.name.indexOf("5045_CW")===0)o.rotateY(-dt*9);
-      else if(o.name.indexOf("5045_CCW")===0)o.rotateY(dt*9);
-    });
+    spinRotors(modelRoot,dt,9);
     const lidarHead=anchorNodes.SENSORS;
-    if(lidarHead)lidarHead.rotateY(dt*6.28);
+    if(lidarHead)lidarHead.rotateZ(dt*6.28);
   }
   renderer.render(scene,camera);
   projectHotspots();
@@ -2850,6 +2909,60 @@ let twinSelectedPart=null,twinViewMode="solid",twinSpinOn=true,twinExplodeT=0;
 let twinPartRegistry={}; // partId -> [THREE.Object3D nodes in twinRoot]
 let twinExplodeRegistry=[]; // [{node,restPos,dir}], base_link excluded (anchor)
 let twinRaycaster=null;
+// Joint controls (new articulated Shadow MK1). Limits mirror the URDF; the elbow and
+// the others are provisional until real servo limits are measured.
+const TWIN_JOINTS=[
+ {n:"arm_shoulder_joint",l:"SHOULDER",lo:0,hi:1.91986,u:"deg"},
+ {n:"arm_elbow_joint",l:"ELBOW",lo:0,hi:3.92699,u:"deg"},
+ {n:"arm_wrist_roll_joint",l:"WRIST ROLL",lo:-1.5708,hi:1.5708,u:"deg"},
+ {n:"claw_finger_right_joint",l:"CLAW OPEN",lo:0,hi:0.0216,u:"mm"},
+ {n:"gimbal_pan_joint",l:"CAM PAN",lo:-0.2618,hi:0.2618,u:"deg"},
+ {n:"gimbal_tilt_joint",l:"CAM TILT",lo:-1.5708,hi:1.5708,u:"deg"}
+];
+const twinJointVals={};
+let twinJointNodes={},twinPropsSpin=false,twinSeq=null;
+const TWIN_POSES={
+ fold:[[{arm_elbow_joint:0,arm_wrist_roll_joint:0,claw_finger_right_joint:0},1],[{arm_shoulder_joint:0},1]],
+ deploy:[[{arm_shoulder_joint:1.5708},1],[{arm_elbow_joint:3.14159},1.1]],
+ open:[[{claw_finger_right_joint:0.0216},.6]],
+ close:[[{claw_finger_right_joint:0},.6]],
+ camdown:[[{gimbal_tilt_joint:1.0472},.8]],
+ camfwd:[[{gimbal_tilt_joint:0,gimbal_pan_joint:0},.8]]
+};
+function buildTwinJointRegistry(){
+  twinJointNodes={};
+  twinRoot.traverse(o=>{
+    const j=o.userData&&o.userData.joint;
+    if(!j||!j.axis||j.type==="continuous"||j.type==="fixed")return;
+    o.userData.__restQ=o.quaternion.clone();o.userData.__restP=o.position.clone();
+    const key=j.mimic||j.name;
+    (twinJointNodes[key]=twinJointNodes[key]||[]).push(o);
+  });
+}
+function setTwinJoint(name,v){
+  const d=TWIN_JOINTS.find(x=>x.n===name);if(!d)return;
+  v=Math.max(d.lo,Math.min(d.hi,v));twinJointVals[name]=v;
+  (twinJointNodes[name]||[]).forEach(o=>{
+    const j=o.userData.joint,ax=new THREE.Vector3(j.axis[0],j.axis[1],j.axis[2]).normalize();
+    if(j.type==="prismatic")o.position.copy(o.userData.__restP).addScaledVector(ax,v*1000);
+    else o.quaternion.copy(o.userData.__restQ).multiply(new THREE.Quaternion().setFromAxisAngle(ax,v));
+  });
+  const sl=document.getElementById("twin-j-"+name),lb=document.getElementById("twin-jv-"+name);
+  if(sl)sl.value=v;if(lb)lb.textContent=fmtTwinJoint(d,v);
+}
+function runTwinPose(k){if(TWIN_POSES[k])twinSeq={steps:TWIN_POSES[k],i:0,t:0,from:null}}
+function stepTwinSeq(dt){
+  if(!twinSeq)return;
+  const st=twinSeq.steps[twinSeq.i],tg=st[0];
+  if(!twinSeq.from){twinSeq.from={};Object.keys(tg).forEach(n=>twinSeq.from[n]=twinJointVals[n]||0)}
+  twinSeq.t+=dt;const u=Math.min(1,twinSeq.t/st[1]),e=u*u*(3-2*u);
+  Object.keys(tg).forEach(n=>setTwinJoint(n,twinSeq.from[n]+(tg[n]-twinSeq.from[n])*e));
+  if(u>=1){twinSeq.i++;twinSeq.t=0;twinSeq.from=null;if(twinSeq.i>=twinSeq.steps.length)twinSeq=null}
+}
+// The deployed arm hangs ~190 mm below the folded model, so the Twin room frames and
+// grounds against a box that includes it.
+const TWIN_ARM_DROP=190;
+function twinFitBox(){const b=modelLocalBox.clone();b.min.y-=TWIN_ARM_DROP;return b}
 function onModelReady(cb){ if(modelReady)cb(); else modelReadyCbs.push(cb); }
 // twinRoot's meshes start out sharing material OBJECTS by reference with
 // modelRoot/simRoot (Object3D.clone(true) only deep-clones the node graph,
@@ -2877,11 +2990,7 @@ function buildTwinPartRegistry(){
   twinPartRegistry={};
   GROUP_KEYS.forEach(gk=>{
     const g=findByName(twinRoot,gk);if(!g)return;
-    g.children.forEach(child=>{
-      const pid=classifyPartNode(child.name);
-      if(!pid)return;
-      (twinPartRegistry[pid]=twinPartRegistry[pid]||[]).push(child);
-    });
+    collectParts(g,(pid,node)=>{(twinPartRegistry[pid]=twinPartRegistry[pid]||[]).push(node)});
   });
 }
 // Explode direction per node, computed ONCE (right after twinPartRegistry
@@ -2900,6 +3009,7 @@ function buildTwinExplodeRegistry(){
   Object.keys(twinPartRegistry).forEach(pid=>{
     if(pid==="base_link")return; // anchor part - everything else explodes away from it
     twinPartRegistry[pid].forEach(node=>{
+      if(node.userData.joint&&node.userData.joint.type==="prismatic")return; // fingers ride with the claw
       const parentBC=node.parent.worldToLocal(worldBC.clone());
       const restPos=node.position.clone();
       const dir=restPos.clone().sub(parentBC);
@@ -2934,7 +3044,7 @@ function applyTwinHighlight(){
   if(!twinRoot)return;
   Object.keys(twinPartRegistry).forEach(pid=>{
     const isSel=twinSelectedPart===pid,dim=twinSelectedPart&&!isSel;
-    twinPartRegistry[pid].forEach(node=>node.traverse(o=>{
+    twinPartRegistry[pid].forEach(node=>partOwnTraverse(node,o=>{
       if(!o.isMesh||!o.material)return;
       const m=o.material;
       if(dim){m.transparent=true;m.opacity=0.08}
@@ -2961,13 +3071,14 @@ function setTwinViewMode(mode){
   applyTwinViewMode();
 }
 function resetTwinCamera(){
-  if(twinCamera&&twinControls)fitCameraTo(twinCamera,twinControls,root,modelLocalBox);
+  if(twinCamera&&twinControls)fitCameraTo(twinCamera,twinControls,root,twinFitBox(),0.95);
 }
 function teardownTwin(){
   if(twinRAF)cancelAnimationFrame(twinRAF);
   twinRAF=null;
   if(twinRenderer){twinRenderer.dispose();twinRenderer=null;}
   twinScene=null;twinCamera=null;twinControls=null;twinRoot=null;twinGround=null;twinPivot=null;
+  twinSeq=null;twinJointNodes={};
   twinPartRegistry={};twinExplodeRegistry=[];twinRaycaster=null;
 }
 function initTwinViewer(){
@@ -3021,7 +3132,7 @@ function initTwinViewer(){
     twinScene.add(twinPivot);
     // Spin the ground group this room gets back from addGround() at the
     // same rate as twinPivot - see animateTwin() below.
-    twinGround=addGround(twinScene,modelBoxSize,modelLocalBox.min.y);
+    twinGround=addGround(twinScene,modelBoxSize,modelLocalBox.min.y-TWIN_ARM_DROP);
 
     // Build the click-mapping and explode directions against THIS visit's
     // clone, then apply whatever view-mode/selection/explode state the
@@ -3029,6 +3140,8 @@ function initTwinViewer(){
     // leaving the room and coming back keeps your selection, same as the
     // panels do - rebuilt from twinSelectedPart, not reset to null here).
     buildTwinPartRegistry();
+    buildTwinJointRegistry();
+    Object.keys(twinJointVals).forEach(n=>setTwinJoint(n,twinJointVals[n]));
     buildTwinExplodeRegistry();
     applyTwinExplode();
     applyTwinViewMode();
@@ -3054,7 +3167,7 @@ function initTwinViewer(){
     }
     new ResizeObserver(resizeTwin).observe(wrap);
     resizeTwin();
-    fitCameraTo(twinCamera,twinControls,wrap,modelLocalBox);
+    fitCameraTo(twinCamera,twinControls,wrap,twinFitBox(),0.95);
 
     const clock2=new THREE.Clock();
     let twinInteracting=false;
@@ -3064,6 +3177,8 @@ function initTwinViewer(){
       twinRAF=requestAnimationFrame(animateTwin);
       const dt=Math.min(clock2.getDelta(),.1);
       twinControls.update();
+      stepTwinSeq(dt);
+      if(twinPropsSpin){spinRotors(twinRoot,dt,14);twinRoot.traverse(o=>{if(o.name==="lidar_head")o.rotateZ(dt*6.28)})}
       // Same modelPivot fix as the Hub's own animate() above - rotate
       // twinPivot (pivots around the body's own centre), not twinRoot
       // (would pivot around the raw CAD origin and drift off-centre), in
@@ -3145,13 +3260,15 @@ const ATTR3=[
  {id:"ENDURANCE",c:"#ffcf5c",m:"How long and far it flies on one battery."},
  {id:"STABILITY",c:"#70ffb4",m:"How well it holds still and recovers when pushed. Mostly the PID tune."}
 ];
+// Nov 12, 2026 - no example numbers: every value starts blank (raw:null)
+// and only a trial measurement fills it in (hydrateAttr).
 const BR3={
- POWER:[{l:"HOVER THROTTLE",u:"%",raw:71,best:40,worst:85,w:2,src:"REAL",tr:"telemetry rc_out",how:"Motor output while hovering: about 1714 PWM on 8 Nov, roughly 71%. Lower is better."},{l:"THRUST / WEIGHT",u:":1",raw:1.6,best:3,worst:1.2,w:2,src:"EX",tr:"Digital Twin calc",how:"Max thrust over total mass. CAD mass 3.48 kg looks heavy for a 250 frame: verify."},{l:"CLIMB RATE",u:" m/s",raw:null,best:5,worst:0.5,w:1,tr:"climb trial",how:"Full-throttle climb from a 2 m hover."}],
- AGILITY:[{l:"RESPONSE",u:" s",raw:1.1,best:0.4,worst:3,w:2,src:"EX",tr:"step_response",how:"Time to cover 90% of a sudden 1 m step."},{l:"TOP SPEED",u:" m/s",raw:3,best:8,worst:1,w:1,src:"EX",tr:"WP_SPD cap",how:"Capped at 3 m/s on purpose because of the thin power margin."},{l:"TURN RATE",u:" °/s",raw:null,best:180,worst:30,w:1,tr:"turn trial",how:"Peak yaw rate in a commanded 180° turn."},{l:"LAP TIME",u:" s",raw:null,best:25,worst:90,w:1,tr:"circuit",how:"One lap of the 6-point circuit with follow_path."}],
- PRECISION:[{l:"GO TO ERROR",u:" m",raw:0.21,best:0.05,worst:1,w:2,src:"EX",tr:"go_to",how:"Distance from the commanded point at arrival."},{l:"PATH ERROR",u:" m",raw:null,best:0.1,worst:1.5,w:1,tr:"follow_path",how:"Average distance from the ideal zigzag line."},{l:"LANDING",u:" m",raw:0.6,best:0.05,worst:1.5,w:1,src:"EX",tr:"rtl",how:"Touchdown distance from home after RTL."},{l:"DROP",u:" m",raw:null,best:0.1,worst:1,w:1,tr:"release_payload",how:"Payload landing distance from pad centre."}],
- AWARENESS:[{l:"DETECTION",u:"%",raw:92,best:98,worst:50,w:2,src:"EX",tr:"test_detector.py",how:"Share of saved frames where the object was found."},{l:"FALSE ALARMS",u:"%",raw:4,best:0,worst:25,w:2,src:"EX",tr:"test_detector.py",how:"Frames with a box but no object."},{l:"JITTER",u:" px",raw:3,best:1,worst:20,w:1,src:"EX",tr:"test_detector.py",how:"Box-centre wobble on a still scene."},{l:"HOLD",u:" s",raw:null,best:20,worst:2,w:1,tr:"moving target",how:"How long follow_target keeps a moving prop in frame."}],
+ POWER:[{l:"HOVER THROTTLE",u:"%",raw:null,best:40,worst:85,w:2,tr:"telemetry rc_out",how:"Motor output while hovering: about 1714 PWM on 8 Nov, roughly 71%. Lower is better."},{l:"THRUST / WEIGHT",u:":1",raw:null,best:3,worst:1.2,w:2,tr:"Digital Twin calc",how:"Max thrust over total mass. CAD mass 3.48 kg looks heavy for a 250 frame: verify."},{l:"CLIMB RATE",u:" m/s",raw:null,best:5,worst:0.5,w:1,tr:"climb trial",how:"Full-throttle climb from a 2 m hover."}],
+ AGILITY:[{l:"RESPONSE",u:" s",raw:null,best:0.4,worst:3,w:2,tr:"step_response",how:"Time to cover 90% of a sudden 1 m step."},{l:"TOP SPEED",u:" m/s",raw:null,best:8,worst:1,w:1,tr:"WP_SPD cap",how:"Capped at 3 m/s on purpose because of the thin power margin."},{l:"TURN RATE",u:" °/s",raw:null,best:180,worst:30,w:1,tr:"turn trial",how:"Peak yaw rate in a commanded 180° turn."},{l:"LAP TIME",u:" s",raw:null,best:25,worst:90,w:1,tr:"circuit",how:"One lap of the 6-point circuit with follow_path."}],
+ PRECISION:[{l:"GO TO ERROR",u:" m",raw:null,best:0.05,worst:1,w:2,tr:"go_to",how:"Distance from the commanded point at arrival."},{l:"PATH ERROR",u:" m",raw:null,best:0.1,worst:1.5,w:1,tr:"follow_path",how:"Average distance from the ideal zigzag line."},{l:"LANDING",u:" m",raw:null,best:0.05,worst:1.5,w:1,tr:"rtl",how:"Touchdown distance from home after RTL."},{l:"DROP",u:" m",raw:null,best:0.1,worst:1,w:1,tr:"release_payload",how:"Payload landing distance from pad centre."}],
+ AWARENESS:[{l:"DETECTION",u:"%",raw:null,best:98,worst:50,w:2,tr:"test_detector.py",how:"Share of saved frames where the object was found."},{l:"FALSE ALARMS",u:"%",raw:null,best:0,worst:25,w:2,tr:"test_detector.py",how:"Frames with a box but no object."},{l:"JITTER",u:" px",raw:null,best:1,worst:20,w:1,tr:"test_detector.py",how:"Box-centre wobble on a still scene."},{l:"HOLD",u:" s",raw:null,best:20,worst:2,w:1,tr:"moving target",how:"How long follow_target keeps a moving prop in frame."}],
  ENDURANCE:[{l:"HOVER AMPS",u:" A",raw:null,best:8,worst:30,w:2,tr:"hover_hold",how:"Battery current while hovering (SITL simulates one)."},{l:"FLIGHT TIME",u:" min",raw:null,best:20,worst:4,w:2,tr:"endurance trial",how:"Hover time from capacity and hover current."},{l:"ENERGY / M",u:" mWh",raw:null,best:0.5,worst:3,w:1,tr:"circuit",how:"Energy per metre flown on the circuit."}],
- STABILITY:[{l:"DRIFT",u:" m",raw:0.18,best:0.05,worst:1,w:2,src:"EX",tr:"hover_hold",how:"Furthest it wanders during a 30 s hover."},{l:"OVERSHOOT",u:"%",raw:22,best:2,worst:40,w:1,src:"EX",tr:"step_response",how:"How far past a 1 m step it swings."},{l:"SETTLE",u:" s",raw:2.4,best:0.8,worst:6,w:1,src:"EX",tr:"step_response",how:"Time to stay within 5 cm of the target."},{l:"RECOVERY",u:" s",raw:null,best:1,worst:8,w:1,tr:"disturbance",how:"Time back to the hold point after a Gazebo shove."}]
+ STABILITY:[{l:"DRIFT",u:" m",raw:null,best:0.05,worst:1,w:2,tr:"hover_hold",how:"Furthest it wanders during a 30 s hover."},{l:"OVERSHOOT",u:"%",raw:null,best:2,worst:40,w:1,tr:"step_response",how:"How far past a 1 m step it swings."},{l:"SETTLE",u:" s",raw:null,best:0.8,worst:6,w:1,tr:"step_response",how:"Time to stay within 5 cm of the target."},{l:"RECOVERY",u:" s",raw:null,best:1,worst:8,w:1,tr:"disturbance",how:"Time back to the hold point after a Gazebo shove."}]
 };
 const PERKS=[
  {n:"4S battery",st:"AVAILABLE",fx:[["POWER","++"],["AGILITY","+"],["ENDURANCE","?"]],note:"More voltage, more thrust, only if motors and ESCs are rated for 4S. Check motor KV first."},
@@ -3191,8 +3308,8 @@ function hydrate3(){
 const scoreOf=b=>b.raw===null?null:Math.round(100*Math.max(0,Math.min(1,(b.raw-b.worst)/(b.best-b.worst))));
 const attrScore=id=>{let s=0,w=0,n=0;BR3[id].forEach(b=>{const v=scoreOf(b);if(v!==null){s+=v*b.w;w+=b.w;n++}});return{score:w?Math.round(s/w):null,n,total:BR3[id].length}};
 const byId={};SK3.forEach(s=>byId[s.id]=s);
-const ovrList=ATTR3.map(a=>attrScore(a.id).score).filter(x=>x!==null);
-const OVR3=Math.round(ovrList.reduce((a,b)=>a+b,0)/ovrList.length);
+// Recomputed on every draw: live trial data arrives after page load.
+const ovrNow=()=>{const l=ATTR3.map(a=>attrScore(a.id).score).filter(x=>x!==null);return{list:l,ovr:l.length?Math.round(l.reduce((a,b)=>a+b,0)/l.length):"--"}};
 
 /* ---------- state + HUD ---------- */
 let mode=null,filter="ALL",picked=null,pickedBranch=null;
@@ -3210,10 +3327,11 @@ function hudLeft(){
      <p class="note">Drag to orbit · scroll to zoom · click a star.</p>`);
     L3("l3-left").querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{filter=b.dataset.f;hudLeft();applyFilter()});
   }else{
-    L3("l3-left").innerHTML=pn("ATTRIBUTES","OVR "+OVR3+" · EX",`
+    const ov=ovrNow();
+    L3("l3-left").innerHTML=pn("ATTRIBUTES","OVR "+ov.ovr+(ATTR_LIVE?" · "+ATTR_LIVE+" REAL":" · EX"),`
      <div class="l3stats">${ATTR3.map(a=>{const s=attrScore(a.id);return `<button type="button" class="l3stat${picked===a.id?' on':''}" data-a="${a.id}" style="--c:${a.c}"><span>${a.id}</span><b>${s.score===null?"--":s.score}</b><small>${s.n}/${s.total}</small></button>`}).join("")}</div>
-     <p class="note">${ovrList.length} of 6 stats measured. Drag the hexagon to turn it; click a stat or branch.</p>
-     <p class="note l3warn">Example values. The attribute engine (trials, logs, scores, history) is not built yet; hover throttle is the only real number.</p>`);
+     <p class="note">${ov.list.length} of 6 stats measured. Drag the hexagon to turn it; click a stat or branch.</p>
+     <p class="note${ATTR_LIVE?'':' l3warn'}">${ATTR_LIVE?ATTR_LIVE+" measurements come from trials (marked REAL with the trial and time). Anything a trial has not measured stays blank (--). Run trials from the Sim Bay dock, TRIALS tab.":"Nothing measured yet, so every stat is blank. Run the Trial Suite from the Sim Bay dock (TRIALS tab)."}</p>`);
     L3("l3-left").querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>selectAttr(b.dataset.a,null));
   }
   L3("l3-bottom").innerHTML=mode==="attributes"?`<div class="l3loadout">${LOADOUT.map(l=>`<div><small>${l[0]}</small><b>${l[1]}</b><span>${l[2]}</span></div>`).join("")}</div>`:"";
@@ -3306,6 +3424,30 @@ function buildAttrs(){
       const r2=new THREE.Mesh(new THREE.RingGeometry(1.2,1.38,32),new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide,transparent:true,opacity:me?.9:.4}));bn.add(r2);bn.userData.ring=r2;hex.add(bn);pickables.push(bn);
       lbl(`${b.l.toLowerCase()}<span class="l3sc">${me?val:"--"}</span>`,"",bn,-2.3,"attributes")})});
 }
+// Nov 9, 2026 - attribute engine: the newest measurement of each metric
+// replaces BR3's example value (matched by label), tagged REAL with the
+// trial and time. Scoring stays scoreOf() (same rule as trial_record.py).
+let ATTR_LIVE=0;
+function hydrateAttr(){
+  return fetch("/simulation/attribute-scores").then(r=>r.ok?r.json():null).catch(()=>null).then(d=>{
+    if(!d||!d.ok)return false;
+    const cfg=(d.config&&d.config.attributes)||{};let n=0;
+    Object.entries(d.latest||{}).forEach(([key,v])=>{
+      const list=BR3[v.attribute];if(!list)return;
+      const b=list.find(x=>x.l===v.label);if(!b)return;
+      const c=(cfg[v.attribute]||{})[key];
+      if(c){b.best=c.best;b.worst=c.worst;b.w=c.weight;}
+      b.raw=v.value;b.src="REAL";b.tr=v.trial.replace("trial_","")+" · "+new Date(v.t*1000).toLocaleString([],{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});n++;
+    });
+    ATTR_LIVE=n;return n>0;
+  });
+}
+function rebuildAttrs(){
+  if(!scene)return;scene.remove(attrG);
+  for(let i=pickables.length-1;i>=0;i--)if(["attr","branch"].includes(pickables[i].userData.kind))pickables.splice(i,1);
+  for(let i=labels.length-1;i>=0;i--)if(labels[i].room==="attributes"){labels[i].el.remove();labels.splice(i,1)}
+  buildAttrs();attrG.visible=mode==="attributes";refreshSelection();
+}
 function rebuildSkills(){
   if(!scene)return;scene.remove(skillsG);
   for(let i=pickables.length-1;i>=0;i--)if(pickables[i].userData.kind==="skill")pickables.splice(i,1);
@@ -3369,6 +3511,7 @@ function enter(m,arg){
   if(m==="skills"&&arg&&byId[arg])selectSkill(arg);
   if(!raf)raf=requestAnimationFrame(frame);
   if(m==="skills")hydrate3().then(ok=>{if(!ok)return;rebuildSkills();hudLeft();if(picked&&byId[picked])openL3(skillHTML(byId[picked]))});
+  if(m==="attributes")hydrateAttr().then(ok=>{if(!ok)return;rebuildAttrs();hudLeft();if(picked&&BR3[picked])selectAttr(picked,pickedBranch)});
 }
 V.skills=function(arg){enter("skills",arg)};
 V.attributes=function(){enter("attributes")};
