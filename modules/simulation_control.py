@@ -1097,6 +1097,18 @@ SKILL_TESTS = [
     {"key": "approach_target", "name": "Approach Target", "category": "basic", "args": []},
     {"key": "follow_target", "name": "Follow Target (moving payload)", "category": "basic", "args": ["--move-target"]},
     {"key": "delivery_rehearsal", "name": "Delivery Rehearsal (mission)", "category": "sequences", "args": []},
+    # Nov 9, 2026 - attribute engine trials.
+    {"key": "trial_suite", "name": "Trial Suite (all trials)", "category": "trials", "args": []},
+    {"key": "trial_hover_hold", "name": "Trial: Hover Hold", "category": "trials", "args": []},
+    {"key": "trial_step_response", "name": "Trial: Step Response", "category": "trials", "args": []},
+    {"key": "trial_turn", "name": "Trial: Turn", "category": "trials", "args": []},
+    {"key": "trial_climb", "name": "Trial: Climb", "category": "trials", "args": []},
+    {"key": "trial_speed", "name": "Trial: Speed", "category": "trials", "args": []},
+    {"key": "trial_goto", "name": "Trial: Go To accuracy", "category": "trials", "args": []},
+    {"key": "trial_lap", "name": "Trial: Lap", "category": "trials", "args": []},
+    {"key": "trial_detection", "name": "Trial: Detection", "category": "trials", "args": []},
+    {"key": "trial_disturbance", "name": "Trial: Disturbance", "category": "trials", "args": []},
+    {"key": "trial_landing", "name": "Trial: Landing (ends flight)", "category": "trials", "args": []},
     # Sequences - the longer, multi-phase Skills. These are the SAME
     # run_skill.py entries Mission Control's "Run Mission" dropdown
     # already launches (via run_deliver_payload.sh/run_learned_flight.sh) -
@@ -1897,3 +1909,44 @@ def abort_skill():
         if r.returncode == 0:
             killed.append(pattern)
     return jsonify({"ok": True, "killed": killed})
+
+
+# Nov 9, 2026 - attribute engine. Trials (shadow/skills/trials.py) write
+# measurements + scores + a tuning snapshot to the R&D database's
+# attribute_trials table (linked to simulation_runs); scoring rules live in
+# shadow_drone/config/attributes.json.
+ATTR_CONFIG_FILE = SHADOW_PKG / "config" / "attributes.json"
+
+
+@bp.route("/attribute-scores", methods=["GET"])
+def attribute_scores():
+    """{ok, config, latest, history} - latest: {metric_key: {value, score,
+    attribute, label, trial, t}} (newest measurement of each metric);
+    history: the last 30 trial runs (t, trial, scores, params, loadout)
+    so the Attributes room can show what changed between runs."""
+    try:
+        config = json.loads(ATTR_CONFIG_FILE.read_text())
+    except (OSError, ValueError):
+        config = {"attributes": {}}
+    latest, history = {}, []
+    try:
+        conn = sqlite3.connect(f"file:{RND_DB_PATH}?mode=ro", uri=True, timeout=2.0)
+        rows = conn.execute(
+            "SELECT t, trial, metrics, scores, params, loadout, simulation_run_id FROM attribute_trials "
+            "ORDER BY id DESC LIMIT 200").fetchall()
+        conn.close()
+    except sqlite3.Error:
+        rows = []
+    for t, trial, metrics, scores, params, loadout, run_id in rows:
+        try:
+            scored = json.loads(scores)
+        except ValueError:
+            continue
+        for key, v in scored.items():
+            if key not in latest:
+                latest[key] = dict(v, trial=trial, t=t)
+        if len(history) < 30:
+            history.append({"t": t, "trial": trial, "simulation_run_id": run_id,
+                            "metrics": json.loads(metrics), "scores": scored,
+                            "params": json.loads(params), "loadout": json.loads(loadout)})
+    return jsonify({"ok": True, "config": config, "latest": latest, "history": history})
